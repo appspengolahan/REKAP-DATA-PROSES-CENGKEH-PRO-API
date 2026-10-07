@@ -17,7 +17,8 @@ import { INITIAL_SNAPSHOT_DATA } from './snapshotData[RekapCengkeh]';
 export const BUILD_VERSION = 'v1.1 - 2026-08-19';
 export const PROJECT_NAME = 'Monitoring Board — Rekap Data Proses Cengkeh';
 export const DEFAULT_SPREADSHEET_ID = '1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M';
-export const DEFAULT_SHEET_NAME = 'DATA PROSES CKH';
+export const DEFAULT_SHEET_NAME = 'FILTER DATA';
+export const FALLBACK_SHEET_NAME = 'DATA PROSES CKH';
 export const DEFAULT_EXEC_URL = 'https://script.google.com/macros/s/AKfycbwafqhT23MJK9NsSIQmpeq0XMbTlRqZXvNN1LpGB36XS4gNEBpCE9hsdp4Jh_oUD54v4A/exec';
 
 export const MONTH_ORDER = [
@@ -517,7 +518,27 @@ export function exportToPdf(tabOrField: string): void {
 /**
  * Sinkronisasi Tier 2: Ambil data langsung dari Google Visualization API (CSV Fallback)
  */
-export async function fetchFromGVizCsv(spreadsheetId: string, sheetName: string): Promise<RawRowCengkeh[]> {
+export async function fetchFromGVizCsv(spreadsheetId: string, sheetName: string = DEFAULT_SHEET_NAME): Promise<RawRowCengkeh[]> {
+  // Coba ambil sheetName yang diminta (default 'FILTER DATA' yang berisi 2025 & 2026)
+  let targetSheet = sheetName || DEFAULT_SHEET_NAME;
+  let rows = await doFetchGvizSheet(spreadsheetId, targetSheet);
+
+  // Jika hasilnya sedikit (< 70 baris) dan targetSheet bukan FILTER DATA, coba ambil FILTER DATA
+  if (rows.length < 100 && targetSheet !== 'FILTER DATA') {
+    try {
+      const fullRows = await doFetchGvizSheet(spreadsheetId, 'FILTER DATA');
+      if (fullRows.length > rows.length) {
+        return fullRows;
+      }
+    } catch {
+      // gunakan rows yang ada jika FILTER DATA gagal
+    }
+  }
+
+  return rows;
+}
+
+async function doFetchGvizSheet(spreadsheetId: string, sheetName: string): Promise<RawRowCengkeh[]> {
   const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
   
   const res = await fetch(gvizUrl);
@@ -527,7 +548,7 @@ export async function fetchFromGVizCsv(spreadsheetId: string, sheetName: string)
 
   const csvText = await res.text();
   const lines = csvText.split('\n');
-  if (lines.length < 8) {
+  if (lines.length < 6) {
     throw new Error('Format CSV tidak memiliki cukup baris header data');
   }
 
@@ -540,8 +561,8 @@ export async function fetchFromGVizCsv(spreadsheetId: string, sheetName: string)
     return isNaN(n) ? null : n;
   }
 
-  // Scan baris data riil dari baris 8 (indeks 7) ke bawah
-  for (let i = 7; i < lines.length; i++) {
+  // Scan baris data riil dari baris 5 (indeks 4) ke bawah
+  for (let i = 4; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
@@ -560,7 +581,7 @@ export async function fetchFromGVizCsv(spreadsheetId: string, sheetName: string)
     }
 
     const bulan = cols[2] || 'Mei';
-    const tahun = cols[3] || '2026';
+    const tahun = (cols[3] || '2026').trim();
     const jenis = (cols[4] || 'Cengkeh').trim();
     const kaGld = parseIndoNum(cols[5]);
     const kaDry = parseIndoNum(cols[11]);
