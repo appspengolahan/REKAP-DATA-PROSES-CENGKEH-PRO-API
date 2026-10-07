@@ -18,7 +18,7 @@ export const BUILD_VERSION = 'v1.1 - 2026-08-19';
 export const PROJECT_NAME = 'Monitoring Board — Rekap Data Proses Cengkeh';
 export const DEFAULT_SPREADSHEET_ID = '1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M';
 export const DEFAULT_SHEET_NAME = 'DATA PROSES CKH';
-export const DEFAULT_EXEC_URL = 'https://script.google.com/macros/s/AKfycbyw73q9baE2EK5i4CyJD1kyZcpsbQ609624ZTas_CH79muNNu3XJUUecI__lsS1yRUgEg/exec';
+export const DEFAULT_EXEC_URL = 'https://script.google.com/macros/s/AKfycbwafqhT23MJK9NsSIQmpeq0XMbTlRqZXvNN1LpGB36XS4gNEBpCE9hsdp4Jh_oUD54v4A/exec';
 
 export const MONTH_ORDER = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
