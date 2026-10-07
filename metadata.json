@@ -1,0 +1,6 @@
+{
+  "name": "Monitoring Board — Rekap Data Proses Cengkeh",
+  "description": "Dashboard pemantauan susut proses Cengkeh Divisi Produksi I PT Batu Karang",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
