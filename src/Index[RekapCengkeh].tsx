@@ -126,7 +126,7 @@ export const IndexRekapCengkeh: React.FC = () => {
 
   // 6. Sub-filters for specific cards
   const [selectedBulanJenis, setSelectedBulanJenis] = useState<string>('');
-  const [selectedTrendJenis, setSelectedTrendJenis] = useState<string>('');
+  const [selectedTrendJenis, setSelectedTrendJenis] = useState<string>('Semua');
 
   // 7. Modals
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -142,8 +142,8 @@ export const IndexRekapCengkeh: React.FC = () => {
       if (!selectedBulanJenis || !filterOptions.jenis.includes(selectedBulanJenis)) {
         setSelectedBulanJenis(filterOptions.jenis[0]);
       }
-      if (!selectedTrendJenis || !filterOptions.jenis.includes(selectedTrendJenis)) {
-        setSelectedTrendJenis(filterOptions.jenis[0]);
+      if (!selectedTrendJenis || (!filterOptions.jenis.includes(selectedTrendJenis) && selectedTrendJenis !== 'Semua')) {
+        setSelectedTrendJenis('Semua');
       }
     }
   }, [filterOptions.jenis, selectedBulanJenis, selectedTrendJenis]);
@@ -221,15 +221,14 @@ export const IndexRekapCengkeh: React.FC = () => {
     return computeRekapJenisPeriode(filteredRows, periodeAwal.tahun, periodeAwal.bulan, periodeAkhir.tahun, periodeAkhir.bulan);
   }, [filteredRows, modePeriodeJenis, periodeAwal, periodeAkhir]);
 
-  // Otomatis arahkan jenis cengkeh terpilih jika varian berubah
+  // Otomatis validasi jenis cengkeh terpilih jika varian tidak ada di daftar
   useEffect(() => {
-    if (rekapJenisPeriodeData.list.length > 0) {
-      const exists = rekapJenisPeriodeData.list.some(item => item.label === selectedTrendJenis);
-      if (!exists) {
-        setSelectedTrendJenis(rekapJenisPeriodeData.list[0].label);
+    if (selectedTrendJenis && selectedTrendJenis !== 'Semua' && filterOptions.jenis.length > 0) {
+      if (!filterOptions.jenis.includes(selectedTrendJenis)) {
+        setSelectedTrendJenis('Semua');
       }
     }
-  }, [rekapJenisPeriodeData.list, selectedTrendJenis]);
+  }, [filterOptions.jenis, selectedTrendJenis]);
 
   const trendJenisData = useMemo(() => {
     if (!selectedTrendJenis) return { jenis: '', data: [] };
@@ -1196,8 +1195,9 @@ export const IndexRekapCengkeh: React.FC = () => {
                       onChange={(e) => setSelectedTrendJenis(e.target.value)}
                       className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
                     >
-                      {rekapJenisPeriodeData.list.map((j) => (
-                        <option key={j.label} value={j.label}>{j.label}</option>
+                      <option value="Semua">Semua Jenis (Agregat)</option>
+                      {filterOptions.jenis.map((j) => (
+                        <option key={j} value={j}>{j}</option>
                       ))}
                     </select>
                   </div>
@@ -1205,12 +1205,12 @@ export const IndexRekapCengkeh: React.FC = () => {
 
                 <TrendLineChartRekapCengkeh
                   data={trendJenisData.data}
-                  title={`Trend Total Susut — ${selectedTrendJenis}`}
+                  title={`Trend Total Susut — ${selectedTrendJenis === 'Semua' ? 'Semua Jenis (Agregat)' : selectedTrendJenis}`}
                   lineColor="#1a56c4"
                   fillColor="#1a56c4"
                   onExpand={() => setExpandedChart({
-                    title: `Trend Total Susut — ${selectedTrendJenis}`,
-                    subtitle: 'Grafik riwayat fluktuasi susut bulanan varian',
+                    title: `Trend Total Susut — ${selectedTrendJenis === 'Semua' ? 'Semua Jenis (Agregat)' : selectedTrendJenis}`,
+                    subtitle: `Grafik riwayat fluktuasi susut bulanan (${rekapJenisPeriodeData.periodeLabel})`,
                     component: <TrendLineChartRekapCengkeh data={trendJenisData.data} lineColor="#1a56c4" fillColor="#1a56c4" />
                   })}
                 />

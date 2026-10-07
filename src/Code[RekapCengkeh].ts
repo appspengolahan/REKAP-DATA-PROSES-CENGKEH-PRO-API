@@ -546,8 +546,9 @@ export function computeTrendJenis(
   tahun: string,
   jenis: string
 ): TrendJenisData {
+  const isAll = !jenis || jenis === 'Semua';
   const filtered = rows.filter((r) => {
-    if (r.jenis !== jenis) return false;
+    if (!isAll && r.jenis !== jenis) return false;
     if (tahun && tahun !== 'Semua' && r.tahun !== tahun) return false;
     return true;
   });
@@ -568,7 +569,7 @@ export function computeTrendJenis(
     return MONTH_ORDER.indexOf(a.bulan || '') - MONTH_ORDER.indexOf(b.bulan || '');
   });
 
-  return { jenis, data: list };
+  return { jenis: isAll ? 'Semua Jenis (Agregat)' : jenis, data: list };
 }
 
 /**
@@ -582,7 +583,8 @@ export function computeTrendJenisPeriode(
   tahunAkhir?: string,
   bulanAkhir?: string
 ): TrendJenisData {
-  let filtered = rows.filter((r) => r.jenis === jenis);
+  const isAll = !jenis || jenis === 'Semua';
+  let filtered = isAll ? rows : rows.filter((r) => r.jenis === jenis);
   if (tahunMulai && bulanMulai && tahunAkhir && bulanAkhir) {
     filtered = filterByPeriode(filtered, tahunMulai, bulanMulai, tahunAkhir, bulanAkhir);
   }
@@ -602,7 +604,7 @@ export function computeTrendJenisPeriode(
     return MONTH_ORDER.indexOf(a.bulan || '') - MONTH_ORDER.indexOf(b.bulan || '');
   });
 
-  return { jenis, data: list };
+  return { jenis: isAll ? 'Semua Jenis (Agregat)' : jenis, data: list };
 }
 
 /**
