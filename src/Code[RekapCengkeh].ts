@@ -25,7 +25,7 @@ export const MONTH_ORDER = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
 ];
 
-const LOCAL_STORAGE_CACHE_KEY = '_REKAP_CKH_DATA_CACHE_V1';
+const LOCAL_STORAGE_CACHE_KEY = '_REKAP_CKH_DATA_CACHE_V2';
 const LOCAL_STORAGE_CONFIG_KEY = '_REKAP_CKH_CONFIG_V1';
 
 export function round1(n: number): number {
@@ -518,7 +518,7 @@ export function exportToPdf(tabOrField: string): void {
  * Sinkronisasi Tier 2: Ambil data langsung dari Google Visualization API (CSV Fallback)
  */
 export async function fetchFromGVizCsv(spreadsheetId: string, sheetName: string): Promise<RawRowCengkeh[]> {
-  const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+  const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`;
   
   const res = await fetch(gvizUrl);
   if (!res.ok) {
@@ -527,75 +527,68 @@ export async function fetchFromGVizCsv(spreadsheetId: string, sheetName: string)
 
   const csvText = await res.text();
   const lines = csvText.split('\n');
-  if (lines.length < 11) {
-    throw new Error('Format CSV tidak memiliki cukup baris header data (DATA_START_ROW = 11)');
+  if (lines.length < 8) {
+    throw new Error('Format CSV tidak memiliki cukup baris header data');
   }
 
   const rows: RawRowCengkeh[] = [];
 
-  // Parse CSV baris demi baris (Header di baris 9, data mulai baris 11)
-  for (let i = 10; i < lines.length; i++) {
+  function parseIndoNum(val: string | undefined): number | null {
+    if (!val) return null;
+    const clean = val.replace(/["\s%McKg]/gi, '').replace(/\./g, '').replace(/,/g, '.');
+    const n = parseFloat(clean);
+    return isNaN(n) ? null : n;
+  }
+
+  // Scan baris data riil dari baris 8 (indeks 7) ke bawah
+  for (let i = 7; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Simple CSV parser for quoted or unquoted values
     const cols = parseCsvLine(line);
-    // Kolom mapping (1-indexed di GS, 0-indexed di array):
-    // 1: Tanggal (Col B)
-    // 2: Bulan (Col C)
-    // 3: Tahun (Col D)
-    // 4: Jenis (Col E)
-    // 5: KA Gld (Col F)
-    // 6: Gld Kering (Col G)
-    // 7: Rj Basah (Col H)
-    // 8: Selisih Kg (Col I)
-    // 9: Selisih Pct (Col J)
-    // 10: Rj Kering (Col K)
-    // 11: KA Dry (Col L)
-    // 12: Susut Kg (Col M)
-    // 13: Susut Pct (Col N)
-    // 14: Total Susut Kg (Col O)
-    // 15: Total Susut Pct (Col P)
-
     const rawTgl = cols[1];
-    const bulan = cols[2];
-    const tahun = cols[3];
-    const jenis = cols[4];
-    const gldKering = parseFloat((cols[6] || '').replace(/,/g, ''));
-    const rjBasah = parseFloat((cols[7] || '').replace(/,/g, ''));
-    const rjKering = parseFloat((cols[10] || '').replace(/,/g, ''));
-
-    if (!rawTgl || isNaN(gldKering) || isNaN(rjBasah) || isNaN(rjKering) || gldKering === 0) {
+    if (!rawTgl || !/Senin|Selasa|Rabu|Kamis|Jumat|Sabtu|Minggu|\d/i.test(rawTgl)) {
       continue;
     }
 
-    const selisihKg = rjBasah - gldKering;
-    const selisihPct = (selisihKg / gldKering) * 100;
-    const susutKg = rjBasah - rjKering;
-    const susutPct = (susutKg / rjBasah) * 100;
-    const totalSusutKg = gldKering - rjKering;
-    const totalSusutPct = (totalSusutKg / gldKering) * 100;
+    const gldKering = parseIndoNum(cols[6]);
+    const rjBasah = parseIndoNum(cols[7]);
+    const rjKering = parseIndoNum(cols[10]);
 
-    const kaGld = cols[5] ? parseFloat(cols[5].replace(/,/g, '')) : null;
-    const kaDry = cols[11] ? parseFloat(cols[11].replace(/,/g, '')) : null;
+    if (!gldKering || gldKering <= 0 || !rjBasah || !rjKering) {
+      continue;
+    }
+
+    const bulan = cols[2] || 'Mei';
+    const tahun = cols[3] || '2026';
+    const jenis = (cols[4] || 'Cengkeh').trim();
+    const kaGld = parseIndoNum(cols[5]);
+    const kaDry = parseIndoNum(cols[11]);
+
+    const selisihKg = round1(rjBasah - gldKering);
+    const selisihPct = round2(((rjBasah - gldKering) / gldKering) * 100);
+    const susutKg = round1(rjBasah - rjKering);
+    const susutPct = round2(((rjBasah - rjKering) / rjBasah) * 100);
+    const totalSusutKg = round1(gldKering - rjKering);
+    const totalSusutPct = round2(((gldKering - rjKering) / gldKering) * 100);
 
     rows.push({
       srcRow: i + 1,
-      tanggal: cleanDate(rawTgl),
-      bulan: bulan || 'Agustus',
-      tahun: tahun || '2026',
-      jenis: jenis || 'Cengkeh Lokal',
-      kaGld: isNaN(kaGld as number) ? null : kaGld,
-      gldKering: round1(gldKering),
-      rjBasah: round1(rjBasah),
-      selisihKg: round1(selisihKg),
-      selisihPct: round2(selisihPct),
-      rjKering: round1(rjKering),
-      kaDry: isNaN(kaDry as number) ? null : kaDry,
-      susutKg: round1(susutKg),
-      susutPct: round2(susutPct),
-      totalSusutKg: round1(totalSusutKg),
-      totalSusutPct: round2(totalSusutPct),
+      tanggal: cleanDate(rawTgl, tahun),
+      bulan: bulan,
+      tahun: String(tahun),
+      jenis: jenis,
+      kaGld: kaGld,
+      gldKering: gldKering,
+      rjBasah: rjBasah,
+      selisihKg: selisihKg,
+      selisihPct: selisihPct,
+      rjKering: rjKering,
+      kaDry: kaDry,
+      susutKg: susutKg,
+      susutPct: susutPct,
+      totalSusutKg: totalSusutKg,
+      totalSusutPct: totalSusutPct,
       verified: true
     });
   }
@@ -603,15 +596,28 @@ export async function fetchFromGVizCsv(spreadsheetId: string, sheetName: string)
   return rows;
 }
 
-function cleanDate(d: string): string {
-  if (!d) return '';
+function cleanDate(d: string, fallbackYear = '2026'): string {
+  if (!d) return `${fallbackYear}-05-04`;
   d = d.replace(/['"]/g, '').trim();
+  
+  // Format "Senin, 04 Mei 2026"
+  const matchIndo = d.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if (matchIndo) {
+    const day = matchIndo[1].padStart(2, '0');
+    const mIdx = MONTH_ORDER.findIndex((m) => m.toLowerCase() === matchIndo[2].toLowerCase());
+    const month = (mIdx !== -1 ? mIdx + 1 : 5).toString().padStart(2, '0');
+    const year = matchIndo[3];
+    return `${year}-${month}-${day}`;
+  }
+
+  // Format "04/05/2026"
   if (d.includes('/')) {
     const parts = d.split('/');
     if (parts.length === 3) {
       return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
     }
   }
+
   return d;
 }
 
