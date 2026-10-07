@@ -442,6 +442,62 @@ export function computeRekapBulan(
 }
 
 /**
+ * Rekap Kinerja Bulanan dengan Filter Rentang Periode Kustom
+ */
+export function computeRekapBulanPeriode(
+  rows: RawRowCengkeh[],
+  tahunMulai?: string,
+  bulanMulai?: string,
+  tahunAkhir?: string,
+  bulanAkhir?: string,
+  jenis?: string
+): RekapItemCengkeh[] {
+  let filtered = rows;
+  if (tahunMulai && bulanMulai && tahunAkhir && bulanAkhir) {
+    filtered = filterByPeriode(filtered, tahunMulai, bulanMulai, tahunAkhir, bulanAkhir);
+  }
+  if (jenis && jenis !== 'Semua') {
+    filtered = filtered.filter((r) => r.jenis === jenis);
+  }
+
+  const totalGld = filtered.reduce((s, r) => s + r.gldKering, 0);
+  const map = aggregateRows(filtered, (r) => `${r.bulan}||${r.tahun}`);
+  const list = finalizeGroups(map, totalGld);
+
+  list.forEach((item) => {
+    const parts = item.label.split('||');
+    item.bulan = parts[0];
+    item.tahun = parts[1];
+    item.label = `${parts[0]} ${parts[1]}`;
+  });
+
+  // Urutan kronologis lama ke baru (untuk time-series grafik)
+  list.sort((a, b) => {
+    const ka = Number(a.tahun || 0) * 12 + MONTH_ORDER.indexOf(a.bulan || '');
+    const kb = Number(b.tahun || 0) * 12 + MONTH_ORDER.indexOf(b.bulan || '');
+    return ka - kb;
+  });
+
+  return list;
+}
+
+/**
+ * Urutkan list data bulanan: Periode bulan terbaru di paling atas, terlama di paling bawah
+ */
+export function sortRekapBulanTerbaru(list: RekapItemCengkeh[]): RekapItemCengkeh[] {
+  return [...list].sort((a, b) => {
+    const getVal = (item: RekapItemCengkeh) => {
+      const parts = item.label ? item.label.split(' ') : [];
+      const y = Number(item.tahun || parts[1] || 0);
+      const bName = item.bulan || parts[0] || '';
+      const mIdx = MONTH_ORDER.indexOf(bName);
+      return y * 12 + (mIdx >= 0 ? mIdx : 0);
+    };
+    return getVal(b) - getVal(a); // Descending: Terbaru di atas
+  });
+}
+
+/**
  * Rekap Per Jenis Cengkeh untuk Rentang Periode Kustom
  */
 export function computeRekapJenisPeriode(

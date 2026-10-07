@@ -20,6 +20,9 @@ import {
   computeRingkasan,
   computeRingkasanPeriode,
   computeRekapBulan,
+  computeRekapBulanPeriode,
+  sortRekapBulanTerbaru,
+  makePeriodeLabel,
   computeRekapJenisPeriode,
   computeRekapJenisSemua,
   computeTrendJenis,
@@ -63,7 +66,11 @@ import {
   Award,
   AlertTriangle,
   CheckCircle2,
-  TableProperties
+  TableProperties,
+  Eye,
+  EyeOff,
+  Filter,
+  SlidersHorizontal
 } from 'lucide-react';
 
 const SIDEBAR_COLLAPSED_KEY = '_REKAP_CKH_SIDEBAR_COLLAPSED';
@@ -101,11 +108,18 @@ export const IndexRekapCengkeh: React.FC = () => {
   const [userRole, setUserRole] = useState<UserRole>('Project Manager');
   const [jalurProses, setJalurProses] = useState<'Semua' | 'SKT' | 'SKM'>('Semua');
 
-  // 4. Periode Rentang (Default: Agustus - Oktober 2026 seperti pada GAS Lama)
+  // 4. Periode Rentang di Tab Rekap Jenis (Default: Agustus - Oktober 2026 seperti pada GAS Lama)
   const [periodeAwal, setPeriodeAwal] = useState<PeriodeRentang>({ bulan: 'Agustus', tahun: '2026' });
   const [periodeAkhir, setPeriodeAkhir] = useState<PeriodeRentang>({ bulan: 'Oktober', tahun: '2026' });
   // Mode Periode di Tab Rekap Jenis: 'rentang' (kustom) atau 'semua' (seluruh data historis)
   const [modePeriodeJenis, setModePeriodeJenis] = useState<'rentang' | 'semua'>('rentang');
+
+  // 4b. Periode Rentang di Tab Rekap Bulan
+  const [modePeriodeBulan, setModePeriodeBulan] = useState<'rentang' | 'semua'>('rentang');
+  const [periodeBulanAwal, setPeriodeBulanAwal] = useState<PeriodeRentang>({ bulan: 'Januari', tahun: '2026' });
+  const [periodeBulanAkhir, setPeriodeBulanAkhir] = useState<PeriodeRentang>({ bulan: 'Desember', tahun: '2026' });
+  const [selectedJenisBulan, setSelectedJenisBulan] = useState<string>('Semua');
+  const [showSubVarianBulan, setShowSubVarianBulan] = useState<boolean>(false);
 
   // 5. Active Tab ('dashboard', 'rekap-bulan', 'rekap-jenis', 'data-explorer')
   const [activeTab, setActiveTab] = useState<'dashboard' | 'rekap-bulan' | 'rekap-jenis' | 'data-explorer'>('dashboard');
@@ -166,6 +180,39 @@ export const IndexRekapCengkeh: React.FC = () => {
     selectedBulanJenis ? computeRekapBulan(filteredRows, selectedTahun, selectedBulanJenis) : [],
     [filteredRows, selectedTahun, selectedBulanJenis]
   );
+
+  // Perhitungan Dinamis untuk Tab Rekap per Bulan (Mendukung Rentang Periode Kustom & Filter Jenis)
+  const rekapBulanPeriodeList = useMemo(() => {
+    if (modePeriodeBulan === 'semua') {
+      return computeRekapBulanPeriode(filteredRows, undefined, undefined, undefined, undefined, selectedJenisBulan);
+    }
+    return computeRekapBulanPeriode(
+      filteredRows,
+      periodeBulanAwal.tahun,
+      periodeBulanAwal.bulan,
+      periodeBulanAkhir.tahun,
+      periodeBulanAkhir.bulan,
+      selectedJenisBulan
+    );
+  }, [filteredRows, modePeriodeBulan, periodeBulanAwal, periodeBulanAkhir, selectedJenisBulan]);
+
+  const labelPeriodeBulan = useMemo(() => {
+    if (modePeriodeBulan === 'semua') return 'Semua Periode (Akumulasi Data Historis)';
+    return makePeriodeLabel(periodeBulanAwal.bulan, periodeBulanAwal.tahun, periodeBulanAkhir.bulan, periodeBulanAkhir.tahun);
+  }, [modePeriodeBulan, periodeBulanAwal, periodeBulanAkhir]);
+
+  const ringkasanBulanPeriode = useMemo(() => {
+    if (modePeriodeBulan === 'semua') {
+      return computeRingkasan(filteredRows, 'Semua', undefined, 'tahunan');
+    }
+    return computeRingkasanPeriode(
+      filteredRows,
+      periodeBulanAwal.tahun,
+      periodeBulanAwal.bulan,
+      periodeBulanAkhir.tahun,
+      periodeBulanAkhir.bulan
+    );
+  }, [filteredRows, modePeriodeBulan, periodeBulanAwal, periodeBulanAkhir]);
 
   const rekapJenisPeriodeData = useMemo(() => {
     if (modePeriodeJenis === 'semua') {
@@ -479,7 +526,15 @@ export const IndexRekapCengkeh: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 no-print">
+                <div className="flex items-center gap-2 no-print flex-wrap">
+                  <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 font-semibold border border-blue-200">
+                    Periode: {labelPeriodeBulan}
+                  </span>
+                  {selectedJenisBulan !== 'Semua' && (
+                    <span className="text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 font-semibold border border-amber-200">
+                      Jenis: {selectedJenisBulan}
+                    </span>
+                  )}
                   <button
                     onClick={() => exportToPdf('RekapBulan')}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
@@ -490,89 +545,345 @@ export const IndexRekapCengkeh: React.FC = () => {
                 </div>
               </div>
 
-              {/* 2 Grafik Bulanan Lengkap */}
+              {/* Control Card: Filter Rentang Periode & Varian Cengkeh (Standar Rekap Bulanan) */}
+              <div className="bg-white border border-[#e1e5ec] rounded-2xl p-4 shadow-2xs space-y-3 no-print">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      Filter Periode:
+                    </span>
+                    <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                      <button
+                        type="button"
+                        onClick={() => setModePeriodeBulan('rentang')}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                          modePeriodeBulan === 'rentang'
+                            ? 'bg-[#1a56c4] text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        📅 Rentang Periode Tertentu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModePeriodeBulan('semua')}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                          modePeriodeBulan === 'semua'
+                            ? 'bg-[#1a56c4] text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        🌐 Akumulasi Semua Data
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Shortcut Presets */}
+                  <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                    <span className="text-slate-500 font-medium text-[11px]">Shortcut:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModePeriodeBulan('rentang');
+                        setPeriodeBulanAwal({ bulan: 'Agustus', tahun: '2026' });
+                        setPeriodeBulanAkhir({ bulan: 'Oktober', tahun: '2026' });
+                      }}
+                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                        modePeriodeBulan === 'rentang' && periodeBulanAwal.bulan === 'Agustus' && periodeBulanAwal.tahun === '2026' && periodeBulanAkhir.bulan === 'Oktober' && periodeBulanAkhir.tahun === '2026'
+                          ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      ⚡ Agustus – Oktober 2026
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModePeriodeBulan('rentang');
+                        setPeriodeBulanAwal({ bulan: 'Januari', tahun: '2026' });
+                        setPeriodeBulanAkhir({ bulan: 'Desember', tahun: '2026' });
+                      }}
+                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                        modePeriodeBulan === 'rentang' && periodeBulanAwal.bulan === 'Januari' && periodeBulanAwal.tahun === '2026' && periodeBulanAkhir.bulan === 'Desember' && periodeBulanAkhir.tahun === '2026'
+                          ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Tahun 2026 Penuh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModePeriodeBulan('rentang');
+                        setPeriodeBulanAwal({ bulan: 'Januari', tahun: '2025' });
+                        setPeriodeBulanAkhir({ bulan: 'Desember', tahun: '2025' });
+                      }}
+                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                        modePeriodeBulan === 'rentang' && periodeBulanAwal.bulan === 'Januari' && periodeBulanAwal.tahun === '2025' && periodeBulanAkhir.bulan === 'Desember' && periodeBulanAkhir.tahun === '2025'
+                          ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Tahun 2025 Penuh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModePeriodeBulan('semua')}
+                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                        modePeriodeBulan === 'semua'
+                          ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Semua Tahun
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sub-bar: Rentang Form Dropdowns + Filter Jenis Cengkeh */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-100 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {modePeriodeBulan === 'rentang' ? (
+                      <>
+                        <span className="font-semibold text-slate-700">Dari:</span>
+                        <select
+                          value={periodeBulanAwal.bulan}
+                          onChange={(e) => setPeriodeBulanAwal({ ...periodeBulanAwal, bulan: e.target.value })}
+                          className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                        >
+                          {filterOptions.bulan.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={periodeBulanAwal.tahun}
+                          onChange={(e) => setPeriodeBulanAwal({ ...periodeBulanAwal, tahun: e.target.value })}
+                          className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                        >
+                          {filterOptions.tahun.map((y) => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
+
+                        <span className="font-semibold text-slate-700 ml-1">sampai</span>
+                        <select
+                          value={periodeBulanAkhir.bulan}
+                          onChange={(e) => setPeriodeBulanAkhir({ ...periodeBulanAkhir, bulan: e.target.value })}
+                          className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                        >
+                          {filterOptions.bulan.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={periodeBulanAkhir.tahun}
+                          onChange={(e) => setPeriodeBulanAkhir({ ...periodeBulanAkhir, tahun: e.target.value })}
+                          className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                        >
+                          {filterOptions.tahun.map((y) => (
+                            <option key={y} value={y}>{y}</option>
+                          ))}
+                        </select>
+                      </>
+                    ) : (
+                      <span className="text-slate-500 font-medium italic">
+                        Menampilkan seluruh data historis dari awal hingga akhir pencatatan
+                      </span>
+                    )}
+
+                    <div className="h-4 w-px bg-slate-300 mx-1 hidden sm:block" />
+
+                    {/* Filter Jenis Cengkeh (Menyatukan filter jenis ke dalam 1 tampilan bersih) */}
+                    <div className="flex items-center gap-1.5">
+                      <label className="font-semibold text-slate-700">Jenis Cengkeh:</label>
+                      <select
+                        value={selectedJenisBulan}
+                        onChange={(e) => setSelectedJenisBulan(e.target.value)}
+                        className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                      >
+                        <option value="Semua">Semua Jenis (Agregat)</option>
+                        {filterOptions.jenis.map((j) => (
+                          <option key={j} value={j}>{j}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <span className="text-[11px] text-slate-500 ml-auto flex items-center gap-1 font-medium">
+                    🔗 Menyesuaikan matrik grafik dan tabel data bulanan
+                  </span>
+                </div>
+              </div>
+
+              {/* Mini KPI Bar Periode Terpilih */}
+              {ringkasanBulanPeriode && (
+                <div className="bg-white border border-[#e1e5ec] rounded-2xl p-4 shadow-2xs">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                      📊 Ringkasan Metrik Bulanan ({labelPeriodeBulan})
+                    </h3>
+                    <span className="text-[11px] text-slate-500">
+                      {ringkasanBulanPeriode.jumlahData} entri proses
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                    <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] text-slate-500 font-medium uppercase">Input Gld. Kering</span>
+                      <div className="text-sm font-bold text-slate-900 mt-0.5">{formatKg(ringkasanBulanPeriode.gldKering)}</div>
+                    </div>
+                    <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] text-slate-500 font-medium uppercase">Hasil Rj. Kering</span>
+                      <div className="text-sm font-bold text-blue-700 mt-0.5">{formatKg(ringkasanBulanPeriode.rjKering)}</div>
+                    </div>
+                    <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] text-slate-500 font-medium uppercase">Selisih (%)</span>
+                      <div className="text-sm font-bold text-slate-800 mt-0.5">{formatPct(ringkasanBulanPeriode.selisihPct)}</div>
+                    </div>
+                    <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] text-slate-500 font-medium uppercase">Susut Dryer (%)</span>
+                      <div className="text-sm font-bold text-slate-800 mt-0.5">{formatPct(ringkasanBulanPeriode.susutDryerPct)}</div>
+                    </div>
+                    <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] text-slate-500 font-medium uppercase">Total Susut Rata²</span>
+                      <div className="text-sm font-bold text-[#0d3a8a] mt-0.5">{formatPct(ringkasanBulanPeriode.totalSusutPct)}</div>
+                    </div>
+                    <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] text-slate-500 font-medium uppercase">Kadar Air Rata²</span>
+                      <div className="text-sm font-bold text-emerald-700 mt-0.5">
+                        {ringkasanBulanPeriode.kaGldRata !== null ? `${ringkasanBulanPeriode.kaGldRata}%` : '-'} / {ringkasanBulanPeriode.kaDryRata !== null ? `${ringkasanBulanPeriode.kaDryRata}%` : '-'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Matrik Grafik (2 Grafik Bulanan Lengkap Menyesuaikan Rentang Periode) */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
                   <TrendLineChartRekapCengkeh
-                    data={rekapBulanList}
-                    title="Tren Total Susut Rata-rata (%) per Bulan"
+                    data={rekapBulanPeriodeList}
+                    title={`Tren Total Susut Rata-rata (%) per Bulan ${selectedJenisBulan !== 'Semua' ? `(${selectedJenisBulan})` : ''}`}
                     lineColor="#1a56c4"
                     fillColor="#1a56c4"
                     onExpand={() => setExpandedChart({
-                      title: 'Tren Total Susut Rata-rata (%) per Bulan',
-                      subtitle: 'Visualisasi deret waktu persentase susut bulanan cengkeh',
-                      component: <TrendLineChartRekapCengkeh data={rekapBulanList} lineColor="#1a56c4" fillColor="#1a56c4" />
+                      title: `Tren Total Susut Rata-rata (%) per Bulan ${selectedJenisBulan !== 'Semua' ? `(${selectedJenisBulan})` : ''}`,
+                      subtitle: `Visualisasi deret waktu persentase susut bulanan cengkeh (${labelPeriodeBulan})`,
+                      component: <TrendLineChartRekapCengkeh data={rekapBulanPeriodeList} lineColor="#1a56c4" fillColor="#1a56c4" />
                     })}
                   />
                 </div>
 
                 <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
                   <CompareColumnChartRekapCengkeh
-                    data={rekapBulanList}
-                    title="Perbandingan Gld. Kering vs Rajang Kering per Bulan (Kg)"
+                    data={rekapBulanPeriodeList}
+                    title={`Perbandingan Gld. Kering vs Rajang Kering per Bulan (Kg) ${selectedJenisBulan !== 'Semua' ? `(${selectedJenisBulan})` : ''}`}
                     onExpand={() => setExpandedChart({
-                      title: 'Perbandingan Gld. Kering vs Rajang Kering per Bulan (Kg)',
-                      subtitle: 'Komparasi massa bahan baku awal terhadap hasil jadi pengeringan',
-                      component: <CompareColumnChartRekapCengkeh data={rekapBulanList} />
+                      title: `Perbandingan Gld. Kering vs Rajang Kering per Bulan (Kg) ${selectedJenisBulan !== 'Semua' ? `(${selectedJenisBulan})` : ''}`,
+                      subtitle: `Komparasi massa bahan baku awal terhadap hasil jadi pengeringan (${labelPeriodeBulan})`,
+                      component: <CompareColumnChartRekapCengkeh data={rekapBulanPeriodeList} />
                     })}
                   />
                 </div>
               </div>
 
-              {/* Tabel Kinerja Bulanan */}
+              {/* Tabel Kinerja Bulanan (Urutan: Periode bulan terbaru di paling atas, terlama di paling bawah) */}
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
-                <div className="flex items-center justify-between mb-3.5">
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Tabel Kinerja Bulanan (Januari — Desember)
-                  </h3>
-                  <span className="text-xs text-slate-500 font-medium">
-                    Tahun: {selectedTahun}
-                  </span>
-                </div>
-                <TableBulanRekapCengkeh data={rekapBulanList} />
-              </div>
-
-              {/* Sub-Card: Rekap per Bulan — per Jenis Cengkeh */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3.5 pb-2.5 border-b border-slate-100">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">
-                      📊 Rekap per Bulan — per Jenis Cengkeh
+                      Tabel Kinerja Bulanan ({labelPeriodeBulan})
                     </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Evaluasi khusus performa satu varian cengkeh di tiap bulan
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Urutan data teratas adalah periode bulan terbaru dan paling bawah periode bulan terlama
                     </p>
                   </div>
-
-                  <div className="flex items-center gap-2 no-print">
-                    <label className="text-xs font-semibold text-slate-600">Pilih Jenis:</label>
-                    <select
-                      value={selectedBulanJenis}
-                      onChange={(e) => setSelectedBulanJenis(e.target.value)}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
-                    >
-                      {filterOptions.jenis.map((j) => (
-                        <option key={j} value={j}>{j}</option>
-                      ))}
-                    </select>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium">
+                      {selectedJenisBulan === 'Semua' ? 'Semua Jenis Cengkeh' : selectedJenisBulan}
+                    </span>
                   </div>
                 </div>
 
-                <div className="mb-4">
-                  <TrendLineChartRekapCengkeh
-                    data={rekapBulanJenisList}
-                    title={`Trend Total Susut Bulanan — ${selectedBulanJenis}`}
-                    lineColor="#1a56c4"
-                    fillColor="#1a56c4"
-                    onExpand={() => setExpandedChart({
-                      title: `Trend Total Susut Bulanan — ${selectedBulanJenis}`,
-                      subtitle: 'Grafik bulanan spesifik varian cengkeh terpilih',
-                      component: <TrendLineChartRekapCengkeh data={rekapBulanJenisList} lineColor="#1a56c4" fillColor="#1a56c4" />
-                    })}
-                  />
+                {/* Render 1 Tabel Kinerja Bulanan yang Efisien & Tidak Dobel */}
+                <TableBulanRekapCengkeh data={rekapBulanPeriodeList} />
+              </div>
+
+              {/* Opsi Tambahan: Tampilkan/Sembunyikan Grafik Perbandingan Sub-Varian (Tanpa Duplikasi Tabel) */}
+              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs no-print">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-slate-500" />
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800">
+                        Analisis Rincian Per Varian Cengkeh
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        {showSubVarianBulan 
+                          ? 'Panel rincian varian sedang terbuka. Tabel data duplikat telah dihilangkan agar tampilan lebih efisien.' 
+                          : 'Tabel berulang disembunyikan agar tampilan lebih efisien dan ringkas. Buka panel untuk melihat grafik khusus per varian.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowSubVarianBulan(!showSubVarianBulan)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                  >
+                    {showSubVarianBulan ? (
+                      <>
+                        <EyeOff className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Sembunyikan Rincian</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Tampilkan Rincian</span>
+                      </>
+                    )}
+                  </button>
                 </div>
 
-                <TableBulanRekapCengkeh data={rekapBulanJenisList} />
+                {showSubVarianBulan && (
+                  <div className="mt-4 pt-4 border-t border-slate-100 space-y-4 animate-in fade-in duration-150">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-xs font-bold text-slate-900">
+                          📊 Grafik Trend Bulanan per Varian Cengkeh
+                        </h4>
+                        <p className="text-[11px] text-slate-500">
+                          Pilih varian untuk melihat tren persentase susut spesifik
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-slate-600">Pilih Varian:</label>
+                        <select
+                          value={selectedBulanJenis}
+                          onChange={(e) => setSelectedBulanJenis(e.target.value)}
+                          className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
+                        >
+                          {filterOptions.jenis.map((j) => (
+                            <option key={j} value={j}>{j}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <TrendLineChartRekapCengkeh
+                        data={rekapBulanJenisList}
+                        title={`Trend Total Susut Bulanan — ${selectedBulanJenis}`}
+                        lineColor="#1a56c4"
+                        fillColor="#1a56c4"
+                        onExpand={() => setExpandedChart({
+                          title: `Trend Total Susut Bulanan — ${selectedBulanJenis}`,
+                          subtitle: 'Grafik bulanan spesifik varian cengkeh terpilih',
+                          component: <TrendLineChartRekapCengkeh data={rekapBulanJenisList} lineColor="#1a56c4" fillColor="#1a56c4" />
+                        })}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

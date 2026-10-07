@@ -22,6 +22,7 @@ export interface RawRowCengkeh {
   totalSusutKg: number;// Awal ke Akhir: gldKering - rjKering
   totalSusutPct: number;// (totalSusutKg / gldKering) * 100
   kaSimpan?: number | null;
+  rawTanggal?: string;
   verified?: boolean;  // Local check status for audit
 }
 

@@ -3,18 +3,37 @@
  * File: Tables[RekapCengkeh].tsx
  * Styling: Exact Divisi Produksi I Visual Standard (Consistent with Index[RekapCengkeh].html)
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { RekapItemCengkeh, RawRowCengkeh } from './types[RekapCengkeh]';
-import { formatKg, formatPct, getPctClass, formatTanggalIndo } from './Code[RekapCengkeh]';
-import { Search, ChevronLeft, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { formatKg, formatPct, getPctClass, formatTanggalIndo, MONTH_ORDER } from './Code[RekapCengkeh]';
+import { Search, ChevronLeft, ChevronRight, CheckCircle2, ArrowUpDown } from 'lucide-react';
 
 // ===== 1. TABEL REKAP BULANAN =====
 interface TableBulanProps {
   data: RekapItemCengkeh[];
+  initialSort?: 'desc' | 'asc';
 }
 
-export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = ({ data }) => {
-  if (!data || data.length === 0) {
+export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = ({ data, initialSort = 'desc' }) => {
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>(initialSort);
+
+  const sortedData = useMemo(() => {
+    if (!data || data.length === 0) return [];
+    return [...data].sort((a, b) => {
+      const getVal = (item: RekapItemCengkeh) => {
+        const parts = item.label ? item.label.split(' ') : [];
+        const y = Number(item.tahun || parts[1] || 0);
+        const bName = item.bulan || parts[0] || '';
+        const mIdx = MONTH_ORDER.indexOf(bName);
+        return y * 12 + (mIdx >= 0 ? mIdx : 0);
+      };
+      const valA = getVal(a);
+      const valB = getVal(b);
+      return sortOrder === 'desc' ? valB - valA : valA - valB;
+    });
+  }, [data, sortOrder]);
+
+  if (!sortedData || sortedData.length === 0) {
     return (
       <div className="text-center py-8 text-[#6b7280] text-xs bg-white">
         Tidak ada data bulanan untuk periode ini.
@@ -23,44 +42,77 @@ export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = ({ data }) => {
   }
 
   return (
-    <div className="w-full overflow-x-auto">
-      <table className="w-full border-collapse text-[12.5px]">
-        <thead>
-          <tr className="bg-[#fafbfd] text-[#6b7280] font-semibold">
-            <th className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">Bulan</th>
-            <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Jumlah Data</th>
-            <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Gld. Kering (Kg)</th>
-            <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Rj. Kering (Kg)</th>
-            <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Selisih (%)</th>
-            <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Susut Dryer (%)</th>
-            <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Total Susut (%)</th>
-            <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Min (%)</th>
-            <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Max (%)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.map((r, i) => {
-            const pClass = getPctClass(r.totalSusutPct);
-            return (
-              <tr key={i} className="hover:bg-[#f8fafc] transition-colors">
-                <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937] font-medium">{r.label}</td>
-                <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{r.jumlahData}</td>
-                <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatKg(r.gldKering)}</td>
-                <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatKg(r.rjKering)}</td>
-                <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatPct(r.selisihPct)}</td>
-                <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatPct(r.susutDryerPct)}</td>
-                <td className={`py-2 px-2.5 text-right border-b border-[#e1e5ec] font-mono ${
-                  pClass === 'pct-high' ? 'text-[#c0392b] font-bold' : pClass === 'pct-low' ? 'text-[#1b8a5a] font-bold' : 'text-[#1f2937]'
-                }`}>
-                  {formatPct(r.totalSusutPct)}
-                </td>
-                <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">{formatPct(r.minPct)}</td>
-                <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">{formatPct(r.maxPct)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className="w-full space-y-2">
+      <div className="flex items-center justify-between text-xs text-slate-500 no-print">
+        <span className="text-[11px]">
+          Menampilkan <strong className="text-slate-800">{sortedData.length}</strong> periode bulan
+        </span>
+        <button
+          type="button"
+          onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#1a56c4] bg-[#eef3fd] hover:bg-blue-100 px-2.5 py-1 rounded-lg cursor-pointer transition-colors border border-blue-200"
+          title="Klik untuk mengubah urutan periode bulan"
+        >
+          <ArrowUpDown className="w-3 h-3" />
+          <span>Urutan: {sortOrder === 'desc' ? 'Terbaru ↓ Terlama' : 'Terlama ↑ Terbaru'}</span>
+        </button>
+      </div>
+
+      <div className="w-full overflow-x-auto">
+        <table className="w-full border-collapse text-[12.5px]">
+          <thead>
+            <tr className="bg-[#fafbfd] text-[#6b7280] font-semibold">
+              <th className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">
+                Bulan <span className="text-[10px] font-normal text-[#1a56c4] bg-[#eef3fd] px-1.5 py-0.5 rounded ml-1">
+                  {sortOrder === 'desc' ? 'Terbaru ↓' : 'Terlama ↑'}
+                </span>
+              </th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Jumlah Data</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Gld. Kering (Kg)</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Rj. Kering (Kg)</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Selisih (%)</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Susut Dryer (%)</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Total Susut (%)</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Min (%)</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Max (%)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedData.map((r, i) => {
+              const pClass = getPctClass(r.totalSusutPct);
+              return (
+                <tr key={i} className="hover:bg-[#f8fafc] transition-colors">
+                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937] font-semibold">{r.label}</td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{r.jumlahData}</td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
+                    {Number(r.gldKering).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
+                    {Number(r.rjKering).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
+                    {Number(r.selisihPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
+                    {Number(r.susutDryerPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className={`py-2 px-2.5 text-right border-b border-[#e1e5ec] font-mono font-medium ${
+                    pClass === 'pct-high' ? 'text-[#c0392b] font-bold' : pClass === 'pct-low' ? 'text-[#1b8a5a] font-bold' : 'text-[#1f2937]'
+                  }`}>
+                    {Number(r.totalSusutPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">
+                    {Number(r.minPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">
+                    {Number(r.maxPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
