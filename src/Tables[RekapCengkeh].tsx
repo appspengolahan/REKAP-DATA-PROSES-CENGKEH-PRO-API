@@ -138,16 +138,26 @@ export const TableJenisRekapCengkeh: React.FC<TableJenisProps> = ({ data }) => {
                 <tr key={i} className="hover:bg-[#f8fafc] transition-colors">
                   <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937] font-medium">{r.label}</td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{r.jumlahData}</td>
-                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatKg(r.gldKering)}</td>
-                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatKg(r.rjKering)}</td>
-                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatPct(r.selisihPct)}</td>
-                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatPct(r.susutDryerPct)}</td>
-                  <td className={`py-2 px-2.5 text-right border-b border-[#e1e5ec] font-mono ${
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
+                    {Number(r.gldKering).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
+                    {Number(r.rjKering).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
+                    {Number(r.selisihPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
+                    {Number(r.susutDryerPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className={`py-2 px-2.5 text-right border-b border-[#e1e5ec] font-mono font-medium ${
                     pClass === 'pct-high' ? 'text-[#c0392b] font-bold' : pClass === 'pct-low' ? 'text-[#1b8a5a] font-bold' : 'text-[#1f2937]'
                   }`}>
-                    {formatPct(r.totalSusutPct)}
+                    {Number(r.totalSusutPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">{formatPct(r.kapasitasPct)}</td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">
+                    {Number(r.kapasitasPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
                 </tr>
               );
             })}

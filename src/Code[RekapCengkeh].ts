@@ -465,6 +465,24 @@ export function computeRekapJenisPeriode(
 }
 
 /**
+ * Rekap Per Jenis Cengkeh untuk Seluruh Periode (Akumulasi Semua Data)
+ */
+export function computeRekapJenisSemua(
+  rows: RawRowCengkeh[]
+): { periodeLabel: string; list: RekapItemCengkeh[] } {
+  const totalGld = rows.reduce((s, r) => s + r.gldKering, 0);
+  const map = aggregateRows(rows, (r) => r.jenis);
+  const list = finalizeGroups(map, totalGld);
+
+  list.sort((a, b) => b.gldKering - a.gldKering);
+
+  return {
+    periodeLabel: 'Semua Periode (Akumulasi Data Historis)',
+    list
+  };
+}
+
+/**
  * Trend Susut Rata-rata per Bulan untuk 1 Jenis Cengkeh Tertentu
  */
 export function computeTrendJenis(
@@ -478,6 +496,40 @@ export function computeTrendJenis(
     return true;
   });
 
+  const totalGld = filtered.reduce((s, r) => s + r.gldKering, 0);
+  const map = aggregateRows(filtered, (r) => `${r.bulan}||${r.tahun}`);
+  const list = finalizeGroups(map, totalGld);
+
+  list.forEach((item) => {
+    const parts = item.label.split('||');
+    item.bulan = parts[0];
+    item.tahun = parts[1];
+    item.label = `${parts[0].substring(0, 3)} ${parts[1]}`;
+  });
+
+  list.sort((a, b) => {
+    if (a.tahun !== b.tahun) return (a.tahun || '').localeCompare(b.tahun || '');
+    return MONTH_ORDER.indexOf(a.bulan || '') - MONTH_ORDER.indexOf(b.bulan || '');
+  });
+
+  return { jenis, data: list };
+}
+
+/**
+ * Trend Susut Rata-rata per Bulan untuk 1 Jenis Cengkeh dalam Rentang Periode Kustom
+ */
+export function computeTrendJenisPeriode(
+  rows: RawRowCengkeh[],
+  jenis: string,
+  tahunMulai?: string,
+  bulanMulai?: string,
+  tahunAkhir?: string,
+  bulanAkhir?: string
+): TrendJenisData {
+  let filtered = rows.filter((r) => r.jenis === jenis);
+  if (tahunMulai && bulanMulai && tahunAkhir && bulanAkhir) {
+    filtered = filterByPeriode(filtered, tahunMulai, bulanMulai, tahunAkhir, bulanAkhir);
+  }
   const totalGld = filtered.reduce((s, r) => s + r.gldKering, 0);
   const map = aggregateRows(filtered, (r) => `${r.bulan}||${r.tahun}`);
   const list = finalizeGroups(map, totalGld);

@@ -21,7 +21,11 @@ import {
   computeRingkasanPeriode,
   computeRekapBulan,
   computeRekapJenisPeriode,
+  computeRekapJenisSemua,
   computeTrendJenis,
+  computeTrendJenisPeriode,
+  round1,
+  round2,
   fetchFromGVizCsv,
   fetchFromGasRest,
   exportToPdf,
@@ -97,9 +101,11 @@ export const IndexRekapCengkeh: React.FC = () => {
   const [userRole, setUserRole] = useState<UserRole>('Project Manager');
   const [jalurProses, setJalurProses] = useState<'Semua' | 'SKT' | 'SKM'>('Semua');
 
-  // 4. Periode Rentang (Default: 3 bulan terakhir 2026)
-  const [periodeAwal, setPeriodeAwal] = useState<PeriodeRentang>({ bulan: 'Mei', tahun: '2026' });
-  const [periodeAkhir, setPeriodeAkhir] = useState<PeriodeRentang>({ bulan: 'Agustus', tahun: '2026' });
+  // 4. Periode Rentang (Default: Agustus - Oktober 2026 seperti pada GAS Lama)
+  const [periodeAwal, setPeriodeAwal] = useState<PeriodeRentang>({ bulan: 'Agustus', tahun: '2026' });
+  const [periodeAkhir, setPeriodeAkhir] = useState<PeriodeRentang>({ bulan: 'Oktober', tahun: '2026' });
+  // Mode Periode di Tab Rekap Jenis: 'rentang' (kustom) atau 'semua' (seluruh data historis)
+  const [modePeriodeJenis, setModePeriodeJenis] = useState<'rentang' | 'semua'>('rentang');
 
   // 5. Active Tab ('dashboard', 'rekap-bulan', 'rekap-jenis', 'data-explorer')
   const [activeTab, setActiveTab] = useState<'dashboard' | 'rekap-bulan' | 'rekap-jenis' | 'data-explorer'>('dashboard');
@@ -161,15 +167,37 @@ export const IndexRekapCengkeh: React.FC = () => {
     [filteredRows, selectedTahun, selectedBulanJenis]
   );
 
-  const rekapJenisPeriodeData = useMemo(() => 
-    computeRekapJenisPeriode(filteredRows, periodeAwal.tahun, periodeAwal.bulan, periodeAkhir.tahun, periodeAkhir.bulan),
-    [filteredRows, periodeAwal, periodeAkhir]
-  );
+  const rekapJenisPeriodeData = useMemo(() => {
+    if (modePeriodeJenis === 'semua') {
+      return computeRekapJenisSemua(filteredRows);
+    }
+    return computeRekapJenisPeriode(filteredRows, periodeAwal.tahun, periodeAwal.bulan, periodeAkhir.tahun, periodeAkhir.bulan);
+  }, [filteredRows, modePeriodeJenis, periodeAwal, periodeAkhir]);
 
-  const trendJenisData = useMemo(() => 
-    selectedTrendJenis ? computeTrendJenis(filteredRows, selectedTahun, selectedTrendJenis) : { jenis: '', data: [] },
-    [filteredRows, selectedTahun, selectedTrendJenis]
-  );
+  // Otomatis arahkan jenis cengkeh terpilih jika varian berubah
+  useEffect(() => {
+    if (rekapJenisPeriodeData.list.length > 0) {
+      const exists = rekapJenisPeriodeData.list.some(item => item.label === selectedTrendJenis);
+      if (!exists) {
+        setSelectedTrendJenis(rekapJenisPeriodeData.list[0].label);
+      }
+    }
+  }, [rekapJenisPeriodeData.list, selectedTrendJenis]);
+
+  const trendJenisData = useMemo(() => {
+    if (!selectedTrendJenis) return { jenis: '', data: [] };
+    if (modePeriodeJenis === 'rentang') {
+      return computeTrendJenisPeriode(
+        filteredRows, 
+        selectedTrendJenis, 
+        periodeAwal.tahun, 
+        periodeAwal.bulan, 
+        periodeAkhir.tahun, 
+        periodeAkhir.bulan
+      );
+    }
+    return computeTrendJenis(filteredRows, selectedTahun, selectedTrendJenis);
+  }, [filteredRows, selectedTrendJenis, modePeriodeJenis, periodeAwal, periodeAkhir, selectedTahun]);
 
   // Pull datasheet langsung (GViz CSV)
   const handlePullDatasheet = async () => {
@@ -577,18 +605,208 @@ export const IndexRekapCengkeh: React.FC = () => {
                 </div>
               </div>
 
+              {/* Control Card: Filter & Toggle Rentang Periode (Persis Standar GAS Lama) */}
+              <div className="bg-white border border-[#e1e5ec] rounded-2xl p-4 shadow-2xs space-y-3 no-print">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                      Filter Periode:
+                    </span>
+                    <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                      <button
+                        type="button"
+                        onClick={() => setModePeriodeJenis('rentang')}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                          modePeriodeJenis === 'rentang'
+                            ? 'bg-[#1a56c4] text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        📅 Rentang Periode Tertentu
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModePeriodeJenis('semua')}
+                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                          modePeriodeJenis === 'semua'
+                            ? 'bg-[#1a56c4] text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        🌐 Akumulasi Semua Data
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Shortcut Presets */}
+                  <div className="flex items-center gap-1.5 flex-wrap text-xs">
+                    <span className="text-slate-500 font-medium text-[11px]">Shortcut:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModePeriodeJenis('rentang');
+                        setPeriodeAwal({ bulan: 'Agustus', tahun: '2026' });
+                        setPeriodeAkhir({ bulan: 'Oktober', tahun: '2026' });
+                      }}
+                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                        modePeriodeJenis === 'rentang' && periodeAwal.bulan === 'Agustus' && periodeAwal.tahun === '2026' && periodeAkhir.bulan === 'Oktober' && periodeAkhir.tahun === '2026'
+                          ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      ⚡ Agustus – Oktober 2026
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModePeriodeJenis('rentang');
+                        setPeriodeAwal({ bulan: 'Januari', tahun: '2026' });
+                        setPeriodeAkhir({ bulan: 'Desember', tahun: '2026' });
+                      }}
+                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                        modePeriodeJenis === 'rentang' && periodeAwal.bulan === 'Januari' && periodeAwal.tahun === '2026' && periodeAkhir.bulan === 'Desember' && periodeAkhir.tahun === '2026'
+                          ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Tahun 2026 Penuh
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModePeriodeJenis('rentang');
+                        setPeriodeAwal({ bulan: 'Januari', tahun: '2025' });
+                        setPeriodeAkhir({ bulan: 'Desember', tahun: '2025' });
+                      }}
+                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                        modePeriodeJenis === 'rentang' && periodeAwal.bulan === 'Januari' && periodeAwal.tahun === '2025' && periodeAkhir.bulan === 'Desember' && periodeAkhir.tahun === '2025'
+                          ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
+                          : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      Tahun 2025 Penuh
+                    </button>
+                  </div>
+                </div>
+
+                {/* Form Dropdown Periode (Muncul jika mode 'rentang') */}
+                {modePeriodeJenis === 'rentang' && (
+                  <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-slate-100 text-xs">
+                    <span className="font-semibold text-slate-700">Dari</span>
+                    <select
+                      value={periodeAwal.bulan}
+                      onChange={(e) => setPeriodeAwal({ ...periodeAwal, bulan: e.target.value })}
+                      className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                    >
+                      {filterOptions.bulan.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={periodeAwal.tahun}
+                      onChange={(e) => setPeriodeAwal({ ...periodeAwal, tahun: e.target.value })}
+                      className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                    >
+                      {filterOptions.tahun.map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+
+                    <span className="font-semibold text-slate-700 ml-1">sampai</span>
+                    <select
+                      value={periodeAkhir.bulan}
+                      onChange={(e) => setPeriodeAkhir({ ...periodeAkhir, bulan: e.target.value })}
+                      className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                    >
+                      {filterOptions.bulan.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={periodeAkhir.tahun}
+                      onChange={(e) => setPeriodeAkhir({ ...periodeAkhir, tahun: e.target.value })}
+                      className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                    >
+                      {filterOptions.tahun.map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+
+                    <span className="text-[11px] text-slate-500 ml-auto flex items-center gap-1 font-medium">
+                      🔗 Mengatur metrik, grafik, dan tabel varian di bawah
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Mini KPI Summary Bar Periode Terpilih (Sesuai Referensi Gambar 3) */}
+              {modePeriodeJenis === 'rentang' && ringkasanPeriode && (
+                <div className="bg-white border border-[#e1e5ec] rounded-2xl p-4 shadow-2xs">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wide">
+                        📆 Rekap Rentang Periode ({ringkasanPeriode.periodeLabel})
+                      </h3>
+                    </div>
+                    <span className="text-[11px] bg-[#eef3fd] text-[#0d3a8a] px-2.5 py-0.5 rounded-full font-semibold">
+                      {ringkasanPeriode.jumlahData} Entri
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-center text-xs">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Jumlah Data</div>
+                      <div className="text-sm font-bold text-slate-900 mt-0.5">{ringkasanPeriode.jumlahData} entri</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Gld. Kering</div>
+                      <div className="text-sm font-bold text-slate-900 mt-0.5">{formatKg(ringkasanPeriode.gldKering)}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Rajang Basah</div>
+                      <div className="text-sm font-bold text-slate-900 mt-0.5">{formatKg(ringkasanPeriode.rjBasah)}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Selisih Rata²</div>
+                      <div className="text-sm font-bold text-emerald-700 mt-0.5">{formatPct(ringkasanPeriode.selisihPct)}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{formatKg(ringkasanPeriode.selisihKg)}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Rajang Kering</div>
+                      <div className="text-sm font-bold text-slate-900 mt-0.5">{formatKg(ringkasanPeriode.rjKering)}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Susut Dryer Rata²</div>
+                      <div className="text-sm font-bold text-slate-900 mt-0.5">{formatPct(ringkasanPeriode.susutDryerPct)}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{formatKg(ringkasanPeriode.susutDryerKg)}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Total Susut Rata²</div>
+                      <div className="text-sm font-bold text-emerald-700 mt-0.5">{formatPct(ringkasanPeriode.totalSusutPct)}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Min {formatPct(ringkasanPeriode.totalSusutMinPct)} - Max {formatPct(ringkasanPeriode.totalSusutMaxPct)}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">K. Air Gld / Dry</div>
+                      <div className="text-xs font-bold text-slate-800 mt-0.5">
+                        {ringkasanPeriode.kaGldRata !== null ? ringkasanPeriode.kaGldRata.toFixed(1) + '%' : '-'} / {ringkasanPeriode.kaDryRata !== null ? ringkasanPeriode.kaDryRata.toFixed(1) + '%' : '-'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* 4 Highlight Varian Cards (Reference Standard) */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 <div className="bg-white border border-[#e1e5ec] rounded-xl p-3.5 shadow-2xs flex items-center justify-between">
                   <div>
                     <div className="text-[11px] font-medium text-slate-500 uppercase tracking-wide">
-                      Total Katalog Varian
+                      Total Varian Terfilter
                     </div>
                     <div className="text-xl font-bold text-slate-900 mt-0.5">
-                      {filterOptions.jenis.length} Varian
+                      {rekapJenisPeriodeData.list.length} Varian
                     </div>
                     <div className="text-[11px] text-slate-400 mt-0.5">
-                      Terdaftar di sistem
+                      Di periode terpilih
                     </div>
                   </div>
                   <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
@@ -656,7 +874,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                       📈 Trend Susut Rata-rata per Bulan per Jenis Cengkeh
                     </h3>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      Analisis riwayat deret waktu susut untuk varian terpilih
+                      Analisis riwayat fluktuasi susut untuk varian terpilih di periode {rekapJenisPeriodeData.periodeLabel}
                     </p>
                   </div>
 
@@ -667,8 +885,8 @@ export const IndexRekapCengkeh: React.FC = () => {
                       onChange={(e) => setSelectedTrendJenis(e.target.value)}
                       className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
                     >
-                      {filterOptions.jenis.map((j) => (
-                        <option key={j} value={j}>{j}</option>
+                      {rekapJenisPeriodeData.list.map((j) => (
+                        <option key={j.label} value={j.label}>{j.label}</option>
                       ))}
                     </select>
                   </div>
@@ -676,11 +894,11 @@ export const IndexRekapCengkeh: React.FC = () => {
 
                 <TrendLineChartRekapCengkeh
                   data={trendJenisData.data}
-                  title={`Trend Total Susut (%) — ${selectedTrendJenis}`}
+                  title={`Trend Total Susut — ${selectedTrendJenis}`}
                   lineColor="#1a56c4"
                   fillColor="#1a56c4"
                   onExpand={() => setExpandedChart({
-                    title: `Trend Total Susut (%) — ${selectedTrendJenis}`,
+                    title: `Trend Total Susut — ${selectedTrendJenis}`,
                     subtitle: 'Grafik riwayat fluktuasi susut bulanan varian',
                     component: <TrendLineChartRekapCengkeh data={trendJenisData.data} lineColor="#1a56c4" fillColor="#1a56c4" />
                   })}
@@ -690,26 +908,26 @@ export const IndexRekapCengkeh: React.FC = () => {
               {/* Card 2: Perbandingan Susut Antar Seluruh Jenis */}
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
                 <h3 className="text-sm font-bold text-slate-900 mb-3">
-                  Perbandingan Total Susut Rata-rata (%) Antar Jenis Cengkeh
+                  Perbandingan Total Susut Rata-rata per Jenis Cengkeh (%)
                 </h3>
                 <JenisBarChartRekapCengkeh
                   data={rekapJenisPeriodeData.list}
                   onExpand={() => setExpandedChart({
-                    title: 'Perbandingan Total Susut Rata-rata (%) Antar Jenis Cengkeh',
+                    title: 'Perbandingan Total Susut Rata-rata per Jenis Cengkeh (%)',
                     subtitle: 'Peringkat persentase susut per komoditas varian',
                     component: <JenisBarChartRekapCengkeh data={rekapJenisPeriodeData.list} />
                   })}
                 />
               </div>
 
-              {/* Card 3: Tabel Rekap per Jenis Cengkeh */}
+              {/* Card 3: Tabel Rekap per Jenis Cengkeh (Persis Standar Gambar 1) */}
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
                 <div className="flex items-center justify-between mb-3.5">
                   <h3 className="text-sm font-bold text-slate-900">
-                    Tabel Rekap Volume & Yield per Jenis Cengkeh
+                    Tabel Rekap per Jenis Cengkeh
                   </h3>
                   <span className="text-xs text-slate-500 font-medium">
-                    {rekapJenisPeriodeData.list.length} Varian Bahan
+                    {rekapJenisPeriodeData.list.length} Varian Bahan Terproses
                   </span>
                 </div>
                 <TableJenisRekapCengkeh data={rekapJenisPeriodeData.list} />
