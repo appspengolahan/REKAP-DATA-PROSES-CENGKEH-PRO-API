@@ -89,6 +89,40 @@ export type UserRole =
   | 'Super Admin' 
   | 'Client Hub';
 
+export type ActiveTabCengkeh = 
+  | 'dashboard' 
+  | 'rekap-bulan' 
+  | 'rekap-jenis' 
+  | 'saldo-bahan'
+  | 'data-explorer';
+
+export interface ItemSaldoBahan {
+  id: string;
+  kodeBahan: string;
+  namaBahan: string;
+  kategori: 'Bahan Baku' | 'WIP' | 'Bahan Jadi';
+  tahap: string;
+  satuan: string;
+  masukKg: number;
+  keluarKg: number;
+  saldoAkhirKg: number;
+  kaRata: number | null;
+  lokasi: string;
+  tglUpdate: string;
+  status: 'Aman' | 'Waspada' | 'Kritis';
+  persenKapasitas: number;
+  batchCount: number;
+}
+
+export interface RingkasanSaldoBahan {
+  totalSaldoKg: number;
+  saldoBahanBakuKg: number;
+  saldoWipKg: number;
+  saldoBahanJadiKg: number;
+  totalVarian: number;
+  tglTerkini: string;
+}
+
 export interface GasConfig {
   execUrl: string;
   spreadsheetId: string;
@@ -96,3 +130,4 @@ export interface GasConfig {
   lastSyncedAt: string | null;
   autoSync: boolean;
 }
+

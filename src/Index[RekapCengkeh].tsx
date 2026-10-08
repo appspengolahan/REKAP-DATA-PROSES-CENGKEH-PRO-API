@@ -8,7 +8,8 @@ import {
   RawRowCengkeh, 
   PeriodeRentang, 
   UserRole,
-  GasConfig
+  GasConfig,
+  ActiveTabCengkeh
 } from './types[RekapCengkeh]';
 import { 
   loadCachedDataset, 
@@ -27,6 +28,7 @@ import {
   computeRekapJenisSemua,
   computeTrendJenis,
   computeTrendJenisPeriode,
+  computeSaldoBahanUnitCengkeh,
   round1,
   round2,
   fetchFromGVizCsv,
@@ -48,6 +50,7 @@ import {
   TableJenisRekapCengkeh, 
   BatchExplorerTableRekapCengkeh 
 } from './Tables[RekapCengkeh]';
+import { SaldoBahanViewRekapCengkeh } from './SaldoBahanView[RekapCengkeh]';
 import { HelpModalRekapCengkeh } from './HelpModal[RekapCengkeh]';
 import { SwitchBoardModalRekapCengkeh } from './SwitchBoardModal[RekapCengkeh]';
 import { GasCenterModalRekapCengkeh } from './GasCenterModal[RekapCengkeh]';
@@ -59,6 +62,7 @@ import {
   LayoutDashboard, 
   Calendar, 
   Layers, 
+  Boxes,
   Table, 
   Printer, 
   Search,
@@ -142,8 +146,8 @@ export const IndexRekapCengkeh: React.FC = () => {
   const [selectedJenisBulan, setSelectedJenisBulan] = useState<string>('Semua');
   const [showSubVarianBulan, setShowSubVarianBulan] = useState<boolean>(false);
 
-  // 5. Active Tab ('dashboard', 'rekap-bulan', 'rekap-jenis', 'data-explorer')
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'rekap-bulan' | 'rekap-jenis' | 'data-explorer'>('dashboard');
+  // 5. Active Tab ('dashboard', 'rekap-bulan', 'rekap-jenis', 'saldo-bahan', 'data-explorer')
+  const [activeTab, setActiveTab] = useState<ActiveTabCengkeh>('dashboard');
 
   // 6. Sub-filters for specific cards
   const [selectedBulanJenis, setSelectedBulanJenis] = useState<string>('');
@@ -244,6 +248,11 @@ export const IndexRekapCengkeh: React.FC = () => {
     }
     return computeRekapJenisPeriode(filteredRows, periodeAwal.tahun, periodeAwal.bulan, periodeAkhir.tahun, periodeAkhir.bulan);
   }, [filteredRows, modePeriodeJenis, periodeAwal, periodeAkhir]);
+
+  // Perhitungan Saldo Akhir Terbaru Setiap Jenis Bahan di Unit Cengkeh
+  const saldoBahanData = useMemo(() => {
+    return computeSaldoBahanUnitCengkeh(filteredRows);
+  }, [filteredRows]);
 
   // Otomatis validasi jenis cengkeh terpilih jika varian tidak ada di daftar
   useEffect(() => {
@@ -408,6 +417,7 @@ export const IndexRekapCengkeh: React.FC = () => {
             if (activeTab === 'dashboard') exportToPdf('Ringkasan');
             else if (activeTab === 'rekap-bulan') exportToPdf('RekapBulan');
             else if (activeTab === 'rekap-jenis') exportToPdf('RekapJenis');
+            else if (activeTab === 'saldo-bahan') exportToPdf('SaldoBahan');
             else exportToPdf('DataBatch');
           }}
           onToggleSidebar={toggleSidebar}
@@ -420,6 +430,7 @@ export const IndexRekapCengkeh: React.FC = () => {
             { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
             { id: 'rekap-bulan' as const, label: 'Rekap Bulan', icon: Calendar },
             { id: 'rekap-jenis' as const, label: 'Rekap Jenis', icon: Layers },
+            { id: 'saldo-bahan' as const, label: 'Saldo Bahan', icon: Boxes },
             { id: 'data-explorer' as const, label: 'Data Explorer', icon: Table }
           ].map((tab) => {
             const Icon = tab.icon;
@@ -1405,6 +1416,17 @@ export const IndexRekapCengkeh: React.FC = () => {
                 <TableJenisRekapCengkeh data={rekapJenisPeriodeData.list} />
               </div>
             </div>
+          )}
+
+          {/* VIEW: SALDO AKHIR TERBARU SETIAP JENIS BAHAN UNIT CENGKEH */}
+          {activeTab === 'saldo-bahan' && (
+            <SaldoBahanViewRekapCengkeh
+              saldoData={saldoBahanData}
+              onExportPdf={() => exportToPdf('SaldoBahan')}
+              onExpandChart={(title, subtitle, component) => {
+                setExpandedChart({ title, subtitle, component });
+              }}
+            />
           )}
 
           {/* VIEW 4: DATA EXPLORER BATCH */}
