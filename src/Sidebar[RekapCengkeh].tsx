@@ -66,7 +66,7 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`no-print hidden lg:flex bg-slate-900 border-r border-slate-800 text-slate-300 flex-col transition-all duration-300 select-none shrink-0 ${
+      className={`no-print hidden lg:flex bg-slate-900 border-r border-slate-800 text-slate-300 flex-col transition-all duration-300 select-none shrink-0 h-screen sticky top-0 z-20 ${
         isCollapsed ? 'w-18' : 'w-64'
       }`}
     >

@@ -373,8 +373,8 @@ export const IndexRekapCengkeh: React.FC = () => {
   const highestSusutVariant = sortedByYield[sortedByYield.length - 1];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-row font-sans selection:bg-amber-100 selection:text-amber-900">
-      {/* 1. Industrial Dark Sidebar (Reference Standard) */}
+    <div className="h-screen w-screen overflow-hidden bg-slate-50 text-slate-800 flex flex-row font-sans selection:bg-amber-100 selection:text-amber-900">
+      {/* 1. Industrial Dark Sidebar (Pinned / Fixed Height) */}
       <SidebarRekapCengkeh
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -385,9 +385,9 @@ export const IndexRekapCengkeh: React.FC = () => {
         onOpenInstallPwa={() => setIsPwaModalOpen(true)}
       />
 
-      {/* 2. Main Wrapper */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        {/* Top Header */}
+      {/* 2. Main Column Wrapper - Locked to Viewport Height */}
+      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
+        {/* Top Header - Always pinned at top */}
         <HeaderRekapCengkeh
           entriTerkini={entriTerkini}
           userRole={userRole}
@@ -415,7 +415,7 @@ export const IndexRekapCengkeh: React.FC = () => {
         />
 
         {/* Tablet & Mobile Quick Nav Bar */}
-        <div className="lg:hidden bg-slate-900 border-b border-slate-800 px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-print">
+        <div className="lg:hidden bg-slate-900 border-b border-slate-800 px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-print shrink-0 z-20">
           {[
             { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
             { id: 'rekap-bulan' as const, label: 'Rekap Bulan', icon: Calendar },
@@ -441,8 +441,10 @@ export const IndexRekapCengkeh: React.FC = () => {
           })}
         </div>
 
-        {/* Main Content Area */}
-        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+        {/* 3. Dedicated Scrollable Viewport for Data Content & Footer */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col">
+          {/* Main Content Area */}
+          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
           {/* Notification Banner */}
           {syncNotice && (
             <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center justify-between no-print animate-in fade-in duration-150">
@@ -1449,6 +1451,7 @@ export const IndexRekapCengkeh: React.FC = () => {
         {/* Footer Cetak .PDF Resmi Sesuai Ketentuan */}
         <div className="pdf-print-footer">
           Divisi Produksi I - All Rights Reserved
+        </div>
         </div>
       </div>
 
