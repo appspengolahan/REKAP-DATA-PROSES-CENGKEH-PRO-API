@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="128" fill="#0d3a8a"/>
+  <rect x="24" y="24" width="464" height="464" rx="104" stroke="#1a56c4" stroke-width="12" stroke-opacity="0.5"/>
+  <circle cx="256" cy="256" r="180" fill="#1a56c4" fill-opacity="0.4"/>
+  <!-- Leaf / Clove silhouette stylized -->
+  <path d="M256 100 C340 100 412 172 412 256 C412 340 340 412 256 412 C172 412 100 340 100 256 C100 172 172 100 256 100 Z" stroke="#60a5fa" stroke-width="8" stroke-dasharray="16 8"/>
+  <path d="M256 120 C190 200 190 312 256 392 C322 312 322 200 256 120 Z" fill="#22c55e"/>
+  <path d="M256 120 L256 392" stroke="#15803d" stroke-width="12" stroke-linecap="round"/>
+  <!-- Chart Trend Arrow -->
+  <path d="M160 320 L230 250 L280 290 L360 190" stroke="#fbbf24" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M320 190 L360 190 L360 230" stroke="#fbbf24" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

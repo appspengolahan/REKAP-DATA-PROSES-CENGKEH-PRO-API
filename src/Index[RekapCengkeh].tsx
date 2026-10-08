@@ -52,6 +52,8 @@ import { HelpModalRekapCengkeh } from './HelpModal[RekapCengkeh]';
 import { SwitchBoardModalRekapCengkeh } from './SwitchBoardModal[RekapCengkeh]';
 import { GasCenterModalRekapCengkeh } from './GasCenterModal[RekapCengkeh]';
 import { ChartExpandedModalRekapCengkeh } from './ChartExpandedModal[RekapCengkeh]';
+import { PwaInstallModalRekapCengkeh } from './PwaInstallModalRekapCengkeh';
+import { usePWAInstall } from './usePWAInstall';
 import { INITIAL_SNAPSHOT_DATA } from './snapshotData[RekapCengkeh]';
 import { 
   LayoutDashboard, 
@@ -70,7 +72,10 @@ import {
   Eye,
   EyeOff,
   Filter,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Download,
+  Smartphone,
+  Maximize2
 } from 'lucide-react';
 
 const SIDEBAR_COLLAPSED_KEY = '_REKAP_CKH_SIDEBAR_COLLAPSED';
@@ -128,10 +133,13 @@ export const IndexRekapCengkeh: React.FC = () => {
   const [selectedBulanJenis, setSelectedBulanJenis] = useState<string>('');
   const [selectedTrendJenis, setSelectedTrendJenis] = useState<string>('Semua');
 
-  // 7. Modals
+  // 7. Modals & PWA
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSwitchBoardOpen, setIsSwitchBoardOpen] = useState(false);
   const [isGasCenterOpen, setIsGasCenterOpen] = useState(false);
+  const [isPwaModalOpen, setIsPwaModalOpen] = useState(false);
+  const [dismissMobileBanner, setDismissMobileBanner] = useState(false);
+  const { isInstalled, isInstallable, install } = usePWAInstall();
   const [expandedChart, setExpandedChart] = useState<{ title: string; subtitle?: string; component: React.ReactNode } | null>(null);
 
   // Filter options from raw rows
@@ -349,6 +357,7 @@ export const IndexRekapCengkeh: React.FC = () => {
         onToggleCollapse={toggleSidebar}
         userRole={userRole}
         onOpenGasCenter={() => setIsGasCenterOpen(true)}
+        onOpenInstallPwa={() => setIsPwaModalOpen(true)}
       />
 
       {/* 2. Main Wrapper */}
@@ -367,6 +376,7 @@ export const IndexRekapCengkeh: React.FC = () => {
           onOpenHelp={() => setIsHelpOpen(true)}
           onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
           onOpenGasCenter={() => setIsGasCenterOpen(true)}
+          onOpenInstallPwa={() => setIsPwaModalOpen(true)}
           onExportPdf={() => {
             if (activeTab === 'dashboard') exportToPdf('Ringkasan');
             else if (activeTab === 'rekap-bulan') exportToPdf('RekapBulan');
@@ -482,7 +492,14 @@ export const IndexRekapCengkeh: React.FC = () => {
 
               {/* Quick Charts */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+                <div 
+                  className="bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-4 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative"
+                  onClick={() => setExpandedChart({
+                    title: 'Tren Total Susut Rata-rata (%) per Bulan',
+                    subtitle: 'Visualisasi deret waktu persentase susut bulanan cengkeh',
+                    component: <TrendLineChartRekapCengkeh data={rekapBulanList} lineColor="#1a56c4" fillColor="#1a56c4" isExpanded={true} />
+                  })}
+                >
                   <TrendLineChartRekapCengkeh
                     data={rekapBulanList}
                     title="Tren Total Susut Rata-rata (%) per Bulan"
@@ -491,21 +508,46 @@ export const IndexRekapCengkeh: React.FC = () => {
                     onExpand={() => setExpandedChart({
                       title: 'Tren Total Susut Rata-rata (%) per Bulan',
                       subtitle: 'Visualisasi deret waktu persentase susut bulanan cengkeh',
-                      component: <TrendLineChartRekapCengkeh data={rekapBulanList} lineColor="#1a56c4" fillColor="#1a56c4" />
+                      component: <TrendLineChartRekapCengkeh data={rekapBulanList} lineColor="#1a56c4" fillColor="#1a56c4" isExpanded={true} />
                     })}
                   />
+                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 group-hover:text-blue-600 transition-colors">
+                    <span className="flex items-center gap-1 font-medium">
+                      <Maximize2 className="w-3 h-3" />
+                      <span>Klik kartu ini untuk perbesar ke tengah layar</span>
+                    </span>
+                    <span className="text-[10px] bg-slate-50 group-hover:bg-blue-50 px-2 py-0.5 rounded text-slate-500 group-hover:text-blue-700 font-semibold border border-slate-200 group-hover:border-blue-200">
+                      Maximize
+                    </span>
+                  </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+                <div 
+                  className="bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-4 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative"
+                  onClick={() => setExpandedChart({
+                    title: 'Perbandingan Gld. Kering vs Rajang Kering (Kg)',
+                    subtitle: 'Komparasi massa bahan baku awal terhadap hasil jadi pengeringan',
+                    component: <CompareColumnChartRekapCengkeh data={rekapBulanList} isExpanded={true} />
+                  })}
+                >
                   <CompareColumnChartRekapCengkeh
                     data={rekapBulanList}
                     title="Perbandingan Gld. Kering vs Rajang Kering (Kg)"
                     onExpand={() => setExpandedChart({
                       title: 'Perbandingan Gld. Kering vs Rajang Kering (Kg)',
                       subtitle: 'Komparasi massa bahan baku awal terhadap hasil jadi pengeringan',
-                      component: <CompareColumnChartRekapCengkeh data={rekapBulanList} />
+                      component: <CompareColumnChartRekapCengkeh data={rekapBulanList} isExpanded={true} />
                     })}
                   />
+                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 group-hover:text-blue-600 transition-colors">
+                    <span className="flex items-center gap-1 font-medium">
+                      <Maximize2 className="w-3 h-3" />
+                      <span>Klik kartu ini untuk perbesar ke tengah layar</span>
+                    </span>
+                    <span className="text-[10px] bg-slate-50 group-hover:bg-blue-50 px-2 py-0.5 rounded text-slate-500 group-hover:text-blue-700 font-semibold border border-slate-200 group-hover:border-blue-200">
+                      Maximize
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -758,7 +800,14 @@ export const IndexRekapCengkeh: React.FC = () => {
 
               {/* Matrik Grafik (2 Grafik Bulanan Lengkap Menyesuaikan Rentang Periode) */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+                <div 
+                  className="bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-4 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative"
+                  onClick={() => setExpandedChart({
+                    title: `Tren Total Susut Rata-rata (%) per Bulan ${selectedJenisBulan !== 'Semua' ? `(${selectedJenisBulan})` : ''}`,
+                    subtitle: `Visualisasi deret waktu persentase susut bulanan cengkeh (${labelPeriodeBulan})`,
+                    component: <TrendLineChartRekapCengkeh data={rekapBulanPeriodeList} lineColor="#1a56c4" fillColor="#1a56c4" isExpanded={true} />
+                  })}
+                >
                   <TrendLineChartRekapCengkeh
                     data={rekapBulanPeriodeList}
                     title={`Tren Total Susut Rata-rata (%) per Bulan ${selectedJenisBulan !== 'Semua' ? `(${selectedJenisBulan})` : ''}`}
@@ -767,21 +816,46 @@ export const IndexRekapCengkeh: React.FC = () => {
                     onExpand={() => setExpandedChart({
                       title: `Tren Total Susut Rata-rata (%) per Bulan ${selectedJenisBulan !== 'Semua' ? `(${selectedJenisBulan})` : ''}`,
                       subtitle: `Visualisasi deret waktu persentase susut bulanan cengkeh (${labelPeriodeBulan})`,
-                      component: <TrendLineChartRekapCengkeh data={rekapBulanPeriodeList} lineColor="#1a56c4" fillColor="#1a56c4" />
+                      component: <TrendLineChartRekapCengkeh data={rekapBulanPeriodeList} lineColor="#1a56c4" fillColor="#1a56c4" isExpanded={true} />
                     })}
                   />
+                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 group-hover:text-blue-600 transition-colors">
+                    <span className="flex items-center gap-1 font-medium">
+                      <Maximize2 className="w-3 h-3" />
+                      <span>Klik kartu ini untuk perbesar ke tengah layar</span>
+                    </span>
+                    <span className="text-[10px] bg-slate-50 group-hover:bg-blue-50 px-2 py-0.5 rounded text-slate-500 group-hover:text-blue-700 font-semibold border border-slate-200 group-hover:border-blue-200">
+                      Maximize
+                    </span>
+                  </div>
                 </div>
 
-                <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-2xs">
+                <div 
+                  className="bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-4 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative"
+                  onClick={() => setExpandedChart({
+                    title: `Perbandingan Gld. Kering vs Rajang Kering per Bulan (Kg) ${selectedJenisBulan !== 'Semua' ? `(${selectedJenisBulan})` : ''}`,
+                    subtitle: `Komparasi massa bahan baku awal terhadap hasil jadi pengeringan (${labelPeriodeBulan})`,
+                    component: <CompareColumnChartRekapCengkeh data={rekapBulanPeriodeList} isExpanded={true} />
+                  })}
+                >
                   <CompareColumnChartRekapCengkeh
                     data={rekapBulanPeriodeList}
                     title={`Perbandingan Gld. Kering vs Rajang Kering per Bulan (Kg) ${selectedJenisBulan !== 'Semua' ? `(${selectedJenisBulan})` : ''}`}
                     onExpand={() => setExpandedChart({
                       title: `Perbandingan Gld. Kering vs Rajang Kering per Bulan (Kg) ${selectedJenisBulan !== 'Semua' ? `(${selectedJenisBulan})` : ''}`,
                       subtitle: `Komparasi massa bahan baku awal terhadap hasil jadi pengeringan (${labelPeriodeBulan})`,
-                      component: <CompareColumnChartRekapCengkeh data={rekapBulanPeriodeList} />
+                      component: <CompareColumnChartRekapCengkeh data={rekapBulanPeriodeList} isExpanded={true} />
                     })}
                   />
+                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 group-hover:text-blue-600 transition-colors">
+                    <span className="flex items-center gap-1 font-medium">
+                      <Maximize2 className="w-3 h-3" />
+                      <span>Klik kartu ini untuk perbesar ke tengah layar</span>
+                    </span>
+                    <span className="text-[10px] bg-slate-50 group-hover:bg-blue-50 px-2 py-0.5 rounded text-slate-500 group-hover:text-blue-700 font-semibold border border-slate-200 group-hover:border-blue-200">
+                      Maximize
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -868,7 +942,14 @@ export const IndexRekapCengkeh: React.FC = () => {
                       </div>
                     </div>
 
-                    <div>
+                    <div
+                      className="cursor-pointer group"
+                      onClick={() => setExpandedChart({
+                        title: `Trend Total Susut Bulanan — ${selectedBulanJenis}`,
+                        subtitle: 'Grafik bulanan spesifik varian cengkeh terpilih',
+                        component: <TrendLineChartRekapCengkeh data={rekapBulanJenisList} lineColor="#1a56c4" fillColor="#1a56c4" isExpanded={true} />
+                      })}
+                    >
                       <TrendLineChartRekapCengkeh
                         data={rekapBulanJenisList}
                         title={`Trend Total Susut Bulanan — ${selectedBulanJenis}`}
@@ -877,7 +958,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         onExpand={() => setExpandedChart({
                           title: `Trend Total Susut Bulanan — ${selectedBulanJenis}`,
                           subtitle: 'Grafik bulanan spesifik varian cengkeh terpilih',
-                          component: <TrendLineChartRekapCengkeh data={rekapBulanJenisList} lineColor="#1a56c4" fillColor="#1a56c4" />
+                          component: <TrendLineChartRekapCengkeh data={rekapBulanJenisList} lineColor="#1a56c4" fillColor="#1a56c4" isExpanded={true} />
                         })}
                       />
                     </div>
@@ -1203,32 +1284,72 @@ export const IndexRekapCengkeh: React.FC = () => {
                   </div>
                 </div>
 
-                <TrendLineChartRekapCengkeh
-                  data={trendJenisData.data}
-                  title={`Trend Total Susut — ${selectedTrendJenis === 'Semua' ? 'Semua Jenis (Agregat)' : selectedTrendJenis}`}
-                  lineColor="#1a56c4"
-                  fillColor="#1a56c4"
-                  onExpand={() => setExpandedChart({
+                <div 
+                  className="cursor-pointer group"
+                  onClick={() => setExpandedChart({
                     title: `Trend Total Susut — ${selectedTrendJenis === 'Semua' ? 'Semua Jenis (Agregat)' : selectedTrendJenis}`,
                     subtitle: `Grafik riwayat fluktuasi susut bulanan (${rekapJenisPeriodeData.periodeLabel})`,
-                    component: <TrendLineChartRekapCengkeh data={trendJenisData.data} lineColor="#1a56c4" fillColor="#1a56c4" />
+                    component: <TrendLineChartRekapCengkeh data={trendJenisData.data} lineColor="#1a56c4" fillColor="#1a56c4" isExpanded={true} />
                   })}
-                />
+                >
+                  <TrendLineChartRekapCengkeh
+                    data={trendJenisData.data}
+                    title={`Trend Total Susut — ${selectedTrendJenis === 'Semua' ? 'Semua Jenis (Agregat)' : selectedTrendJenis}`}
+                    lineColor="#1a56c4"
+                    fillColor="#1a56c4"
+                    onExpand={() => setExpandedChart({
+                      title: `Trend Total Susut — ${selectedTrendJenis === 'Semua' ? 'Semua Jenis (Agregat)' : selectedTrendJenis}`,
+                      subtitle: `Grafik riwayat fluktuasi susut bulanan (${rekapJenisPeriodeData.periodeLabel})`,
+                      component: <TrendLineChartRekapCengkeh data={trendJenisData.data} lineColor="#1a56c4" fillColor="#1a56c4" isExpanded={true} />
+                    })}
+                  />
+                  <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 group-hover:text-blue-600 transition-colors">
+                    <span className="flex items-center gap-1 font-medium">
+                      <Maximize2 className="w-3 h-3" />
+                      <span>Klik kartu ini untuk perbesar ke tengah layar</span>
+                    </span>
+                    <span className="text-[10px] bg-slate-50 group-hover:bg-blue-50 px-2 py-0.5 rounded text-slate-500 group-hover:text-blue-700 font-semibold border border-slate-200 group-hover:border-blue-200">
+                      Maximize
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Card 2: Perbandingan Susut Antar Seluruh Jenis */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
-                <h3 className="text-sm font-bold text-slate-900 mb-3">
-                  Perbandingan Total Susut Rata-rata per Jenis Cengkeh (%)
-                </h3>
+              <div 
+                className="bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-5 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative"
+                onClick={() => setExpandedChart({
+                  title: 'Perbandingan Total Susut Rata-rata per Jenis Cengkeh (%)',
+                  subtitle: 'Peringkat persentase susut per komoditas varian',
+                  component: <JenisBarChartRekapCengkeh data={rekapJenisPeriodeData.list} isExpanded={true} />
+                })}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Perbandingan Total Susut Rata-rata per Jenis Cengkeh (%)
+                  </h3>
+                  <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-lg border border-blue-200">
+                    <Maximize2 className="w-3 h-3" />
+                    <span>Perbesar</span>
+                  </div>
+                </div>
                 <JenisBarChartRekapCengkeh
                   data={rekapJenisPeriodeData.list}
                   onExpand={() => setExpandedChart({
                     title: 'Perbandingan Total Susut Rata-rata per Jenis Cengkeh (%)',
                     subtitle: 'Peringkat persentase susut per komoditas varian',
-                    component: <JenisBarChartRekapCengkeh data={rekapJenisPeriodeData.list} />
+                    component: <JenisBarChartRekapCengkeh data={rekapJenisPeriodeData.list} isExpanded={true} />
                   })}
                 />
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 group-hover:text-blue-600 transition-colors">
+                  <span className="flex items-center gap-1 font-medium">
+                    <Maximize2 className="w-3 h-3" />
+                    <span>Klik kartu ini untuk perbesar ke tengah layar</span>
+                  </span>
+                  <span className="text-[10px] bg-slate-50 group-hover:bg-blue-50 px-2 py-0.5 rounded text-slate-500 group-hover:text-blue-700 font-semibold border border-slate-200 group-hover:border-blue-200">
+                    Maximize
+                  </span>
+                </div>
               </div>
 
               {/* Card 3: Tabel Rekap per Jenis Cengkeh (Persis Standar Gambar 1) */}
@@ -1314,6 +1435,56 @@ export const IndexRekapCengkeh: React.FC = () => {
         onManualSync={() => syncWithCloud(true)}
         isSyncing={isSyncing}
       />
+
+      <PwaInstallModalRekapCengkeh
+        isOpen={isPwaModalOpen}
+        onClose={() => setIsPwaModalOpen(false)}
+      />
+
+      {/* Floating Mobile 1-Tap Install Prompt (Dismissible) */}
+      {!isInstalled && !dismissMobileBanner && (
+        <div className="md:hidden fixed bottom-4 left-3 right-3 z-40 animate-in slide-in-from-bottom-3 duration-200">
+          <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/90 text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
+                <Download className="w-4 h-4 text-slate-950" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-slate-100 truncate flex items-center gap-1.5">
+                  <span>Pasang Aplikasi di HP</span>
+                  <span className="text-[9px] px-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">1-Klik</span>
+                </div>
+                <div className="text-[10px] text-slate-400 truncate">
+                  Akses instan tanpa buka menu browser
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={async () => {
+                  if (isInstallable) {
+                    await install();
+                  } else {
+                    setIsPwaModalOpen(true);
+                  }
+                }}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-xs font-bold shadow-xs hover:from-amber-400 hover:to-amber-500 transition-all cursor-pointer"
+              >
+                ⚡ Pasang
+              </button>
+              <button
+                type="button"
+                onClick={() => setDismissMobileBanner(true)}
+                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg cursor-pointer text-xs"
+                title="Tutup banner"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Zoom Chart Modal */}
       {expandedChart && (

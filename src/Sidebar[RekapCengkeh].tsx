@@ -12,7 +12,8 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Database,
-  UserCheck
+  UserCheck,
+  Download
 } from 'lucide-react';
 import { UserRole } from './types[RekapCengkeh]';
 import { BUILD_VERSION } from './Code[RekapCengkeh]';
@@ -24,6 +25,7 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   userRole: UserRole;
   onOpenGasCenter: () => void;
+  onOpenInstallPwa?: () => void;
 }
 
 export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
@@ -32,7 +34,8 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
   isCollapsed,
   onToggleCollapse,
   userRole,
-  onOpenGasCenter
+  onOpenGasCenter,
+  onOpenInstallPwa
 }) => {
   const navItems = [
     {
@@ -110,8 +113,29 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Bottom Section: GAS Center Shortcut & Role */}
+      {/* Bottom Section: GAS Center Shortcut, Install PWA & Role */}
       <div className="p-3 border-t border-slate-800 space-y-2">
+        {onOpenInstallPwa && (
+          <button
+            onClick={onOpenInstallPwa}
+            className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-amber-600/10 border border-amber-500/30 text-amber-300 hover:text-amber-200 hover:bg-amber-500/30 transition-all cursor-pointer text-left"
+            title="Pasang Aplikasi (PWA) di HP / Laptop"
+          >
+            <Download className="w-5 h-5 shrink-0 text-amber-400" />
+            {!isCollapsed && (
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-bold leading-tight truncate text-amber-200 flex items-center justify-between">
+                  <span>Pasang Aplikasi</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800/80 font-mono">1-Klik</span>
+                </div>
+                <div className="text-[10px] text-amber-400/80 leading-tight truncate mt-0.5">
+                  Layar Utama HP / Desktop
+                </div>
+              </div>
+            )}
+          </button>
+        )}
+
         <button
           onClick={onOpenGasCenter}
           className="w-full flex items-center gap-3 p-2.5 rounded-xl bg-slate-800/80 text-cyan-400 hover:text-cyan-300 hover:bg-slate-800 transition-colors cursor-pointer text-left"

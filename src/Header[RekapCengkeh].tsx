@@ -17,7 +17,9 @@ import {
   ArrowRight,
   ShieldAlert,
   SlidersHorizontal,
-  Check
+  Check,
+  Download,
+  Smartphone
 } from 'lucide-react';
 import { UserRole } from './types[RekapCengkeh]';
 import { exportToPdf, BUILD_VERSION } from './Code[RekapCengkeh]';
@@ -35,6 +37,7 @@ interface HeaderProps {
   onOpenHelp: () => void;
   onOpenSwitchBoard: () => void;
   onOpenGasCenter: () => void;
+  onOpenInstallPwa?: () => void;
   onExportPdf: () => void;
   onToggleSidebar: () => void;
   isSidebarCollapsed: boolean;
@@ -53,6 +56,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
   onOpenHelp,
   onOpenSwitchBoard,
   onOpenGasCenter,
+  onOpenInstallPwa,
   onExportPdf,
   onToggleSidebar,
   isSidebarCollapsed
@@ -200,6 +204,22 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
               )}
             </div>
 
+            {/* 1.5. Pasang Aplikasi (PWA) Button */}
+            {onOpenInstallPwa && (
+              <button
+                type="button"
+                onClick={onOpenInstallPwa}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs font-bold shadow-xs transition-all cursor-pointer ring-1 ring-amber-400/40"
+                title="Pasang Aplikasi (PWA) ke Layar Utama HP / Desktop — Tanpa Repot Menu Titik Tiga"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-950" />
+                <span className="hidden sm:inline">Pasang App</span>
+                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-900 text-amber-300 font-mono font-bold hidden md:inline">
+                  PWA
+                </span>
+              </button>
+            )}
+
             {/* 2. Tarik Datasheet Langsung Button */}
             <button
               onClick={onPullDatasheet}
@@ -292,6 +312,30 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
 
                   {/* Bagian 2: Quick Links */}
                   <div className="p-2 space-y-1">
+                    {onOpenInstallPwa && (
+                      <button
+                        onClick={() => {
+                          setIsUserMenuOpen(false);
+                          onOpenInstallPwa();
+                        }}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 transition-colors text-left group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg group-hover:bg-amber-500/20 transition-colors">
+                            <Download className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="text-xs font-semibold text-white flex items-center gap-1.5">
+                              <span>Pasang Aplikasi (PWA)</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800">HP & PC</span>
+                            </div>
+                            <div className="text-[10px] text-slate-400">Instal langsung ke layar utama</div>
+                          </div>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 transition-colors" />
+                      </button>
+                    )}
+
                     <button
                       onClick={() => {
                         setIsUserMenuOpen(false);
