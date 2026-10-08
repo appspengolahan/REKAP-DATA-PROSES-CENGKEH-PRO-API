@@ -1328,10 +1328,21 @@ export const IndexRekapCengkeh: React.FC = () => {
                   <h3 className="text-sm font-bold text-slate-900">
                     Perbandingan Total Susut Rata-rata per Jenis Cengkeh (%)
                   </h3>
-                  <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-lg border border-blue-200">
-                    <Maximize2 className="w-3 h-3" />
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setExpandedChart({
+                        title: 'Perbandingan Total Susut Rata-rata per Jenis Cengkeh (%)',
+                        subtitle: 'Peringkat persentase susut per komoditas varian',
+                        component: <JenisBarChartRekapCengkeh data={rekapJenisPeriodeData.list} isExpanded={true} />
+                      });
+                    }}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 px-2.5 py-1 rounded-lg border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
                     <span>Perbesar</span>
-                  </div>
+                  </button>
                 </div>
                 <JenisBarChartRekapCengkeh
                   data={rekapJenisPeriodeData.list}

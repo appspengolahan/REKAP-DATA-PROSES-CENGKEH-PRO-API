@@ -109,7 +109,7 @@ export const TrendLineChartRekapCengkeh: React.FC<LineChartProps> = ({
       <div 
         className="w-full overflow-x-auto relative cursor-pointer pt-1 pb-2"
         onClick={() => {
-          if (activeIdx === null && onExpand) onExpand();
+          if (!isExpanded && onExpand) onExpand();
         }}
       >
         <svg
@@ -397,9 +397,13 @@ export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({
   return (
     <div className="relative w-full select-none">
       {/* Header Bar */}
-      {title && (
+      {(title || isExpanded) && (
         <div className="text-xs font-bold text-slate-800 mb-2.5 px-1 flex items-center justify-between gap-2 flex-wrap">
-          <span className="truncate">{title}</span>
+          {title ? (
+            <span className="truncate">{title}</span>
+          ) : (
+            <span className="font-semibold text-slate-600">Perbandingan Massa Bahan Baku Awal vs Hasil Pengeringan</span>
+          )}
           <div className="flex items-center gap-3 text-[11px] font-normal">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-xs bg-gradient-to-b from-blue-500 to-blue-700 inline-block shadow-2xs" />
@@ -409,7 +413,7 @@ export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({
               <span className="w-2.5 h-2.5 rounded-xs bg-gradient-to-b from-emerald-500 to-emerald-700 inline-block shadow-2xs" />
               <span className="text-slate-600 font-medium">Rajang Kering</span>
             </span>
-            {onExpand && (
+            {onExpand && !isExpanded && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -420,7 +424,7 @@ export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({
                 title="Klik untuk memperbesar grafik ke tengah layar"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
-                <span>{isExpanded ? 'Layar Penuh' : 'Perbesar'}</span>
+                <span>Perbesar</span>
               </button>
             )}
           </div>
@@ -431,7 +435,7 @@ export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({
       <div 
         className="w-full overflow-x-auto relative cursor-pointer pt-1 pb-2"
         onClick={() => {
-          if (activeIdx === null && onExpand) onExpand();
+          if (!isExpanded && onExpand) onExpand();
         }}
       >
         <svg
@@ -490,8 +494,12 @@ export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({
                 className="cursor-pointer"
                 onMouseEnter={() => setActiveIdx(i)}
                 onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveIdx(activeIdx === i ? null : i);
+                  if (onExpand && !isExpanded) {
+                    onExpand();
+                  } else {
+                    e.stopPropagation();
+                    setActiveIdx(activeIdx === i ? null : i);
+                  }
                 }}
               >
                 {/* Background highlight on hover */}
@@ -739,7 +747,7 @@ export const JenisBarChartRekapCengkeh: React.FC<JenisBarChartProps> = ({
             <span className="text-[11px] font-normal text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
               Total Susut Rata-rata (%)
             </span>
-            {onExpand && (
+            {onExpand && !isExpanded && (
               <button
                 type="button"
                 onClick={(e) => {
@@ -750,7 +758,7 @@ export const JenisBarChartRekapCengkeh: React.FC<JenisBarChartProps> = ({
                 title="Klik untuk memperbesar grafik ke tengah layar"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
-                <span>{isExpanded ? 'Layar Penuh' : 'Perbesar'}</span>
+                <span>Perbesar</span>
               </button>
             )}
           </div>
@@ -761,7 +769,7 @@ export const JenisBarChartRekapCengkeh: React.FC<JenisBarChartProps> = ({
       <div 
         className="w-full overflow-x-auto relative cursor-pointer pt-1 pb-2"
         onClick={() => {
-          if (activeIdx === null && onExpand) onExpand();
+          if (!isExpanded && onExpand) onExpand();
         }}
       >
         <svg
@@ -818,8 +826,12 @@ export const JenisBarChartRekapCengkeh: React.FC<JenisBarChartProps> = ({
                 className="cursor-pointer"
                 onMouseEnter={() => setActiveIdx(i)}
                 onClick={(e) => {
-                  e.stopPropagation();
-                  setActiveIdx(activeIdx === i ? null : i);
+                  if (onExpand && !isExpanded) {
+                    onExpand();
+                  } else {
+                    e.stopPropagation();
+                    setActiveIdx(activeIdx === i ? null : i);
+                  }
                 }}
               >
                 {/* Bar with rich blue gradient */}
