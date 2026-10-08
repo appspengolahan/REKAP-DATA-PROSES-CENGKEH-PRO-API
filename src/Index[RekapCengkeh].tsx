@@ -87,6 +87,22 @@ export const IndexRekapCengkeh: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isPullingDatasheet, setIsPullingDatasheet] = useState<boolean>(false);
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
+  const [autoSync, setAutoSync] = useState<boolean>(() => {
+    const cfg = getGasConfig();
+    return cfg.autoSync !== undefined ? cfg.autoSync : true;
+  });
+
+  const handleToggleAutoSync = useCallback(() => {
+    setAutoSync((prev) => {
+      const next = !prev;
+      setGasConfig((prevCfg) => {
+        const updated = { ...prevCfg, autoSync: next };
+        saveGasConfig(updated);
+        return updated;
+      });
+      return next;
+    });
+  }, []);
 
   // 2. Sidebar Collapsed state (stored in localStorage)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
@@ -322,6 +338,15 @@ export const IndexRekapCengkeh: React.FC = () => {
     return () => clearTimeout(timer);
   }, [syncWithCloud]);
 
+  // Live Auto-Sync: silent background sync every 60s when autoSync is ON
+  useEffect(() => {
+    if (!autoSync) return;
+    const interval = setInterval(() => {
+      syncWithCloud(false);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [autoSync, syncWithCloud]);
+
   const handleForceRebuildCache = () => {
     setRows(INITIAL_SNAPSHOT_DATA);
     saveCachedDataset(INITIAL_SNAPSHOT_DATA);
@@ -373,6 +398,8 @@ export const IndexRekapCengkeh: React.FC = () => {
           onPullDatasheet={handlePullDatasheet}
           isSyncing={isSyncing}
           isPullingDatasheet={isPullingDatasheet}
+          autoSync={autoSync}
+          onToggleAutoSync={handleToggleAutoSync}
           onOpenHelp={() => setIsHelpOpen(true)}
           onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
           onOpenGasCenter={() => setIsGasCenterOpen(true)}
@@ -1445,6 +1472,7 @@ export const IndexRekapCengkeh: React.FC = () => {
         onForceRebuildCache={handleForceRebuildCache}
         onManualSync={() => syncWithCloud(true)}
         isSyncing={isSyncing}
+        onToggleAutoSync={handleToggleAutoSync}
       />
 
       <PwaInstallModalRekapCengkeh

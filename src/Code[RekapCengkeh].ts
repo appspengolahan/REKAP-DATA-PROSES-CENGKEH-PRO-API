@@ -786,3 +786,58 @@ export async function fetchFromGasRest(execUrl: string): Promise<RawRowCengkeh[]
   if (json.data && Array.isArray(json.data)) return json.data;
   throw new Error('Format respon GAS REST bukan array data yang valid.');
 }
+
+/**
+ * Uji Endpoint & Payload GAS REST Web App (doGet / doPost)
+ */
+export async function testGasPayload(
+  execUrl: string, 
+  method: 'GET' | 'POST', 
+  payloadString: string
+): Promise<{ status: number; statusText: string; latencyMs: number; data: any; rawText: string }> {
+  const startTime = Date.now();
+  let targetUrl = execUrl;
+
+  let requestInit: RequestInit = {
+    mode: 'cors'
+  };
+
+  if (method === 'GET') {
+    let queryParams = '';
+    try {
+      const parsed = JSON.parse(payloadString || '{}');
+      const params = new URLSearchParams();
+      Object.keys(parsed).forEach((k) => params.append(k, String(parsed[k])));
+      params.append('t', String(Date.now()));
+      queryParams = (targetUrl.includes('?') ? '&' : '?') + params.toString();
+    } catch {
+      queryParams = (targetUrl.includes('?') ? '&' : '?') + `action=getData&t=${Date.now()}`;
+    }
+    targetUrl += queryParams;
+    requestInit.method = 'GET';
+  } else {
+    requestInit.method = 'POST';
+    requestInit.headers = {
+      'Content-Type': 'text/plain;charset=utf-8' // GAS doPost text/plain avoids CORS preflight failures
+    };
+    requestInit.body = payloadString;
+  }
+
+  const res = await fetch(targetUrl, requestInit);
+  const latencyMs = Date.now() - startTime;
+  const rawText = await res.text();
+  let data: any = null;
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    data = rawText;
+  }
+
+  return {
+    status: res.status,
+    statusText: res.statusText || 'OK',
+    latencyMs,
+    data,
+    rawText
+  };
+}

@@ -83,8 +83,10 @@ export interface PeriodeRentang {
 export type UserRole = 
   | 'Project Manager' 
   | 'Site Engineer' 
-  | 'Super Admin' 
   | 'Vendor' 
+  | 'Client' 
+  | 'Admin'
+  | 'Super Admin' 
   | 'Client Hub';
 
 export interface GasConfig {

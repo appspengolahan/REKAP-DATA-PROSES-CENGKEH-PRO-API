@@ -34,6 +34,8 @@ interface HeaderProps {
   onPullDatasheet: () => void;
   isSyncing: boolean;
   isPullingDatasheet: boolean;
+  autoSync?: boolean;
+  onToggleAutoSync?: () => void;
   onOpenHelp: () => void;
   onOpenSwitchBoard: () => void;
   onOpenGasCenter: () => void;
@@ -53,6 +55,8 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
   onPullDatasheet,
   isSyncing,
   isPullingDatasheet,
+  autoSync = false,
+  onToggleAutoSync,
   onOpenHelp,
   onOpenSwitchBoard,
   onOpenGasCenter,
@@ -233,6 +237,42 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline">{isPullingDatasheet ? 'Menarik...' : 'Tarik Datasheet'}</span>
             </button>
 
+            {/* 2.5. Auto-Sync Toggle Button (Logo terus berputar saat aktif sesuai Blueprint) */}
+            {onToggleAutoSync && (
+              <button
+                type="button"
+                onClick={onToggleAutoSync}
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-xs transition-all select-none cursor-pointer ${
+                  autoSync
+                    ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300 ring-1 ring-emerald-500/30'
+                    : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-400 hover:text-slate-200 border-slate-700'
+                }`}
+                title={autoSync ? 'Auto-Sync Aktif: Logo terus berputar & sinkronisasi otomatis berjalan berkala' : 'Aktifkan Auto-Sync Otomatis'}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${autoSync ? 'animate-spin text-emerald-400' : 'text-slate-400'}`} />
+                <span className="hidden sm:inline">Auto-Sync</span>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold font-mono ${
+                  autoSync ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-900 text-slate-500'
+                }`}>
+                  {autoSync ? 'ON' : 'OFF'}
+                </span>
+              </button>
+            )}
+
+            {/* 2.7. Tombol Headless GAS Center Sesuai Blueprint */}
+            <button
+              type="button"
+              onClick={onOpenGasCenter}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 text-cyan-400 hover:text-cyan-300 border border-slate-700 hover:border-cyan-600/50 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              title="Headless GAS Center (Pengaturan Endpoint API URL & Payload Testing)"
+            >
+              <Database className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="hidden sm:inline">GAS Center</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono font-bold hidden md:inline">
+                REST
+              </span>
+            </button>
+
             {/* 3. Refresh Data Button */}
             <button
               onClick={onRefresh}
@@ -240,7 +280,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
               className={`p-1.5 sm:p-2 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors flex items-center justify-center cursor-pointer ${
                 isSyncing ? 'opacity-70 cursor-not-allowed' : ''
               }`}
-              title="Refresh / Sinkronisasi Data Cepat"
+              title="Refresh / Sinkronisasi Data Manual Cepat"
             >
               <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
             </button>
@@ -265,11 +305,12 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                     ? 'bg-slate-800 text-white border-blue-500 shadow-blue-900/40 ring-2 ring-blue-500/30'
                     : 'bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 border-slate-700 hover:border-slate-600'
                 }`}
-                title="Buka Menu Profil, Switch App & GAS Center"
+                title="Pilih Peran Pengguna (RBAC), Profil, Switch App & GAS Center"
               >
                 <UserCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span className="font-medium text-slate-100 truncate max-w-[90px] sm:max-w-none">
-                  {userRole === 'Project Manager' ? 'PM: Lalu M.' : userRole}
+                <span className="text-slate-400 font-normal hidden lg:inline">Peran:</span>
+                <span className="font-semibold text-slate-100 truncate max-w-[110px] sm:max-w-none">
+                  {userRole}
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180 text-white' : 'text-slate-400'}`} />
               </button>
@@ -277,31 +318,47 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
               {/* Popover Content */}
               {isUserMenuOpen && (
                 <div className="absolute right-0 mt-2 w-76 sm:w-84 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-800 animate-in fade-in duration-150">
-                  {/* Bagian 1: Role Selector */}
+                  {/* Bagian 1: Role-Based Access Control (RBAC) Selector Sesuai Blueprint */}
                   <div className="p-3.5 bg-slate-800/60 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
                         <UserCheck className="w-3.5 h-3.5 text-blue-400" />
-                        Peran Pengguna (RBAC)
+                        Role-Based Access Control (RBAC)
                       </span>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-950 text-blue-300 border border-blue-800/70">
                         {userRole}
                       </span>
                     </div>
 
-                    <select
-                      value={userRole}
-                      onChange={(e) => onRoleChange(e.target.value as UserRole)}
-                      className="w-full bg-slate-900 border border-slate-700 text-slate-200 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-hidden focus:ring-2 focus:ring-blue-500 cursor-pointer"
-                    >
-                      <option value="Project Manager">PM: Lalu Mahendra</option>
-                      <option value="Site Engineer">Site Engineer</option>
-                      <option value="Super Admin">Super Admin</option>
-                      <option value="Vendor">Vendor</option>
-                      <option value="Client Hub">Client Hub</option>
-                    </select>
+                    {/* 5 Tombol Role Sesuai Blueprint */}
+                    <div className="grid grid-cols-1 gap-1">
+                      {(['Project Manager', 'Site Engineer', 'Vendor', 'Client', 'Admin'] as const).map((r) => {
+                        const isSelected = userRole === r;
+                        return (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => {
+                              onRoleChange(r as UserRole);
+                              setIsUserMenuOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-blue-600 text-white shadow-xs'
+                                : 'text-slate-300 hover:text-white hover:bg-slate-800/90 bg-slate-900/60'
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-slate-500'}`} />
+                              <span>{r}</span>
+                            </span>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-white" />}
+                          </button>
+                        );
+                      })}
+                    </div>
 
-                    <div className="flex items-center justify-between pt-0.5 text-[11px]">
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px]">
                       <span className="text-slate-400">Status Backend:</span>
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-bold text-[10px] bg-emerald-950/90 text-emerald-400 border border-emerald-800">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
