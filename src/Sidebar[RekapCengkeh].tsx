@@ -9,12 +9,11 @@ import {
   Calendar, 
   Layers, 
   Table, 
-  Boxes,
   ChevronLeft, 
   ChevronRight, 
-  Database,
-  UserCheck,
-  Download
+  Database, 
+  UserCheck, 
+  Download 
 } from 'lucide-react';
 import { UserRole, ActiveTabCengkeh } from './types[RekapCengkeh]';
 import { BUILD_VERSION } from './Code[RekapCengkeh]';
@@ -56,12 +55,6 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
       label: 'Rekap per Jenis Cengkeh',
       sublabel: 'Varian & Analisis Spesifik',
       icon: Layers
-    },
-    {
-      id: 'saldo-bahan' as const,
-      label: 'Saldo Akhir Bahan',
-      sublabel: 'Stok Terbaru per Jenis Bahan Unit Cengkeh',
-      icon: Boxes
     },
     {
       id: 'data-explorer' as const,
