@@ -99,7 +99,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
 
   return (
     <header className="no-print bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-30 shadow-md shrink-0 select-none">
-      <div className="w-full px-3 sm:px-6 lg:px-8">
+      <div className="w-full px-3 sm:px-4 lg:px-5">
         <div className="flex items-center justify-between h-16 gap-3">
           {/* Sisi Kiri: Logo PP1 & Identitas Pabrik */}
           <div className="flex items-center gap-3 min-w-0 shrink-0">
@@ -114,7 +114,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
             </button>
 
             {/* Logo PP1 */}
-            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center font-bold text-white shadow-md shrink-0 text-sm sm:text-base tracking-wider ring-1 ring-amber-400/30">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-orange-500 via-amber-600 to-red-600 flex items-center justify-center font-black text-white shadow-md shrink-0 text-sm sm:text-base tracking-wider ring-1 ring-orange-400/40">
               PP1
             </div>
 
@@ -138,12 +138,12 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                 <span className="hidden sm:inline">Divisi Produksi I</span>
                 <span className="text-slate-600">·</span>
                 <span className="inline-flex items-center gap-1 text-amber-300/90 font-medium text-[11px]">
-                  <span>Entri: {entriTerkini}</span>
+                  <span>📅 Entri: {entriTerkini}</span>
                 </span>
-                <span className="hidden md:inline-flex 2xl:hidden items-center gap-1 text-[11px] text-emerald-400 font-medium">
-                  <span className="text-slate-600">·</span>
+                <span className="text-slate-600">·</span>
+                <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  GAS Online
+                  <span>Live Data</span>
                 </span>
               </div>
             </div>

@@ -374,55 +374,58 @@ export const IndexRekapCengkeh: React.FC = () => {
   const highestSusutVariant = sortedByYield[sortedByYield.length - 1];
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-slate-50 text-slate-800 flex flex-row font-sans selection:bg-amber-100 selection:text-amber-900">
-      {/* 1. Industrial Dark Sidebar (Pinned / Fixed Height) */}
-      <SidebarRekapCengkeh
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={toggleSidebar}
+    <div className="h-screen w-screen overflow-hidden bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
+      {/* 1. Global Full-Width Header - Pinned across full screen width */}
+      <HeaderRekapCengkeh
+        entriTerkini={entriTerkini}
         userRole={userRole}
+        onRoleChange={setUserRole}
+        jalurProses={jalurProses}
+        onJalurProsesChange={setJalurProses}
+        onRefresh={() => syncWithCloud(true)}
+        onPullDatasheet={handlePullDatasheet}
+        isSyncing={isSyncing}
+        isPullingDatasheet={isPullingDatasheet}
+        autoSync={autoSync}
+        onToggleAutoSync={handleToggleAutoSync}
+        onOpenHelp={() => setIsHelpOpen(true)}
+        onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
         onOpenGasCenter={() => setIsGasCenterOpen(true)}
         onOpenInstallPwa={() => setIsPwaModalOpen(true)}
+        onExportPdf={() => {
+          if (activeTab === 'dashboard') exportToPdf('Ringkasan');
+          else if (activeTab === 'rekap-bulan') exportToPdf('RekapBulan');
+          else if (activeTab === 'rekap-jenis') exportToPdf('RekapJenis');
+          else exportToPdf('DataBatch');
+        }}
+        onToggleSidebar={toggleSidebar}
+        isSidebarCollapsed={isSidebarCollapsed}
       />
 
-      {/* 2. Main Column Wrapper - Locked to Viewport Height */}
-      <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden">
-        {/* Top Header - Always pinned at top */}
-        <HeaderRekapCengkeh
-          entriTerkini={entriTerkini}
+      {/* 2. Workspace Body (Horizontal): Sidebar on left, Content on right */}
+      <div className="flex-1 flex flex-row min-h-0 w-full overflow-hidden">
+        {/* Industrial Dark Sidebar (Under Header, Fixed Height) */}
+        <SidebarRekapCengkeh
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
           userRole={userRole}
-          onRoleChange={setUserRole}
-          jalurProses={jalurProses}
-          onJalurProsesChange={setJalurProses}
-          onRefresh={() => syncWithCloud(true)}
-          onPullDatasheet={handlePullDatasheet}
-          isSyncing={isSyncing}
-          isPullingDatasheet={isPullingDatasheet}
-          autoSync={autoSync}
-          onToggleAutoSync={handleToggleAutoSync}
-          onOpenHelp={() => setIsHelpOpen(true)}
-          onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
           onOpenGasCenter={() => setIsGasCenterOpen(true)}
           onOpenInstallPwa={() => setIsPwaModalOpen(true)}
-          onExportPdf={() => {
-            if (activeTab === 'dashboard') exportToPdf('Ringkasan');
-            else if (activeTab === 'rekap-bulan') exportToPdf('RekapBulan');
-            else if (activeTab === 'rekap-jenis') exportToPdf('RekapJenis');
-            else exportToPdf('DataBatch');
-          }}
-          onToggleSidebar={toggleSidebar}
-          isSidebarCollapsed={isSidebarCollapsed}
+          onOpenHelp={() => setIsHelpOpen(true)}
         />
 
-        {/* Tablet & Mobile Quick Nav Bar */}
-        <div className="lg:hidden bg-slate-900 border-b border-slate-800 px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-print shrink-0 z-20">
-          {[
-            { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
-            { id: 'rekap-bulan' as const, label: 'Rekap Bulan', icon: Calendar },
-            { id: 'rekap-jenis' as const, label: 'Rekap Jenis', icon: Layers },
-            { id: 'data-explorer' as const, label: 'Data Explorer', icon: Table }
-          ].map((tab) => {
+        {/* Main Column Wrapper */}
+        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+          {/* Tablet & Mobile Quick Nav Bar */}
+          <div className="lg:hidden bg-slate-900 border-b border-slate-800 px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-print shrink-0 z-20">
+            {[
+              { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'rekap-bulan' as const, label: 'Rekap Bulan', icon: Calendar },
+              { id: 'rekap-jenis' as const, label: 'Rekap Jenis', icon: Layers },
+              { id: 'data-explorer' as const, label: 'Data Explorer', icon: Table }
+            ].map((tab) => {
             const Icon = tab.icon;
             const isAct = activeTab === tab.id;
             return (
@@ -1454,6 +1457,7 @@ export const IndexRekapCengkeh: React.FC = () => {
           Divisi Produksi I - All Rights Reserved
         </div>
         </div>
+      </div>
       </div>
 
       {/* Modals Suite */}
