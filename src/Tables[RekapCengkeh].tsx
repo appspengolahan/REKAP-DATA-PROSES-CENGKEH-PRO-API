@@ -279,7 +279,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Rajang Kering</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Susut Dryer</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Total Susut</th>
-              <th className="py-2 px-2.5 text-center border-b border-[#e1e5ec]">Verifikasi</th>
+              <th className="py-2 px-2.5 text-center border-b border-[#e1e5ec] no-print">Verifikasi</th>
             </tr>
           </thead>
           <tbody>
@@ -300,11 +300,11 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
                   }`}>
                     {formatPct(r.totalSusutPct)}
                   </td>
-                  <td className="py-2 px-2.5 text-center border-b border-[#e1e5ec]">
+                  <td className="py-2 px-2.5 text-center border-b border-[#e1e5ec] no-print">
                     <button
                       type="button"
                       onClick={() => onToggleVerify && onToggleVerify(r.srcRow)}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                      className={`no-print inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
                         r.verified
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : 'bg-slate-100 text-slate-600 border border-slate-200'

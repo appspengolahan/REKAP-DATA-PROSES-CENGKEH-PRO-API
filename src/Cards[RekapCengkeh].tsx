@@ -219,7 +219,7 @@ export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySection
             <select
               value={bulanRingkasan}
               onChange={(e) => onBulanRingkasanChange(e.target.value)}
-              className="px-2 py-1 rounded-md border border-[#e1e5ec] text-[12px] bg-white text-[#1f2937] cursor-pointer"
+              className="no-print px-2 py-1 rounded-md border border-[#e1e5ec] text-[12px] bg-white text-[#1f2937] cursor-pointer"
             >
               <option value="Semua">Semua</option>
               {monthsList.map((b) => (

@@ -419,7 +419,7 @@ export const IndexRekapCengkeh: React.FC = () => {
         {/* Main Column Wrapper */}
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           {/* Tablet & Mobile Quick Nav Bar */}
-          <div className="lg:hidden bg-slate-900 border-b border-slate-800 px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-print shrink-0 z-20">
+          <nav role="navigation" aria-label="Navigasi Cepat Tablet & Mobile" className="lg:hidden bg-slate-900 border-b border-slate-800 px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-print shrink-0 z-20">
             {[
               { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
               { id: 'rekap-bulan' as const, label: 'Rekap Bulan', icon: Calendar },
@@ -432,7 +432,7 @@ export const IndexRekapCengkeh: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                className={`no-print flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                   isAct
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white bg-slate-800'
@@ -443,7 +443,7 @@ export const IndexRekapCengkeh: React.FC = () => {
               </button>
             );
           })}
-        </div>
+        </nav>
 
         {/* 3. Dedicated Scrollable Viewport for Data Content & Footer */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col">
@@ -1371,7 +1371,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         component: <JenisBarChartRekapCengkeh data={rekapJenisPeriodeData.list} isExpanded={true} />
                       });
                     }}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 px-2.5 py-1 rounded-lg border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+                    className="no-print inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 px-2.5 py-1 rounded-lg border border-blue-200 transition-colors cursor-pointer shadow-2xs"
                   >
                     <Maximize2 className="w-3.5 h-3.5" />
                     <span>Perbesar</span>
@@ -1490,7 +1490,7 @@ export const IndexRekapCengkeh: React.FC = () => {
 
       {/* Floating Mobile 1-Tap Install Prompt (Dismissible) */}
       {!isInstalled && !dismissMobileBanner && (
-        <div className="md:hidden fixed bottom-4 left-3 right-3 z-40 animate-in slide-in-from-bottom-3 duration-200">
+        <div className="no-print md:hidden fixed bottom-4 left-3 right-3 z-40 animate-in slide-in-from-bottom-3 duration-200">
           <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/90 text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">

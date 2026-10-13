@@ -71,6 +71,8 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
 
   return (
     <aside
+      role="navigation"
+      aria-label="Menu Navigasi Sidebar"
       className={`no-print hidden lg:flex bg-slate-900 border-r border-slate-800 text-slate-300 flex-col transition-all duration-300 select-none shrink-0 h-full z-20 ${
         isCollapsed ? 'w-18' : 'w-64'
       }`}

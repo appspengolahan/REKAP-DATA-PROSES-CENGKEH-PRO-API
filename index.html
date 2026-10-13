@@ -32,15 +32,33 @@
         font-family: 'JetBrains Mono', monospace;
       }
       @media print {
-        html, body, #root, .h-screen, .overflow-hidden, .overflow-y-auto {
+        html, body, #root, .h-screen, .w-screen, .overflow-hidden, .overflow-y-auto, .overflow-x-hidden {
           height: auto !important;
+          min-height: auto !important;
+          max-height: none !important;
+          width: 100% !important;
+          max-width: 100% !important;
           overflow: visible !important;
+          position: static !important;
         }
         @page {
           size: auto;
           margin: 10mm 10mm 15mm 10mm;
         }
-        .no-print, header, nav, aside, .sidebar-rail, .gas-center-btn, .help-modal, .switchboard-modal {
+        /* Sembunyikan seluruh tombol navigasi, sidebar, header, navbar, dan tombol aksi pada print & export PDF */
+        button,
+        input[type="button"],
+        input[type="submit"],
+        [role="button"],
+        header,
+        nav,
+        aside,
+        [role="navigation"],
+        .no-print,
+        .sidebar-rail,
+        .gas-center-btn,
+        .help-modal,
+        .switchboard-modal {
           display: none !important;
         }
         body {
@@ -52,8 +70,9 @@
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
-        .main-content {
+        main, .main-content {
           width: 100% !important;
+          max-width: 100% !important;
           margin: 0 !important;
           padding: 0 !important;
         }
@@ -71,6 +90,13 @@
           right: 0;
           display: block !important;
         }
+      }
+      .is-exporting-pdf button,
+      .is-exporting-pdf nav,
+      .is-exporting-pdf aside,
+      .is-exporting-pdf header,
+      .is-exporting-pdf .no-print {
+        display: none !important;
       }
       .pdf-print-footer {
         display: none;

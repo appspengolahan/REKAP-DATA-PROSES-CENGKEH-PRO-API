@@ -617,10 +617,12 @@ export function exportToPdf(tabOrField: string): void {
   // Format nama file: Nama project diikuti nama tab/field yang sedang di-export
   document.title = `RekapDataProsesCengkeh_${cleanTabName}`;
   
+  document.body.classList.add('is-exporting-pdf');
   window.print();
   
-  // Kembalikan nama title setelah dialog print terbuka
+  // Kembalikan status dan nama title setelah dialog print terbuka
   setTimeout(() => {
+    document.body.classList.remove('is-exporting-pdf');
     document.title = originalTitle;
   }, 1000);
 }

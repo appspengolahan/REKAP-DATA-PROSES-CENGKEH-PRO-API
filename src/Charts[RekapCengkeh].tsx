@@ -94,7 +94,7 @@ export const TrendLineChartRekapCengkeh: React.FC<LineChartProps> = ({
                   e.stopPropagation();
                   onExpand();
                 }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+                className="no-print inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs"
                 title="Klik untuk memperbesar grafik ke tengah layar"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -420,7 +420,7 @@ export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({
                   e.stopPropagation();
                   onExpand();
                 }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs ml-1"
+                className="no-print inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs ml-1"
                 title="Klik untuk memperbesar grafik ke tengah layar"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -754,7 +754,7 @@ export const JenisBarChartRekapCengkeh: React.FC<JenisBarChartProps> = ({
                   e.stopPropagation();
                   onExpand();
                 }}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+                className="no-print inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs"
                 title="Klik untuk memperbesar grafik ke tengah layar"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
