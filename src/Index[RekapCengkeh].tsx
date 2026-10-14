@@ -414,6 +414,7 @@ export const IndexRekapCengkeh: React.FC = () => {
           onOpenGasCenter={() => setIsGasCenterOpen(true)}
           onOpenInstallPwa={() => setIsPwaModalOpen(true)}
           onOpenHelp={() => setIsHelpOpen(true)}
+          onOpenSwitchBoard={() => setIsSwitchBoardOpen(true)}
         />
 
         {/* Main Column Wrapper */}
@@ -443,6 +444,15 @@ export const IndexRekapCengkeh: React.FC = () => {
               </button>
             );
           })}
+            {/* Tablet & Mobile Switch App Shortcut */}
+            <button
+              onClick={() => setIsSwitchBoardOpen(true)}
+              className="no-print flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer text-amber-300 bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 ml-auto"
+              title="Buka Switch App Board PP1"
+            >
+              <Layers className="w-3.5 h-3.5 text-amber-400" />
+              <span>Switch App</span>
+            </button>
         </nav>
 
         {/* 3. Dedicated Scrollable Viewport for Data Content & Footer */}
