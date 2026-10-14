@@ -208,22 +208,6 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* 1.5. Pasang Aplikasi (PWA) Button */}
-            {onOpenInstallPwa && (
-              <button
-                type="button"
-                onClick={onOpenInstallPwa}
-                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 text-xs font-bold shadow-xs transition-all cursor-pointer ring-1 ring-amber-400/40"
-                title="Pasang Aplikasi (PWA) ke Layar Utama HP / Desktop — Tanpa Repot Menu Titik Tiga"
-              >
-                <Download className="w-3.5 h-3.5 text-slate-950" />
-                <span className="hidden sm:inline">Pasang App</span>
-                <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-slate-900 text-amber-300 font-mono font-bold hidden md:inline">
-                  PWA
-                </span>
-              </button>
-            )}
-
             {/* 2. Tarik Datasheet Langsung Button */}
             <button
               onClick={onPullDatasheet}
@@ -258,20 +242,6 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                 </span>
               </button>
             )}
-
-            {/* 2.7. Tombol Headless GAS Center Sesuai Blueprint */}
-            <button
-              type="button"
-              onClick={onOpenGasCenter}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700/90 text-cyan-400 hover:text-cyan-300 border border-slate-700 hover:border-cyan-600/50 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-              title="Headless GAS Center (Pengaturan Endpoint API URL & Payload Testing)"
-            >
-              <Database className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden sm:inline">GAS Center</span>
-              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono font-bold hidden md:inline">
-                REST
-              </span>
-            </button>
 
             {/* 3. Refresh Data Button */}
             <button
