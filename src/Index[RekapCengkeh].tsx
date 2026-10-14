@@ -425,7 +425,7 @@ export const IndexRekapCengkeh: React.FC = () => {
               { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
               { id: 'rekap-bulan' as const, label: 'Rekap Bulan', icon: Calendar },
               { id: 'rekap-jenis' as const, label: 'Rekap Jenis', icon: Layers },
-              { id: 'data-explorer' as const, label: 'Data Explorer', icon: Table }
+              { id: 'data-explorer' as const, label: 'Log Harian', icon: Table }
             ].map((tab) => {
             const Icon = tab.icon;
             const isAct = activeTab === tab.id;
@@ -1421,22 +1421,22 @@ export const IndexRekapCengkeh: React.FC = () => {
             </div>
           )}
 
-          {/* VIEW 4: DATA EXPLORER BATCH */}
+          {/* VIEW 4: LOG DATA HARIAN */}
           {activeTab === 'data-explorer' && (
             <div className="space-y-6 animate-in fade-in duration-150">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
                 <div>
                   <h2 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
-                    Data Explorer Batch (Audit & Baris Mentah)
+                    Log Data Harian (Audit & Baris Transaksi)
                   </h2>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Pencarian spesifik nomor partai, tanggal proses, atau varian pada data riil
+                    Pencarian spesifik nomor partai, tanggal proses, atau varian pada transaksi harian
                   </p>
                 </div>
 
                 <div className="flex items-center gap-2 no-print">
                   <button
-                    onClick={() => exportToPdf('DataBatch')}
+                    onClick={() => exportToPdf('LogDataHarian')}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5" />

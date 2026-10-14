@@ -229,9 +229,23 @@ interface BatchExplorerProps {
 export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ rows, onToggleVerify }) => {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const pageSize = 15;
 
-  const filtered = rows.filter((r) => {
+  // Urutan data: default tanggal terbaru / baris terbaru di paling atas
+  const sorted = useMemo(() => {
+    return [...rows].sort((a, b) => {
+      const dateA = a.tanggal || '';
+      const dateB = b.tanggal || '';
+      const dateDiff = dateB.localeCompare(dateA);
+      if (dateDiff !== 0) {
+        return sortOrder === 'desc' ? dateDiff : -dateDiff;
+      }
+      return sortOrder === 'desc' ? b.srcRow - a.srcRow : a.srcRow - b.srcRow;
+    });
+  }, [rows, sortOrder]);
+
+  const filtered = sorted.filter((r) => {
     const q = search.toLowerCase();
     return (
       r.srcRow.toString().includes(q) ||
@@ -248,21 +262,36 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs no-print">
-        <div className="relative min-w-[240px]">
-          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6b7280]" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder="Cari nomor partai, tanggal, jenis cengkeh..."
-            className="pl-7 pr-3 py-1.5 rounded-md border border-[#e1e5ec] text-xs bg-white text-[#1f2937] placeholder-[#6b7280]"
-          />
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative min-w-[240px]">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6b7280]" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Cari nomor partai, tanggal, jenis cengkeh..."
+              className="pl-7 pr-3 py-1.5 rounded-md border border-[#e1e5ec] text-xs bg-white text-[#1f2937] placeholder-[#6b7280]"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-[#e1e5ec] bg-white text-[#1f2937] hover:bg-slate-50 transition-colors font-medium text-xs cursor-pointer shadow-2xs"
+            title="Ubah urutan tanggal data"
+          >
+            <ArrowUpDown className="w-3.5 h-3.5 text-blue-600" />
+            <span>
+              Urutan: <strong className="text-blue-700">{sortOrder === 'desc' ? 'Terbaru di Atas' : 'Terlama di Atas'}</strong>
+            </span>
+          </button>
         </div>
+
         <div className="text-[#6b7280] text-xs">
-          Total {filtered.length} baris data
+          Total {filtered.length} baris data (Ditampilkan: {sortOrder === 'desc' ? 'Terbaru $\\rightarrow$ Terlama' : 'Terlama $\\rightarrow$ Terbaru'})
         </div>
       </div>
 

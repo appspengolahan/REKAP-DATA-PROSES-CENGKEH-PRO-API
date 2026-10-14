@@ -65,8 +65,8 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
     },
     {
       id: 'data-explorer' as const,
-      label: 'Log Data Mentah',
-      sublabel: 'Semua Transaksi',
+      label: 'Log Data Harian',
+      sublabel: 'Transaksi Terkini',
       icon: Table
     }
   ];
