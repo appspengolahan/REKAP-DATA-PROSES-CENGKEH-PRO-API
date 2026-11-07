@@ -449,7 +449,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               dotColor = 'bg-emerald-400';
             } else if (p?.status === 'berjalan') {
               badgeBg = 'bg-amber-950 text-amber-300 border-amber-700/80';
-              badgeText = 'Proses Berjalan';
+              badgeText = p.isTodayActive ? 'Proses Hari Ini' : 'Proses Berjalan';
               dotColor = 'bg-amber-400 animate-pulse';
             }
 
@@ -490,6 +490,12 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <span>Tgl Proses:</span>
                     <span className="text-slate-300 truncate max-w-[130px]">
                       {p?.tanggalMulai || '-'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-500 text-[10px] pt-0.5 border-t border-slate-800/60">
+                    <span>Source Sheet:</span>
+                    <span className={`font-semibold ${p?.sourceDryerStatus === 'Proses' ? 'text-amber-400' : 'text-slate-500'}`}>
+                      {p?.sourceDryerStatus === 'Proses' ? '● PROSES' : '○ OFF'}
                     </span>
                   </div>
                 </div>
@@ -536,12 +542,16 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 {activePartai.status === 'berjalan' && (
                   <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-950 text-amber-300 border border-amber-700/80 flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-amber-400 animate-spin" />
-                    <span>Sedang Berjalan (Multi-Day Dryer)</span>
+                    <span>
+                      {activePartai.isTodayActive 
+                        ? 'Sedang Berjalan (Aktif Hari Ini · SOURCE HASIL DRYER: Proses)' 
+                        : 'Sedang Berjalan (Multi-Day Dryer · SOURCE HASIL DRYER: OFF)'}
+                    </span>
                   </span>
                 )}
                 {activePartai.status === 'kosong' && (
                   <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-800 text-slate-400 border border-slate-700">
-                    Lembar Kerja Kosong
+                    Lembar Kerja Kosong (SOURCE HASIL DRYER: OFF)
                   </span>
                 )}
               </div>

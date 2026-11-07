@@ -341,52 +341,145 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
 }
 
 /**
- * Fetch seluruh Tab Partai (Partai 1 s/d 4) secara paralel
+ * Fetch dan Parse status harian dari Tab SOURCE HASIL DRYER (Cell I14:I25)
+ */
+export async function fetchSourceHasilDryerStatus(
+  spreadsheetId: string = getDhpSpreadsheetId()
+): Promise<Record<string, { status: 'Proses' | 'OFF'; sesiAktif: string[] }>> {
+  const result: Record<string, { status: 'Proses' | 'OFF'; sesiAktif: string[] }> = {
+    'PARTAI 1': { status: 'OFF', sesiAktif: [] },
+    'PARTAI 2': { status: 'OFF', sesiAktif: [] },
+    'PARTAI 3': { status: 'OFF', sesiAktif: [] },
+    'PARTAI 4': { status: 'OFF', sesiAktif: [] }
+  };
+
+  try {
+    const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('SOURCE HASIL DRYER')}&t=${Date.now()}`;
+    const res = await fetch(gvizUrl);
+    if (!res.ok) return result;
+
+    const csvText = await res.text();
+    const lines = csvText.split('\n');
+
+    lines.forEach((l) => {
+      // Periksa baris sesi partai I s/d IV
+      const isProses = l.includes('"Proses"') || l.includes(';Proses') || l.includes(',Proses');
+
+      if (l.includes('PARTAI I SESI')) {
+        if (isProses) {
+          result['PARTAI 1'].status = 'Proses';
+          result['PARTAI 1'].sesiAktif.push(l.split(',')[1]?.replace(/"/g, '').trim() || 'Sesi I');
+        }
+      } else if (l.includes('PARTAI II SESI')) {
+        if (isProses) {
+          result['PARTAI 2'].status = 'Proses';
+          result['PARTAI 2'].sesiAktif.push(l.split(',')[1]?.replace(/"/g, '').trim() || 'Sesi II');
+        }
+      } else if (l.includes('PARTAI III SESI')) {
+        if (isProses) {
+          result['PARTAI 3'].status = 'Proses';
+          result['PARTAI 3'].sesiAktif.push(l.split(',')[1]?.replace(/"/g, '').trim() || 'Sesi III');
+        }
+      } else if (l.includes('PARTAI IV SESI')) {
+        if (isProses) {
+          result['PARTAI 4'].status = 'Proses';
+          result['PARTAI 4'].sesiAktif.push(l.split(',')[1]?.replace(/"/g, '').trim() || 'Sesi IV');
+        }
+      }
+    });
+  } catch (err) {
+    console.warn('Gagal membaca SOURCE HASIL DRYER:', err);
+  }
+
+  return result;
+}
+
+/**
+ * Fetch seluruh Tab Partai (Partai 1 s/d 4) secara paralel dengan Logika Hybrid 3-State
  */
 export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadsheetId()): Promise<DhpPartaiData[]> {
-  const promises = DHP_TABS.map((tab) => 
-    fetchDhpPartai(spreadsheetId, tab).catch((err) => {
-      console.warn(`Gagal memuat ${tab}:`, err);
-      // Return objek kosong aman
-      return {
-        id: tab,
-        namaTab: tab,
-        noLaporan: '-',
-        tanggalMulai: '-',
-        tanggalSelesai: '-',
-        jenis: '-',
-        mesin: '-',
-        gldKering: 0,
-        koliGld: 0,
-        kaGld: null,
-        totalRjBasah: 0,
-        totalRjKering: 0,
-        kaDryRata: null,
-        selisihKg: 0,
-        selisihPct: 0,
-        susutDryerKg: 0,
-        susutDryerPct: 0,
-        totalSusutKg: 0,
-        totalSusutPct: 0,
-        status: 'kosong' as const,
-        catatanStatus: 'Tab tidak ditemukan atau belum terisi.',
-        sesiList: [],
-        qc: {
-          uapBar: null,
-          admoistRpm: null,
-          airLpm: null,
-          kaPraRendam: null,
+  // Ambil tab SOURCE HASIL DRYER dan tab masing-masing partai secara paralel
+  const [sourceStatusMap, ...partaiDataList] = await Promise.all([
+    fetchSourceHasilDryerStatus(spreadsheetId),
+    ...DHP_TABS.map((tab) => 
+      fetchDhpPartai(spreadsheetId, tab).catch((err) => {
+        console.warn(`Gagal memuat ${tab}:`, err);
+        return {
+          id: tab,
+          namaTab: tab,
+          noLaporan: '-',
+          tanggalMulai: '-',
+          tanggalSelesai: '-',
+          jenis: '-',
           mesin: '-',
-          pengering: '-'
-        },
-        rawFetchedAt: new Date().toISOString()
-      };
-    })
-  );
+          gldKering: 0,
+          koliGld: 0,
+          kaGld: null,
+          totalRjBasah: 0,
+          totalRjKering: 0,
+          kaDryRata: null,
+          selisihKg: 0,
+          selisihPct: 0,
+          susutDryerKg: 0,
+          susutDryerPct: 0,
+          totalSusutKg: 0,
+          totalSusutPct: 0,
+          status: 'kosong' as const,
+          catatanStatus: 'Tab tidak ditemukan atau belum terisi.',
+          sourceDryerStatus: 'OFF' as const,
+          isTodayActive: false,
+          sesiList: [],
+          qc: {
+            uapBar: null,
+            admoistRpm: null,
+            airLpm: null,
+            kaPraRendam: null,
+            mesin: '-',
+            pengering: '-'
+          },
+          rawFetchedAt: new Date().toISOString()
+        };
+      })
+    )
+  ]);
 
-  const results = await Promise.all(promises);
-  saveCachedDhpPartai(results);
-  return results;
+  // Evaluasi Logika Hybrid 3-State
+  const hybridResults = partaiDataList.map((p) => {
+    const srcStatus = sourceStatusMap[p.id]?.status || 'OFF';
+    const isTodayActive = srcStatus === 'Proses';
+
+    let status: 'selesai' | 'berjalan' | 'kosong' = 'kosong';
+    let catatanStatus = '';
+
+    if (p.gldKering > 0 && p.totalRjKering > 0 && p.totalRjBasah > 0) {
+      status = 'selesai';
+      catatanStatus = `Seluruh proses pengeringan tuntas. Siap dikirim ke Rekap Susut (${p.totalSusutPct}% total susut).`;
+    } else if (p.gldKering > 0) {
+      status = 'berjalan';
+      if (isTodayActive) {
+        catatanStatus = `Sedang berjalan aktif hari ini (Tercatat "Proses" di SOURCE HASIL DRYER). Gld Kering: ${p.gldKering.toLocaleString('id-ID')} Kg tercatat.`;
+      } else {
+        catatanStatus = `Proses sedang berjalan (Multi-day dryer / menunggu sesi berikutnya tuntas). Gld Kering: ${p.gldKering.toLocaleString('id-ID')} Kg.`;
+      }
+    } else if (isTodayActive) {
+      status = 'berjalan';
+      catatanStatus = `Terjadwal aktif hari ini (SOURCE HASIL DRYER: "Proses"). Menunggu penimbangan bahan awal Gelondong Kering.`;
+    } else {
+      status = 'kosong';
+      catatanStatus = `Kertas kerja masih kosong (SOURCE HASIL DRYER: "OFF").`;
+    }
+
+    return {
+      ...p,
+      status,
+      catatanStatus,
+      sourceDryerStatus: srcStatus,
+      isTodayActive
+    };
+  });
+
+  saveCachedDhpPartai(hybridResults);
+  return hybridResults;
 }
 
 /**

@@ -180,6 +180,8 @@ export interface DhpPartaiData {
   totalSusutPct: number;
   status: 'selesai' | 'berjalan' | 'kosong';
   catatanStatus: string;
+  sourceDryerStatus?: 'Proses' | 'OFF'; // Status dari SOURCE HASIL DRYER Cell I14:I25
+  isTodayActive?: boolean;              // True jika ada sesi partai yang tanggalnya == Today
   sesiList: DhpSesiDryer[];
   qc: DhpQcParams;
   rawFetchedAt: string;
