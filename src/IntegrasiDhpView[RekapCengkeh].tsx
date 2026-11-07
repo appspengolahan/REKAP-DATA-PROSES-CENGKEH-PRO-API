@@ -29,14 +29,20 @@ import {
   Database,
   History,
   X,
-  Printer
+  Printer,
+  TrendingUp,
+  Scale,
+  AlertOctagon,
+  MessageSquare,
+  Edit3
 } from 'lucide-react';
 import { 
   DhpPartaiData, 
   DhpSyncLog, 
   UserRole, 
   RawRowCengkeh, 
-  GasConfig 
+  GasConfig,
+  ActiveTabCengkeh
 } from './types[RekapCengkeh]';
 import { 
   DHP_TABS, 
@@ -52,27 +58,42 @@ import {
   INTEGRASI_DHP_GAS_CODE,
   KODE_GS_FULL_TEMPLATE 
 } from './dhpService[RekapCengkeh]';
-import { formatKg, formatPct, exportToPdf } from './Code[RekapCengkeh]';
+import { formatKg, formatPct, round1, round2, exportToPdf } from './Code[RekapCengkeh]';
 
 interface IntegrasiDhpViewProps {
   userRole: UserRole;
   gasConfig: GasConfig;
   masterRows: RawRowCengkeh[];
   onRefreshMaster: () => Promise<void>;
+  onNavigateToTab?: (tab: ActiveTabCengkeh) => void;
 }
 
 export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   userRole,
   gasConfig,
   masterRows,
-  onRefreshMaster
+  onRefreshMaster,
+  onNavigateToTab
 }) => {
   const [partaiList, setPartaiList] = useState<DhpPartaiData[]>(() => getCachedDhpPartai() || []);
   const [selectedPartaiId, setSelectedPartaiId] = useState<string>('PARTAI 1');
+  const [activeSubTab, setActiveSubTab] = useState<'transaksi' | 'analisis'>('transaksi');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPushing, setIsPushing] = useState<boolean>(false);
   const [pushStatusMessage, setPushStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [syncLogs, setSyncLogs] = useState<DhpSyncLog[]>(() => getDhpSyncLogs());
+
+  // Field notes state per partai
+  const [fieldNotes, setFieldNotes] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('_REKAP_CKH_DHP_FIELD_NOTES');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [editingNotePartaiId, setEditingNotePartaiId] = useState<string | null>(null);
+  const [tempNoteText, setTempNoteText] = useState<string>('');
 
   // Modal States
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
@@ -125,6 +146,93 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
       );
     });
   }, [activePartai, masterRows]);
+
+  // Analisis Harian Komparasi Bahan Cengkeh untuk setiap partai aktif
+  const dhpAnalisisList = useMemo(() => {
+    return partaiList
+      .filter((p) => p.status !== 'kosong')
+      .map((p) => {
+        const bakuKg = p.gldKering || 0;
+        const hasilKg = p.totalRjKering || 0;
+        const susutRiilKg = p.totalSusutKg || (bakuKg - hasilKg);
+        const susutRiilPct = p.totalSusutPct || (bakuKg > 0 ? (susutRiilKg / bakuKg) * 100 : 0);
+
+        // Standar Acuan Cengkeh: Model degradasi kadar air 1:1 (Cell T1:T3 DATA PROSES CKH)
+        const kaPra = p.qc.kaPraRendam || p.kaGld || 19.5;
+        const kaDry = p.kaDryRata || 14.5;
+        let acuanPct = round2(kaPra - kaDry);
+        if (acuanPct <= 0 || isNaN(acuanPct)) acuanPct = 5.0;
+
+        const deviasiPct = round2(susutRiilPct - acuanPct);
+        const acuanKg = round1((acuanPct / 100) * bakuKg);
+        const deviasiKg = round1(susutRiilKg - acuanKg);
+
+        const absDev = Math.abs(deviasiPct);
+        let status: 'normal' | 'waspada' | 'oos' = 'normal';
+        if (absDev > 0.60) {
+          status = 'oos';
+        } else if (absDev > 0.30) {
+          status = 'waspada';
+        }
+
+        // Jalur
+        const isSkm = p.jenis.toLowerCase().includes('skm') || p.jenis.toLowerCase().includes('filter');
+        const jalur: 'SKT' | 'SKM' = isSkm ? 'SKM' : 'SKT';
+
+        // Auto-diagnosa 2 tahap ilmiah
+        let faktorDominan = 'Terkendali Sesuai Acuan';
+        let autoDiagnosa = `Susut riil ${formatPct(susutRiilPct)} terkendali dalam batas wajar terhadap acuan degradasi KA ${formatPct(acuanPct)}%. Uap ${p.qc.uapBar ?? 5.0} Bar, admoist ${p.qc.admoistRpm ?? 35} Rpm, air ${p.qc.airLpm ?? 5.0} Lpm stabil.`;
+
+        if (deviasiPct > 0.30) {
+          faktorDominan = 'Pengeringan Berlebih (Over-drying) / Evaporasi Sesi Panas';
+          autoDiagnosa = `Susut lebih tinggi +${formatPct(deviasiPct)} dari acuan degradasi KA (${kaPra}% → ${kaDry}% = ${formatPct(acuanPct)}). Indikasi evaporasi uap berlebih atau over-dryer pada sesi pengeringan.`;
+        } else if (deviasiPct < -0.30) {
+          faktorDominan = 'Serapan Kelembaban Udara / Retensi Air Rendam (Higroskopis)';
+          autoDiagnosa = `Susut lebih rendah -${formatPct(Math.abs(deviasiPct))} dari acuan seiring kelembaban udara atau retensi admoist air rendam (selisih rajang basah +${formatPct(p.selisihPct)}%).`;
+        }
+
+        const customNote = fieldNotes[p.id];
+
+        return {
+          id: p.id,
+          namaTab: p.namaTab,
+          jenis: p.jenis,
+          tanggal: p.tanggalSelesai || p.tanggalMulai,
+          jalur,
+          bakuKg: round1(bakuKg),
+          hasilKg: round1(hasilKg),
+          susutRiilKg: round1(susutRiilKg),
+          susutRiilPct: round2(susutRiilPct),
+          acuanPct,
+          acuanKg,
+          deviasiPct,
+          deviasiKg,
+          status,
+          faktorDominan,
+          autoDiagnosa,
+          customNote,
+          qc: p.qc
+        };
+      });
+  }, [partaiList, fieldNotes]);
+
+  const dhpSummary = useMemo(() => {
+    let normalCount = 0;
+    let waspadaCount = 0;
+    let oosCount = 0;
+    dhpAnalisisList.forEach((a) => {
+      if (a.status === 'oos') oosCount++;
+      else if (a.status === 'waspada') waspadaCount++;
+      else normalCount++;
+    });
+    return {
+      total: dhpAnalisisList.length,
+      normalCount,
+      waspadaCount,
+      oosCount,
+      deviasiCount: waspadaCount + oosCount
+    };
+  }, [dhpAnalisisList]);
 
   const handleExecutePush = async () => {
     if (!activePartai) return;
@@ -270,8 +378,52 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         </div>
       )}
 
-      {/* 2. Papan Status Multi-Partai (4 Kartu Batch Paralel) */}
-      <div className="space-y-2.5">
+      {/* Sub-Tab Navigation Bar (Pratinjau & Transaksi vs Analisis Harian) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-2.5 rounded-2xl">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('transaksi')}
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeSubTab === 'transaksi'
+                ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Pratinjau & Transaksi ({partaiList.filter((p) => p.status !== 'kosong').length} Batch)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('analisis')}
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeSubTab === 'analisis'
+                ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
+                : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700'
+            }`}
+          >
+            <TrendingUp className="w-3.5 h-3.5" />
+            <span>Analisis Harian · {dhpSummary.deviasiCount} Deviasi</span>
+          </button>
+        </div>
+
+        {onNavigateToTab && (
+          <button
+            type="button"
+            onClick={() => onNavigateToTab('analisis-deviasi')}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold border border-slate-700 hover:border-cyan-500/50 transition-colors cursor-pointer"
+          >
+            <Scale className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Buka Evaluasi Bulanan & Acuan</span>
+          </button>
+        )}
+      </div>
+
+      {activeSubTab === 'transaksi' ? (
+        <>
+          {/* 2. Papan Status Multi-Partai (4 Kartu Batch Paralel) */}
+          <div className="space-y-2.5">
         <div className="flex items-center justify-between">
           <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
             <Layers className="w-3.5 h-3.5 text-amber-400" />
@@ -727,6 +879,288 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           </div>
         )}
       </div>
+        </>
+      ) : (
+        /* ================= TAB 2: ANALISIS HARIAN CENGKEH ================= */
+        <div className="space-y-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+            {/* Header Card Persis Gambar 1 & 2 */}
+            <div className="p-4 sm:p-5 bg-slate-900 border-b border-slate-800 text-white">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                    Rincian Komparasi Seluruh Bahan Cengkeh yang Diproses ({activePartai?.tanggalSelesai || activePartai?.tanggalMulai || 'Hari Ini'})
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Setiap varian dibandingkan langsung terhadap standar acuan spesifik degradasi kadar air & riwayat susut
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-slate-300 font-semibold">
+                    {dhpSummary.total} Jenis Cengkeh ·
+                  </span>
+                  <span className="text-xs text-emerald-400 font-bold">
+                    {dhpSummary.normalCount} Normal
+                  </span>
+                  {dhpSummary.waspadaCount > 0 && (
+                    <span className="text-xs text-amber-400 font-bold">
+                      · {dhpSummary.waspadaCount} Waspada
+                    </span>
+                  )}
+                  {dhpSummary.oosCount > 0 && (
+                    <span className="text-xs text-rose-400 font-bold">
+                      · {dhpSummary.oosCount} OOS
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Table Komparasi Persis Gambar 1 & 2 */}
+            <div className="w-full overflow-x-auto">
+              <table className="w-full border-collapse text-[12.5px]">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200 uppercase text-[11px] tracking-wider">
+                    <th className="py-2.5 px-3 text-left">Jenis Cengkeh</th>
+                    <th className="py-2.5 px-2 text-center">Jalur</th>
+                    <th className="py-2.5 px-3 text-right">Baku (Kg)</th>
+                    <th className="py-2.5 px-3 text-right">Hasil (Kg)</th>
+                    <th className="py-2.5 px-3 text-right">Susut Riil</th>
+                    <th className="py-2.5 px-3 text-right text-emerald-700">Acuan</th>
+                    <th className="py-2.5 px-3 text-right">Deviasi (Δ)</th>
+                    <th className="py-2.5 px-3 text-center">Status</th>
+                    <th className="py-2.5 px-3 text-left">Faktor Dominan & Auto-Diagnosa Singkat</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {dhpAnalisisList.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="py-8 text-center text-slate-400 text-xs">
+                        Belum ada kertas kerja DHP aktif yang memiliki data penimbangan.
+                      </td>
+                    </tr>
+                  ) : (
+                    dhpAnalisisList.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="py-3 px-3 text-left">
+                          <div className="font-bold text-slate-900">{item.jenis}</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            {item.namaTab} · {item.tanggal}
+                          </div>
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            {item.jalur}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-medium text-slate-800">
+                          {formatKg(item.bakuKg)}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-emerald-700">
+                          {formatKg(item.hasilKg)}
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono text-slate-800">
+                          <div className="font-bold">{formatPct(item.susutRiilPct)}</div>
+                          <div className="text-[10px] text-slate-400">-{formatKg(item.susutRiilKg)} Kg</div>
+                        </td>
+                        <td className="py-3 px-3 text-right font-mono font-bold text-emerald-600">
+                          {formatPct(item.acuanPct)}
+                        </td>
+                        <td className={`py-3 px-3 text-right font-mono font-bold ${
+                          item.status === 'oos'
+                            ? 'text-rose-600'
+                            : item.status === 'waspada'
+                            ? 'text-amber-600'
+                            : 'text-emerald-600'
+                        }`}>
+                          <div>{item.deviasiPct > 0 ? `+${formatPct(item.deviasiPct)}` : formatPct(item.deviasiPct)}</div>
+                          <div className="text-[10px] font-normal">
+                            {item.deviasiKg > 0 ? `+${formatKg(item.deviasiKg)}` : formatKg(item.deviasiKg)} Kg
+                          </div>
+                        </td>
+                        <td className="py-3 px-3 text-center">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                            item.status === 'oos'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : item.status === 'waspada'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          }`}>
+                            {item.status === 'oos' ? (
+                              <>
+                                <AlertOctagon className="w-3 h-3 text-rose-600" />
+                                <span>OOS</span>
+                              </>
+                            ) : item.status === 'waspada' ? (
+                              <>
+                                <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                <span>Waspada</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                <span>Normal</span>
+                              </>
+                            )}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3 text-left max-w-md">
+                          <div className="font-semibold text-slate-800 text-xs">
+                            {item.faktorDominan}
+                          </div>
+                          <div className="text-slate-500 text-[11px] leading-relaxed mt-0.5">
+                            {item.autoDiagnosa}
+                          </div>
+
+                          {item.customNote ? (
+                            <div className="mt-1.5 p-1.5 rounded bg-blue-50 border border-blue-200 text-blue-800 text-[11px] flex items-center justify-between">
+                              <span><strong>Catatan Lapangan:</strong> {item.customNote}</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingNotePartaiId(item.id);
+                                  setTempNoteText(item.customNote || '');
+                                }}
+                                className="text-blue-600 hover:text-blue-800 underline ml-2 font-semibold cursor-pointer"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingNotePartaiId(item.id);
+                                setTempNoteText('');
+                              }}
+                              className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                            >
+                              <Edit3 className="w-3 h-3" />
+                              <span>+ Tandai Alasan Lapangan</span>
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Bottom Bar Persis Gambar 1 & 2 */}
+            <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-xs text-slate-600">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Alarm Dini Harian terisolasi aman · Mengacu 100% pada sumber kebenaran Data Cengkeh</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveSubTab('transaksi')}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>Pratinjau & Sinkronisasi</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Tandai Alasan Lapangan */}
+      {editingNotePartaiId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-amber-400" />
+                <span>Tandai Alasan Lapangan ({editingNotePartaiId})</span>
+              </h3>
+              <button
+                onClick={() => setEditingNotePartaiId(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <p className="text-slate-300">
+                Pilih rekomendasi faktor lapangan atau ketik keterangan spesifik:
+              </p>
+
+              {/* Quick Tags */}
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  'Serapan Kelembaban Udara (Higroskopis RH > 80%)',
+                  'Indikasi Over-drying Sesi 2 / Panas Rotary Berlebih',
+                  'Retensi Admoist Air Rendam (Kadar Air Awal Non-Homogen)',
+                  'Penyesuaian Setpoint Tekanan Uap & Putaran Admoist',
+                  'Bahan Masuk Setelah Pergantian Shift'
+                ].map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => setTempNoteText(tag)}
+                    className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 transition-colors text-left"
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+
+              <textarea
+                rows={3}
+                value={tempNoteText}
+                onChange={(e) => setTempNoteText(e.target.value)}
+                placeholder="Tulis alasan lapangan atau temuan teknis mesin..."
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 text-xs focus:outline-none focus:border-amber-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  const updated = { ...fieldNotes };
+                  delete updated[editingNotePartaiId];
+                  setFieldNotes(updated);
+                  localStorage.setItem('_REKAP_CKH_DHP_FIELD_NOTES', JSON.stringify(updated));
+                  setEditingNotePartaiId(null);
+                }}
+                className="text-xs text-rose-400 hover:text-rose-300 cursor-pointer"
+              >
+                Hapus Catatan
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingNotePartaiId(null)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const updated = { ...fieldNotes, [editingNotePartaiId]: tempNoteText };
+                    setFieldNotes(updated);
+                    localStorage.setItem('_REKAP_CKH_DHP_FIELD_NOTES', JSON.stringify(updated));
+                    setEditingNotePartaiId(null);
+                  }}
+                  className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer"
+                >
+                  Simpan Catatan
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= MODAL 1: KONFIGURASI ID DHP ================= */}
       {isConfigModalOpen && (

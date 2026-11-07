@@ -1,0 +1,505 @@
+/**
+ * BACKEND GOOGLE APPS SCRIPT LENGKAP
+ * Project: Monitoring Board — Rekap Data Proses Cengkeh
+ * Unit Kerja: PT Batu Karang - Divisi Produksi I (PP1)
+ * File: Code.gs (Versi 1.4 - Multi-Year 2025 & 2026 Master Engine)
+ */
+
+var BUILD_VERSION = "v1.4 - 2026-10-07";
+var MONTH_ORDER = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+];
+
+/**
+ * Entry point HTTP GET
+ * - Jika parameter action=getData: Return JSON API untuk React Web Apps
+ * - Jika dibuka langsung di browser: Return antarmuka HTML Dashboard
+ */
+function doGet(e) {
+  var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : "";
+
+  if (action === "getData") {
+    try {
+      var allRows = loadRawDataFromSheet_();
+      var filterOpts = computeFilterOptions_(allRows);
+      var entriTerbaru = getEntriTerkini_(allRows);
+
+      var payload = {
+        status: "success",
+        buildVersion: BUILD_VERSION,
+        updatedAt: new Date().toISOString(),
+        entriTerkini: entriTerbaru,
+        totalRows: allRows.length,
+        filterOptions: filterOpts,
+        data: allRows
+      };
+
+      return ContentService
+        .createTextOutput(JSON.stringify(payload))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService
+        .createTextOutput(JSON.stringify({
+          status: "error",
+          message: err.toString()
+        }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Fallback: Tampilkan halaman HTML jika ada file Index[RekapCengkeh]
+  try {
+    return HtmlService.createTemplateFromFile("Index[RekapCengkeh]")
+      .evaluate()
+      .setTitle("Monitoring Board — Rekap Data Proses Cengkeh")
+      .addMetaTag("viewport", "width=device-width, initial-scale=1")
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  } catch (err) {
+    return HtmlService.createHtmlOutput(
+      "<div style='font-family:sans-serif;padding:30px;text-align:center;'>" +
+      "<h2>🌿 Endpoint REST API GAS Rekap Cengkeh Aktif</h2>" +
+      "<p>Build Version: <b>" + BUILD_VERSION + "</b></p>" +
+      "<p>Gunakan parameter <code>?action=getData</code> untuk mengambil data JSON.</p>" +
+      "</div>"
+    );
+  }
+}
+
+function doPost(e) {
+  return doGet(e);
+}
+
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+function getBuildVersion() {
+  return BUILD_VERSION;
+}
+
+/**
+ * Pembacaan data cerdas:
+ * 1. Cek tab 'FILTER DATA' (kolom B-P) yang berisi 236 baris (2025 & 2026).
+ * 2. Jika tidak ada, gunakan tab 'DATA PROSES CKH'.
+ */
+function loadRawDataFromSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("FILTER DATA");
+  var isFilterDataSheet = true;
+
+  if (!sheet) {
+    sheet = ss.getSheetByName("DATA PROSES CKH");
+    isFilterDataSheet = false;
+  }
+
+  if (!sheet) {
+    throw new Error("Sheet 'FILTER DATA' maupun 'DATA PROSES CKH' tidak ditemukan.");
+  }
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 5) return [];
+
+  var values = sheet.getRange(1, 1, lastRow, Math.min(lastCol, 30)).getValues();
+  var rows = [];
+
+  // Baris awal pembacaan data
+  var startIdx = isFilterDataSheet ? 4 : 7; // baris ke-5 untuk FILTER DATA, baris ke-8 untuk DATA PROSES CKH
+
+  for (var i = startIdx; i < values.length; i++) {
+    var row = values[i];
+    var rawTgl = row[1]; // Kolom B
+    if (!rawTgl) continue;
+
+    var gldKering = parseNum_(row[6]);  // Kolom G
+    var rjBasah = parseNum_(row[7]);    // Kolom H
+    var rjKering = parseNum_(row[10]);  // Kolom K
+
+    if (gldKering <= 0 || rjBasah <= 0 || rjKering <= 0) continue;
+
+    var bulan = String(row[2] || "").trim(); // Kolom C
+    var tahun = String(row[3] || "").trim(); // Kolom D
+    var jenis = String(row[4] || "Cengkeh").trim(); // Kolom E
+    var kaGld = parseNumNullable_(row[5]); // Kolom F
+    var kaDry = parseNumNullable_(row[11]); // Kolom L
+
+    var selisihKg = round1_(rjBasah - gldKering);
+    var selisihPct = round2_(((rjBasah - gldKering) / gldKering) * 100);
+    var susutKg = round1_(rjBasah - rjKering);
+    var susutPct = round2_(((rjBasah - rjKering) / rjBasah) * 100);
+    var totalSusutKg = round1_(gldKering - rjKering);
+    var totalSusutPct = round2_(((gldKering - rjKering) / gldKering) * 100);
+
+    rows.push({
+      srcRow: i + 1,
+      tanggal: parseIsoDate_(rawTgl, tahun),
+      bulan: bulan,
+      tahun: tahun,
+      jenis: jenis,
+      kaGld: kaGld,
+      gldKering: gldKering,
+      rjBasah: rjBasah,
+      selisihKg: selisihKg,
+      selisihPct: selisihPct,
+      rjKering: rjKering,
+      kaDry: kaDry,
+      susutKg: susutKg,
+      susutPct: susutPct,
+      totalSusutKg: totalSusutKg,
+      totalSusutPct: totalSusutPct,
+      verified: true
+    });
+  }
+
+  return rows;
+}
+
+/**
+ * Filter Options untuk dropdown Dashboard (Semua, 2026, 2025)
+ */
+function computeFilterOptions_(rows) {
+  var tahunSet = {};
+  var jenisSet = {};
+
+  rows.forEach(function (r) {
+    if (r.tahun) tahunSet[r.tahun] = true;
+    if (r.jenis) jenisSet[r.jenis] = true;
+  });
+
+  var arrTahun = Object.keys(tahunSet).sort(function (a, b) {
+    return b.localeCompare(a);
+  });
+
+  var arrJenis = Object.keys(jenisSet).sort();
+
+  return {
+    tahun: arrTahun,
+    bulan: MONTH_ORDER,
+    jenis: arrJenis
+  };
+}
+
+function getFilterOptions() {
+  var rows = loadRawDataFromSheet_();
+  return computeFilterOptions_(rows);
+}
+
+/**
+ * Fungsi RPC untuk UI Legacy Dashboard
+ */
+function getDashboardData(tahun, bulanRingkasan) {
+  var rows = loadRawDataFromSheet_();
+  var opts = computeFilterOptions_(rows);
+
+  var kpiTahunan = computeRingkasan_(rows, tahun, "Semua", "tahunan");
+  var kpiBulanan = computeRingkasan_(rows, tahun, bulanRingkasan, "bulanan");
+  var trendJenis = null;
+
+  if (opts.jenis.length > 0) {
+    trendJenis = computeTrendJenis_(rows, tahun, opts.jenis[0]);
+  }
+
+  return {
+    filterOptions: opts,
+    kpiTahunan: kpiTahunan,
+    kpiBulanan: kpiBulanan,
+    trendJenis: trendJenis,
+    entriTerkini: getEntriTerkini_(rows)
+  };
+}
+
+function getRekapBulan(tahun, jenis) {
+  var rows = loadRawDataFromSheet_();
+  var filtered = rows.filter(function (r) {
+    if (tahun && tahun !== "Semua" && r.tahun !== tahun) return false;
+    if (jenis && jenis !== "Semua" && r.jenis !== jenis) return false;
+    return true;
+  });
+
+  var groups = {};
+  filtered.forEach(function (r) {
+    var key = r.bulan;
+    if (!groups[key]) {
+      groups[key] = {
+        label: key,
+        jumlahData: 0,
+        gldKering: 0,
+        rjBasah: 0,
+        selisihKg: 0,
+        rjKering: 0,
+        susutKg: 0,
+        totalSusutKg: 0,
+        minPct: Infinity,
+        maxPct: -Infinity
+      };
+    }
+    var g = groups[key];
+    g.jumlahData++;
+    g.gldKering += r.gldKering;
+    g.rjBasah += r.rjBasah;
+    g.selisihKg += r.selisihKg;
+    g.rjKering += r.rjKering;
+    g.susutKg += r.susutKg;
+    g.totalSusutKg += r.totalSusutKg;
+    if (r.totalSusutPct < g.minPct) g.minPct = r.totalSusutPct;
+    if (r.totalSusutPct > g.maxPct) g.maxPct = r.totalSusutPct;
+  });
+
+  var list = Object.keys(groups).map(function (k) {
+    var g = groups[k];
+    return {
+      label: g.label,
+      jumlahData: g.jumlahData,
+      gldKering: round1_(g.gldKering),
+      rjBasah: round1_(g.rjBasah),
+      selisihKg: round1_(g.selisihKg),
+      selisihPct: g.gldKering ? round2_((g.selisihKg / g.gldKering) * 100) : 0,
+      rjKering: round1_(g.rjKering),
+      susutDryerKg: round1_(g.susutKg),
+      susutDryerPct: g.rjBasah ? round2_((g.susutKg / g.rjBasah) * 100) : 0,
+      totalSusutKg: round1_(g.totalSusutKg),
+      totalSusutPct: g.gldKering ? round2_((g.totalSusutKg / g.gldKering) * 100) : 0,
+      minPct: g.minPct === Infinity ? 0 : round2_(g.minPct),
+      maxPct: g.maxPct === -Infinity ? 0 : round2_(g.maxPct)
+    };
+  });
+
+  list.sort(function (a, b) {
+    return MONTH_ORDER.indexOf(a.label) - MONTH_ORDER.indexOf(b.label);
+  });
+
+  return list;
+}
+
+function getTrendJenis(tahun, jenis) {
+  var rows = loadRawDataFromSheet_();
+  return computeTrendJenis_(rows, tahun, jenis);
+}
+
+function computeTrendJenis_(rows, tahun, jenis) {
+  var filtered = rows.filter(function (r) {
+    if (r.jenis !== jenis) return false;
+    if (tahun && tahun !== "Semua" && r.tahun !== tahun) return false;
+    return true;
+  });
+
+  var groups = {};
+  filtered.forEach(function (r) {
+    var key = r.bulan;
+    if (!groups[key]) {
+      groups[key] = { label: key, sumPct: 0, count: 0 };
+    }
+    groups[key].sumPct += r.totalSusutPct;
+    groups[key].count++;
+  });
+
+  var data = Object.keys(groups).map(function (k) {
+    var g = groups[k];
+    return {
+      label: g.label,
+      totalSusutPct: round2_(g.sumPct / g.count)
+    };
+  });
+
+  data.sort(function (a, b) {
+    return MONTH_ORDER.indexOf(a.label) - MONTH_ORDER.indexOf(b.label);
+  });
+
+  return { jenis: jenis, data: data };
+}
+
+function getRingkasanPeriode(tahunMulai, bulanMulai, tahunAkhir, bulanAkhir) {
+  var rows = loadRawDataFromSheet_();
+  var startKey = Number(tahunMulai) * 12 + MONTH_ORDER.indexOf(bulanMulai);
+  var endKey = Number(tahunAkhir) * 12 + MONTH_ORDER.indexOf(bulanAkhir);
+  if (endKey < startKey) {
+    var tmp = startKey; startKey = endKey; endKey = tmp;
+  }
+
+  var filtered = rows.filter(function (r) {
+    var k = Number(r.tahun) * 12 + MONTH_ORDER.indexOf(r.bulan);
+    return k >= startKey && k <= endKey;
+  });
+
+  var res = summarize_(filtered);
+  res.mode = "periode";
+  res.periodeLabel = bulanMulai + " " + tahunMulai + " — " + bulanAkhir + " " + tahunAkhir;
+  return res;
+}
+
+function getRekapJenisPeriode(tahunMulai, bulanMulai, tahunAkhir, bulanAkhir) {
+  var rows = loadRawDataFromSheet_();
+  var startKey = Number(tahunMulai) * 12 + MONTH_ORDER.indexOf(bulanMulai);
+  var endKey = Number(tahunAkhir) * 12 + MONTH_ORDER.indexOf(bulanAkhir);
+  if (endKey < startKey) {
+    var tmp = startKey; startKey = endKey; endKey = tmp;
+  }
+
+  var filtered = rows.filter(function (r) {
+    var k = Number(r.tahun) * 12 + MONTH_ORDER.indexOf(r.bulan);
+    return k >= startKey && k <= endKey;
+  });
+
+  var totalGld = filtered.reduce(function (s, r) { return s + r.gldKering; }, 0);
+  var groups = {};
+
+  filtered.forEach(function (r) {
+    var key = r.jenis;
+    if (!groups[key]) {
+      groups[key] = {
+        label: key,
+        jumlahData: 0,
+        gldKering: 0,
+        rjBasah: 0,
+        selisihKg: 0,
+        rjKering: 0,
+        susutKg: 0,
+        totalSusutKg: 0
+      };
+    }
+    var g = groups[key];
+    g.jumlahData++;
+    g.gldKering += r.gldKering;
+    g.rjBasah += r.rjBasah;
+    g.selisihKg += r.selisihKg;
+    g.rjKering += r.rjKering;
+    g.susutKg += r.susutKg;
+    g.totalSusutKg += r.totalSusutKg;
+  });
+
+  var list = Object.keys(groups).map(function (k) {
+    var g = groups[k];
+    return {
+      label: g.label,
+      jumlahData: g.jumlahData,
+      gldKering: round1_(g.gldKering),
+      rjKering: round1_(g.rjKering),
+      selisihPct: g.gldKering ? round2_((g.selisihKg / g.gldKering) * 100) : 0,
+      susutDryerPct: g.rjBasah ? round2_((g.susutKg / g.rjBasah) * 100) : 0,
+      totalSusutPct: g.gldKering ? round2_((g.totalSusutKg / g.gldKering) * 100) : 0,
+      kapasitasPct: totalGld ? round2_((g.gldKering / totalGld) * 100) : 0
+    };
+  });
+
+  list.sort(function (a, b) { return b.gldKering - a.gldKering; });
+
+  return {
+    periodeLabel: bulanMulai + " " + tahunMulai + " — " + bulanAkhir + " " + tahunAkhir,
+    list: list
+  };
+}
+
+function computeRingkasan_(rows, tahun, bulan, mode) {
+  var filtered = rows.filter(function (r) {
+    if (tahun && tahun !== "Semua" && r.tahun !== tahun) return false;
+    if (mode === "bulanan" && bulan && bulan !== "Semua" && r.bulan !== bulan) return false;
+    return true;
+  });
+
+  var res = summarize_(filtered);
+  res.mode = mode;
+  var thnLabel = (tahun && tahun !== "Semua") ? tahun : "Semua Tahun";
+  res.periodeLabel = mode === "tahunan"
+    ? thnLabel
+    : ((bulan && bulan !== "Semua") ? bulan : "Semua Bulan") + " " + thnLabel;
+  return res;
+}
+
+function summarize_(filtered) {
+  var sumGld = 0, sumRjBasah = 0, sumSelisih = 0, sumRjKering = 0, sumSusut = 0, sumTotalSusut = 0;
+  var kaGldSum = 0, kaGldCount = 0, kaDrySum = 0, kaDryCount = 0;
+  var minTotal = Infinity, maxTotal = -Infinity;
+
+  filtered.forEach(function (r) {
+    sumGld += r.gldKering;
+    sumRjBasah += r.rjBasah;
+    sumSelisih += r.selisihKg;
+    sumRjKering += r.rjKering;
+    sumSusut += r.susutKg;
+    sumTotalSusut += r.totalSusutKg;
+    if (r.kaGld !== null && !isNaN(r.kaGld)) { kaGldSum += r.kaGld; kaGldCount++; }
+    if (r.kaDry !== null && !isNaN(r.kaDry)) { kaDrySum += r.kaDry; kaDryCount++; }
+    if (r.totalSusutPct < minTotal) minTotal = r.totalSusutPct;
+    if (r.totalSusutPct > maxTotal) maxTotal = r.totalSusutPct;
+  });
+
+  return {
+    jumlahData: filtered.length,
+    gldKering: round1_(sumGld),
+    rjBasah: round1_(sumRjBasah),
+    selisihKg: round1_(sumSelisih),
+    selisihPct: sumGld ? round2_((sumSelisih / sumGld) * 100) : 0,
+    rjKering: round1_(sumRjKering),
+    susutDryerKg: round1_(sumSusut),
+    susutDryerPct: sumRjBasah ? round2_((sumSusut / sumRjBasah) * 100) : 0,
+    totalSusutKg: round1_(sumTotalSusut),
+    totalSusutPct: sumGld ? round2_((sumTotalSusut / sumGld) * 100) : 0,
+    totalSusutMinPct: minTotal === Infinity ? 0 : round2_(minTotal),
+    totalSusutMaxPct: maxTotal === -Infinity ? 0 : round2_(maxTotal),
+    kaGldRata: kaGldCount ? round1_(kaGldSum / kaGldCount) : null,
+    kaDryRata: kaDryCount ? round1_(kaDrySum / kaDryCount) : null
+  };
+}
+
+function getEntriTerkini_(rows) {
+  if (!rows || rows.length === 0) return "-";
+  var maxTanggal = rows[0].tanggal;
+  for (var i = 1; i < rows.length; i++) {
+    if (rows[i].tanggal > maxTanggal) maxTanggal = rows[i].tanggal;
+  }
+  return formatTanggalIndo_(maxTanggal);
+}
+
+function formatTanggalIndo_(isoDate) {
+  if (!isoDate) return "-";
+  var p = isoDate.split("-");
+  if (p.length === 3) {
+    var bIdx = parseInt(p[1], 10) - 1;
+    if (bIdx >= 0 && bIdx < 12) {
+      return parseInt(p[2], 10) + " " + MONTH_ORDER[bIdx] + " " + p[0];
+    }
+  }
+  return isoDate;
+}
+
+function parseIsoDate_(raw, fallbackYear) {
+  if (!raw) return (fallbackYear || "2026") + "-01-01";
+  if (raw instanceof Date) {
+    return Utilities.formatDate(raw, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  }
+  var str = String(raw).trim();
+  var mIndo = str.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if (mIndo) {
+    var d = ("0" + mIndo[1]).slice(-2);
+    var bIdx = MONTH_ORDER.map(function(m){return m.toLowerCase();}).indexOf(mIndo[2].toLowerCase());
+    var m = ("0" + (bIdx !== -1 ? bIdx + 1 : 5)).slice(-2);
+    return mIndo[3] + "-" + m + "-" + d;
+  }
+  if (str.indexOf("/") >= 0) {
+    var parts = str.split("/");
+    if (parts.length === 3) {
+      return parts[2] + "-" + ("0" + parts[1]).slice(-2) + "-" + ("0" + parts[0]).slice(-2);
+    }
+  }
+  return str;
+}
+
+function parseNum_(v) {
+  if (typeof v === "number") return isNaN(v) ? 0 : v;
+  if (!v) return 0;
+  var c = String(v).replace(/["\s%McKg]/gi, "").replace(/\./g, "").replace(/,/g, ".");
+  var n = parseFloat(c);
+  return isNaN(n) ? 0 : n;
+}
+
+function parseNumNullable_(v) {
+  if (typeof v === "number") return isNaN(v) ? null : v;
+  if (!v) return null;
+  var c = String(v).replace(/["\s%McKg]/gi, "").replace(/\./g, "").replace(/,/g, ".");
+  var n = parseFloat(c);
+  return isNaN(n) ? null : n;
+}
+
+function round1_(n) { return Math.round(n * 10) / 10; }
+function round2_(n) { return Math.round(n * 100) / 100; }

@@ -17,7 +17,8 @@ import {
   HelpCircle,
   Sprout,
   ShieldCheck,
-  GitFork
+  GitFork,
+  Scale
 } from 'lucide-react';
 import { UserRole, ActiveTabCengkeh } from './types[RekapCengkeh]';
 import { BUILD_VERSION } from './Code[RekapCengkeh]';
@@ -57,6 +58,12 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
       label: 'Rekap per Bulan',
       sublabel: 'Tren & Tabel Bulanan',
       icon: Calendar
+    },
+    {
+      id: 'analisis-deviasi' as const,
+      label: 'Analisis Deviasi & Acuan',
+      sublabel: 'Standar & Evaluasi Bulanan',
+      icon: Scale
     },
     {
       id: 'rekap-jenis' as const,

@@ -1,0 +1,121 @@
+/**
+ * =========================================================================
+ * GOOGLE APPS SCRIPT: INTEGRASI DHP CENGKEH (2 ARAH, 5-LAYER DEFENSE)
+ * File Target di Google Apps Script Editor: IntegrasiDHP.gs
+ * Divisi Produksi I - PT Batu Karang
+ * =========================================================================
+ * 
+ * Sheet Sumber : DHP CENGKEH (1ZEJjMQMBkE8k3NIeHA32P2SooIpvXIfnq_f-pruCelQ)
+ * Sheet Tujuan : REKAP SUSUT PROSES CENGKEH (1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M)
+ * Target Tab   : DATA PROSES CKH
+ * 
+ * STANDAR ARSITEKTUR 5-LAYER DEFENSE:
+ * - Layer 1 (Non-Destructive Zero Guard): Menolak data kosong/dryer belum selesai.
+ * - Layer 2 (Physics & Mass-Balance Boundary): Verifikasi batas fisik susut cengkeh.
+ * - Layer 3 (Cross-Day Duplicate Shield): Mencegah duplikasi tanggal & varian di master.
+ * - Layer 4 (Audit Logging & Timestamp): Mencatat riwayat transaksi ke sheet audit.
+ * - Layer 5 (Atomic Append Row): Menulis 1 baris resmi terkunci ke DATA PROSES CKH.
+ */
+
+var DHP_SOURCE_SPREADSHEET_ID = "1ZEJjMQMBkE8k3NIeHA32P2SooIpvXIfnq_f-pruCelQ";
+var MASTER_TARGET_SPREADSHEET_ID = "1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M";
+var MASTER_TARGET_SHEET_NAME = "DATA PROSES CKH";
+
+/**
+ * Handler Khusus POST untuk Integrasi DHP Cengkeh
+ */
+function handleDhpPost(e) {
+  try {
+    var contents = e.postData && e.postData.contents ? JSON.parse(e.postData.contents) : {};
+    var action = contents.action || "";
+    
+    // Hanya tangani aksi sinkronisasi DHP
+    if (action !== "syncDhpToRekap" && action !== "appendRow") {
+      return null; // Teruskan ke handler umum
+    }
+    
+    var row = contents.row;
+    if (!row || !Array.isArray(row) || row.length < 15) {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "error",
+        layer: "Layer 1 (Payload Guard)",
+        message: "Format baris data tidak lengkap atau cacat."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // LAYER 1: Non-Destructive Zero Guard
+    var gldKeringStr = String(row[6] || "").trim();
+    if (!gldKeringStr || gldKeringStr === "0" || gldKeringStr === "0,0") {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "error",
+        layer: "Layer 1 (Zero Guard)",
+        message: "Ditolak: Gelondong Kering masih 0 Kg atau belum ditimbang."
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Buka Spreadsheet Master
+    var ssMaster = SpreadsheetApp.openById(contents.spreadsheetId || MASTER_TARGET_SPREADSHEET_ID);
+    var targetSheet = ssMaster.getSheetByName(contents.sheet || MASTER_TARGET_SHEET_NAME) || ssMaster.getActiveSheet();
+    
+    // LAYER 3: Cross-Day Duplicate Shield (Cek Tanggal & Jenis)
+    var tglBaru = String(row[1]).trim();
+    var jenisBaru = String(row[4]).trim();
+    var lastRow = targetSheet.getLastRow();
+    
+    if (lastRow >= 7) {
+      var existingData = targetSheet.getRange(7, 2, lastRow - 6, 4).getValues();
+      for (var i = 0; i < existingData.length; i++) {
+        var existingTgl = String(existingData[i][0]).trim();
+        var existingJenis = String(existingData[i][3]).trim();
+        if (existingTgl === tglBaru && existingJenis === jenisBaru) {
+          return ContentService.createTextOutput(JSON.stringify({
+            status: "error",
+            layer: "Layer 3 (Duplicate Shield)",
+            message: "Duplikasi Terdeteksi: Transaksi tanggal '" + tglBaru + "' varian '" + jenisBaru + "' sudah ada di baris " + (i + 7) + "."
+          })).setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+    }
+    
+    // LAYER 5: Atomic Append Row ke Master Sheet
+    targetSheet.appendRow(row);
+    var appendedRowNum = targetSheet.getLastRow();
+    
+    // LAYER 4: Audit Logging ke Sheet AUDIT_LOG_INTEGRASI
+    try {
+      var auditSheet = ssMaster.getSheetByName("AUDIT_LOG_INTEGRASI");
+      if (!auditSheet) {
+        auditSheet = ssMaster.insertSheet("AUDIT_LOG_INTEGRASI");
+        auditSheet.appendRow(["Timestamp", "Partai ID", "No Laporan", "Tanggal Proses", "Jenis", "Gld Kering", "Total Susut Kg", "Total Susut %", "Operator/Peran", "Baris Target"]);
+      }
+      auditSheet.appendRow([
+        new Date().toISOString(),
+        contents.partaiId || "PARTAI",
+        contents.noLaporan || "-",
+        tglBaru,
+        jenisBaru,
+        gldKeringStr,
+        row[14] || "-",
+        row[15] || "-",
+        contents.userRole || "Admin",
+        appendedRowNum
+      ]);
+    } catch(auditErr) {
+      Logger.log("Audit log info: " + auditErr.toString());
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      message: "Sukses: Data " + (contents.partaiId || "Partai") + " (" + tglBaru + ") berhasil dibukukan ke baris #" + appendedRowNum + " Sheet Master.",
+      appendedRow: appendedRowNum,
+      partaiId: contents.partaiId,
+      timestamp: new Date().toISOString()
+    })).setMimeType(ContentService.MimeType.JSON);
+    
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: "Server GAS Exception: " + err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}

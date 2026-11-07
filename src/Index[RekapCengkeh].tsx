@@ -55,6 +55,8 @@ import { GasCenterModalRekapCengkeh } from './GasCenterModal[RekapCengkeh]';
 import { ChartExpandedModalRekapCengkeh } from './ChartExpandedModal[RekapCengkeh]';
 import { PwaInstallModalRekapCengkeh } from './PwaInstallModalRekapCengkeh';
 import { IntegrasiDhpViewRekapCengkeh } from './IntegrasiDhpView[RekapCengkeh]';
+import { AnalisisDeviasiViewRekapCengkeh } from './AnalisisDeviasiView[RekapCengkeh]';
+import { getCachedDhpPartai } from './dhpService[RekapCengkeh]';
 import { usePWAInstall } from './usePWAInstall';
 import { INITIAL_SNAPSHOT_DATA } from './snapshotData[RekapCengkeh]';
 import { 
@@ -181,6 +183,60 @@ export const IndexRekapCengkeh: React.FC = () => {
   const filteredRows = useMemo(() => {
     return rows;
   }, [rows]);
+
+  // Gabungan baris transaksi untuk Log Data Harian (Master Rows + DHP Live Partai)
+  const explorerRows = useMemo(() => {
+    const cachedDhp = getCachedDhpPartai() || [];
+    const dhpRows: RawRowCengkeh[] = [];
+
+    cachedDhp.forEach((p, idx) => {
+      if (p.status !== 'kosong') {
+        const rawDate = p.tanggalSelesai || p.tanggalMulai || '2026-11-05';
+        const parts = rawDate.split('-');
+        let tahun = '2026';
+        let bulan = 'November';
+        if (parts.length === 3) {
+          tahun = parts[0];
+          const mNum = parseInt(parts[1], 10);
+          if (mNum >= 1 && mNum <= 12) {
+            bulan = [
+              'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+              'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+            ][mNum - 1];
+          }
+        }
+
+        dhpRows.push({
+          srcRow: 9000 + (idx + 1),
+          tanggal: rawDate,
+          bulan,
+          tahun,
+          jenis: p.jenis,
+          kaGld: p.kaGld || p.qc.kaPraRendam || 19.5,
+          gldKering: p.gldKering,
+          rjBasah: p.totalRjBasah,
+          selisihKg: p.selisihKg,
+          selisihPct: p.selisihPct,
+          rjKering: p.totalRjKering,
+          kaDry: p.kaDryRata || 14.5,
+          susutKg: p.susutDryerKg,
+          susutPct: p.susutDryerPct,
+          totalSusutKg: p.totalSusutKg,
+          totalSusutPct: p.totalSusutPct,
+          sumber: 'DHP',
+          dhpPartaiId: p.namaTab,
+          verified: p.status === 'selesai'
+        });
+      }
+    });
+
+    const masterRowsMapped = filteredRows.map((r) => ({
+      ...r,
+      sumber: r.sumber || ('REKAP_MASTER' as const)
+    }));
+
+    return [...dhpRows, ...masterRowsMapped];
+  }, [filteredRows]);
 
   // Aggregated calculations
   const ringkasanTahunan = useMemo(() => 
@@ -1450,11 +1506,20 @@ export const IndexRekapCengkeh: React.FC = () => {
 
               <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
                 <BatchExplorerTableRekapCengkeh
-                  rows={filteredRows}
+                  rows={explorerRows}
                   onToggleVerify={handleToggleVerify}
                 />
               </div>
             </div>
+          )}
+
+          {/* VIEW: ANALISIS DEVIASI & ACUAN */}
+          {activeTab === 'analisis-deviasi' && (
+            <AnalisisDeviasiViewRekapCengkeh
+              rows={rows}
+              userRole={userRole}
+              onNavigateToDhp={() => setActiveTab('integrasi-dhp')}
+            />
           )}
 
           {/* VIEW 5: INTEGRASI DHP CENGKEH */}
@@ -1464,6 +1529,7 @@ export const IndexRekapCengkeh: React.FC = () => {
               gasConfig={gasConfig}
               masterRows={rows}
               onRefreshMaster={() => syncWithCloud(true)}
+              onNavigateToTab={(tab) => setActiveTab(tab)}
             />
           )}
         </main>

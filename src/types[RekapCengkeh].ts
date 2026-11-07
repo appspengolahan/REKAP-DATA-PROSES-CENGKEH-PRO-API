@@ -24,6 +24,8 @@ export interface RawRowCengkeh {
   kaSimpan?: number | null;
   rawTanggal?: string;
   verified?: boolean;  // Local check status for audit
+  sumber?: 'DHP' | 'REKAP_MASTER'; // Sumber data transaksi
+  dhpPartaiId?: string; // ID partai jika berasal dari DHP
 }
 
 export interface SummaryKpiCengkeh {
@@ -94,7 +96,37 @@ export type ActiveTabCengkeh =
   | 'rekap-bulan' 
   | 'rekap-jenis' 
   | 'data-explorer'
-  | 'integrasi-dhp';
+  | 'integrasi-dhp'
+  | 'analisis-deviasi';
+
+export interface DeviasiAcuanConfig {
+  bulanDasarMulai: string;
+  bulanDasarSampai: string;
+  tahunDasar: string;
+  acuanAktifBulan: string;
+  batasWaspadaPct: number; // e.g. 0.30
+  batasOosPct: number;     // e.g. 0.60
+}
+
+export interface VarianDeviasiResult {
+  jenis: string;
+  jalur: 'SKT' | 'SKM' | 'Global';
+  bakuKg: number;
+  hasilKg: number;
+  susutRiilKg: number;
+  susutRiilPct: number;
+  acuanPct: number;
+  acuanKg: number;
+  deviasiPct: number; // susutRiilPct - acuanPct
+  deviasiKg: number;  // susutRiilKg - acuanKg
+  status: 'normal' | 'waspada' | 'oos';
+  faktorDominan: string;
+  autoDiagnosa: string;
+  alasanLapangan?: string;
+  kaGld?: number | null;
+  kaDry?: number | null;
+  jumlahBatch?: number;
+}
 
 export interface GasConfig {
   execUrl: string;

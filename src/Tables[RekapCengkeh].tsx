@@ -230,7 +230,12 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [filterSumber, setFilterSumber] = useState<'semua' | 'dhp' | 'master'>('semua');
   const pageSize = 15;
+
+  // Hitung jumlah per sumber
+  const countDhp = useMemo(() => rows.filter((r) => r.sumber === 'DHP').length, [rows]);
+  const countMaster = useMemo(() => rows.filter((r) => r.sumber !== 'DHP').length, [rows]);
 
   // Urutan data: default tanggal terbaru / baris terbaru di paling atas
   const sorted = useMemo(() => {
@@ -246,13 +251,18 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
   }, [rows, sortOrder]);
 
   const filtered = sorted.filter((r) => {
+    // Filter sumber
+    if (filterSumber === 'dhp' && r.sumber !== 'DHP') return false;
+    if (filterSumber === 'master' && r.sumber === 'DHP') return false;
+
     const q = search.toLowerCase();
     return (
       r.srcRow.toString().includes(q) ||
       r.tanggal.includes(q) ||
       r.jenis.toLowerCase().includes(q) ||
       r.bulan.toLowerCase().includes(q) ||
-      r.tahun.includes(q)
+      r.tahun.includes(q) ||
+      (r.dhpPartaiId && r.dhpPartaiId.toLowerCase().includes(q))
     );
   });
 
@@ -277,6 +287,43 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
             />
           </div>
 
+          {/* Filter Sumber Data: Semua, DHP, Master Sheet */}
+          <div className="inline-flex rounded-lg border border-[#e1e5ec] p-0.5 bg-slate-50">
+            <button
+              type="button"
+              onClick={() => { setFilterSumber('semua'); setCurrentPage(1); }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                filterSumber === 'semua'
+                  ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Semua Data ({rows.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setFilterSumber('dhp'); setCurrentPage(1); }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                filterSumber === 'dhp'
+                  ? 'bg-amber-50 text-amber-800 shadow-2xs font-bold border border-amber-200'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Integrasi DHP ({countDhp})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setFilterSumber('master'); setCurrentPage(1); }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                filterSumber === 'master'
+                  ? 'bg-white text-blue-700 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Master Rekap ({countMaster})
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
@@ -291,7 +338,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
         </div>
 
         <div className="text-[#6b7280] text-xs">
-          Total {filtered.length} baris data (Ditampilkan: {sortOrder === 'desc' ? 'Terbaru $\\rightarrow$ Terlama' : 'Terlama $\\rightarrow$ Terbaru'})
+          Total {filtered.length} baris data (Ditampilkan: {sortOrder === 'desc' ? 'Terbaru → Terlama' : 'Terlama → Terbaru'})
         </div>
       </div>
 
@@ -300,6 +347,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
           <thead>
             <tr className="bg-[#fafbfd] text-[#6b7280] font-semibold">
               <th className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">Baris #</th>
+              <th className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">Sumber</th>
               <th className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">Tanggal Rendam</th>
               <th className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">Jenis Cengkeh</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Gld. Kering</th>
@@ -315,8 +363,22 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
             {pagedRows.map((r) => {
               const pClass = getPctClass(r.totalSusutPct);
               return (
-                <tr key={r.srcRow} className="hover:bg-[#f8fafc] transition-colors">
-                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#6b7280] font-mono">#{r.srcRow}</td>
+                <tr key={`${r.sumber || 'master'}-${r.srcRow}`} className="hover:bg-[#f8fafc] transition-colors">
+                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#6b7280] font-mono">
+                    #{r.srcRow}
+                  </td>
+                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">
+                    {r.sumber === 'DHP' ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                        <span>DHP Live {r.dhpPartaiId ? `(${r.dhpPartaiId})` : ''}</span>
+                      </span>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                        Rekap Master
+                      </span>
+                    )}
+                  </td>
                   <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937]">{formatTanggalIndo(r.tanggal)}</td>
                   <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937] font-medium">{r.jenis}</td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatKg(r.gldKering)}</td>
