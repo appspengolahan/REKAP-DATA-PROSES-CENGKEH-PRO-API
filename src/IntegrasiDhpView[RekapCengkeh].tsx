@@ -49,7 +49,8 @@ import {
   pushDhpToMasterSheet, 
   getDhpSyncLogs, 
   getCachedDhpPartai, 
-  INTEGRASI_DHP_GAS_CODE 
+  INTEGRASI_DHP_GAS_CODE,
+  KODE_GS_FULL_TEMPLATE 
 } from './dhpService[RekapCengkeh]';
 import { formatKg, formatPct, exportToPdf } from './Code[RekapCengkeh]';
 
@@ -79,6 +80,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   const [isConfirmPushOpen, setIsConfirmPushOpen] = useState<boolean>(false);
   const [tempDhpId, setTempDhpId] = useState<string>(getDhpSpreadsheetId());
   const [isCopiedGasCode, setIsCopiedGasCode] = useState<boolean>(false);
+  const [activeGasTab, setActiveGasTab] = useState<'integrasi' | 'kode_gs'>('integrasi');
 
   // Ambil data pertama kali saat mount jika belum ada cache
   useEffect(() => {
@@ -809,43 +811,84 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
             {/* Modal Body */}
             <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
-              {/* Petunjuk Langkah demi Langkah */}
+              {/* Petunjuk Ringkas */}
               <div className="p-4 rounded-xl bg-slate-800/80 border border-cyan-800/60 text-slate-300 space-y-2">
                 <div className="font-bold text-cyan-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5" />
-                  Panduan Pemasangan di Google Apps Script Editor:
+                  Panduan Pemasangan di Google Apps Script (Pilih File):
                 </div>
-                <ol className="list-decimal list-inside space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
-                  <li>Buka Spreadsheet Master: <strong className="text-white">REKAP SUSUT PROSES CENGKEH</strong>.</li>
-                  <li>Di menu atas Google Sheets, klik menu: <strong className="text-white">Ekstensi &gt; Apps Script</strong>.</li>
-                  <li>Di panel kiri file Apps Script, klik tombol <strong className="text-cyan-400">+ (Tambah File) &gt; Skrip</strong>.</li>
-                  <li>Beri nama file persis: <code className="px-1.5 py-0.5 rounded bg-slate-900 text-amber-300 font-mono font-bold">IntegrasiDHP.gs</code> (terpisah dari <code className="text-slate-400 font-mono">Kode.gs</code> utama).</li>
-                  <li>Tempelkan (*paste*) kode di bawah ini ke dalam file <code className="text-amber-300 font-mono">IntegrasiDHP.gs</code> tersebut.</li>
-                  <li>Pada file <code className="text-slate-400 font-mono">Kode.gs</code>, pastikan di dalam fungsi <code className="text-cyan-300 font-mono">doPost(e)</code> terdapat pemanggilan <code className="text-cyan-300 font-mono">var res = handleDhpPost(e); if (res) return res;</code>.</li>
-                  <li>Klik tombol <strong className="text-white">Terapkan (Deploy) &gt; Kelola Penerapan &gt; Edit (Versi Baru)</strong>.</li>
-                </ol>
+                <div className="text-[11px] text-slate-300 leading-relaxed">
+                  Tersedia <strong>Kode Utuh 100%</strong> untuk kedua file sehingga Anda cukup melakukan <em>Salin &amp; Tempel Utuh</em> tanpa perlu memotong atau mengedit kode sebagian:
+                </div>
+              </div>
+
+              {/* Tab Selector File GAS */}
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveGasTab('integrasi')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeGasTab === 'integrasi'
+                      ? 'bg-cyan-500 text-slate-950 shadow-sm'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <FileCode className="w-3.5 h-3.5" />
+                  <span>1. IntegrasiDHP.gs (File Baru)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveGasTab('kode_gs')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeGasTab === 'kode_gs'
+                      ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : 'bg-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <FileCode className="w-3.5 h-3.5" />
+                  <span>2. Kode.gs (File Utama Utuh)</span>
+                </button>
               </div>
 
               {/* Code Box */}
               <div className="relative">
-                <div className="flex items-center justify-between px-3.5 py-2 bg-slate-950 border border-slate-800 rounded-t-xl">
-                  <span className="font-mono text-[11px] text-slate-400 font-semibold">IntegrasiDHP.gs</span>
+                <div className="flex items-center justify-between px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-t-xl">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-[11px] text-white font-bold">
+                      {activeGasTab === 'integrasi' ? 'IntegrasiDHP.gs' : 'Kode.gs'}
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400">
+                      {activeGasTab === 'integrasi' ? 'Kode Utuh 100% (File Baru)' : 'Kode Utuh 100% (Timpa Seluruh Isi File)'}
+                    </span>
+                  </div>
+
                   <button
-                    onClick={handleCopyGasCode}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-700 text-white font-semibold text-xs transition-colors cursor-pointer"
+                    onClick={() => {
+                      const textToCopy = activeGasTab === 'integrasi' ? INTEGRASI_DHP_GAS_CODE : KODE_GS_FULL_TEMPLATE;
+                      navigator.clipboard.writeText(textToCopy);
+                      setIsCopiedGasCode(true);
+                      setTimeout(() => setIsCopiedGasCode(false), 2500);
+                    }}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white font-semibold text-xs transition-colors cursor-pointer ${
+                      activeGasTab === 'integrasi' ? 'bg-cyan-600 hover:bg-cyan-700' : 'bg-amber-600 hover:bg-amber-700'
+                    }`}
                   >
                     {isCopiedGasCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{isCopiedGasCode ? 'Tersalin!' : 'Salin Kode'}</span>
+                    <span>{isCopiedGasCode ? 'Tersalin Utuh!' : 'Salin Seluruh Kode Ini'}</span>
                   </button>
                 </div>
-                <pre className="p-4 bg-slate-950 border-x border-b border-slate-800 rounded-b-xl text-[11px] font-mono text-cyan-300/90 overflow-x-auto max-h-80 leading-relaxed">
-                  {INTEGRASI_DHP_GAS_CODE}
+                <pre className="p-4 bg-slate-950 border-x border-b border-slate-800 rounded-b-xl text-[11px] font-mono text-cyan-300/90 overflow-x-auto max-h-80 leading-relaxed select-all">
+                  {activeGasTab === 'integrasi' ? INTEGRASI_DHP_GAS_CODE : KODE_GS_FULL_TEMPLATE}
                 </pre>
               </div>
             </div>
 
             {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-800 flex items-center justify-end gap-2 shrink-0">
+            <div className="p-4 border-t border-slate-800 flex items-center justify-between shrink-0">
+              <span className="text-[11px] text-slate-400">
+                Setelah menempelkan kedua file, klik <strong>Terapkan &gt; Kelola Penerapan &gt; Edit (Versi Baru)</strong>.
+              </span>
               <button
                 onClick={() => setIsGasCodeModalOpen(false)}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold"

@@ -672,3 +672,95 @@ function createJsonResponse(obj) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 `;
+
+/**
+ * Script Lengkap Google Apps Script: Kode.gs (Utuh 100%)
+ * Kompatibel untuk Standalone Script maupun Container-Bound Script
+ */
+export const KODE_GS_FULL_TEMPLATE = `/**
+ * =========================================================================
+ * GOOGLE APPS SCRIPT: KODE UTAMA (STANDALONE & BOUND COMPATIBLE)
+ * File Target di Google Apps Script Editor: Kode.gs
+ * Project: Monitoring Board — Rekap Data Proses Cengkeh
+ * Divisi Produksi I - PT Batu Karang
+ * =========================================================================
+ */
+
+var SPREADSHEET_ID = "${DEFAULT_MASTER_SPREADSHEET_ID}";
+var DEFAULT_SHEET = "${DEFAULT_MASTER_SHEET_NAME}";
+
+function doGet(e) {
+  try {
+    // 1. Delegasi ke IntegrasiDHP jika fungsi ada
+    if (typeof handleDhpGet === "function") {
+      var dhpGetRes = handleDhpGet(e);
+      if (dhpGetRes) return dhpGetRes;
+    }
+
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheetName = (e && e.parameter && e.parameter.sheet) || DEFAULT_SHEET;
+    var sheet = ss.getSheetByName(sheetName) || ss.getActiveSheet();
+    var values = sheet.getDataRange().getValues();
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      count: values.length,
+      sheet: sheetName,
+      data: values
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doPost(e) {
+  try {
+    // =====================================================================
+    // 1. HOOK INTEGRASI DHP CENGKEH (Memanggil file IntegrasiDHP.gs)
+    // =====================================================================
+    if (typeof handleDhpPost === "function") {
+      var dhpResponse = handleDhpPost(e);
+      if (dhpResponse) return dhpResponse;
+    }
+
+    // 2. Operasi POST Standar (Ping & Append Baris Umum)
+    var body = e.postData && e.postData.contents ? JSON.parse(e.postData.contents) : {};
+    var action = body.action || "ping";
+
+    if (action === "ping") {
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        action: "ping",
+        timestamp: new Date().toISOString(),
+        message: "Headless GAS REST Online & Responsive"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === "appendRow" && body.row) {
+      var targetId = body.spreadsheetId || SPREADSHEET_ID;
+      var ss = SpreadsheetApp.openById(targetId);
+      var targetSheet = ss.getSheetByName(body.sheet || DEFAULT_SHEET) || ss.getActiveSheet();
+      targetSheet.appendRow(body.row);
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        action: "appendRow",
+        message: "Baris baru berhasil ditulis ke Google Sheets"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      received: body
+    })).setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "error",
+      message: err.toString()
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+`;
