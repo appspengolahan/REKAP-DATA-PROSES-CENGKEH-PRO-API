@@ -629,22 +629,46 @@ export function exportToPdf(tabOrField: string): void {
 
 /**
  * Sinkronisasi Tier 2: Ambil data langsung dari Google Visualization API (CSV Fallback)
+ * Dilengkapi Proteksi Dual-Read Hibrida Anti-Potong Filter Sheet
  */
-export async function fetchFromGVizCsv(spreadsheetId: string, sheetName: string = DEFAULT_SHEET_NAME): Promise<RawRowCengkeh[]> {
+export async function fetchFromGVizCsv(
+  spreadsheetId: string, 
+  sheetName: string = DEFAULT_SHEET_NAME,
+  cachedFallback?: RawRowCengkeh[]
+): Promise<RawRowCengkeh[]> {
   // Coba ambil sheetName yang diminta (default 'FILTER DATA' yang berisi 2025 & 2026)
   let targetSheet = sheetName || DEFAULT_SHEET_NAME;
   let rows = await doFetchGvizSheet(spreadsheetId, targetSheet);
 
-  // Jika hasilnya sedikit (< 70 baris) dan targetSheet bukan FILTER DATA, coba ambil FILTER DATA
+  // Jika hasilnya sedikit (< 100 baris) dan targetSheet bukan FILTER DATA, coba ambil FILTER DATA
   if (rows.length < 100 && targetSheet !== 'FILTER DATA') {
     try {
       const fullRows = await doFetchGvizSheet(spreadsheetId, 'FILTER DATA');
       if (fullRows.length > rows.length) {
-        return fullRows;
+        rows = fullRows;
       }
     } catch {
       // gunakan rows yang ada jika FILTER DATA gagal
     }
+  }
+
+  // PROTEKSI DUAL-READ HIBRIDA ANTI-POTONG FILTER SHEET:
+  // Jika seseorang mengaktifkan Filter di Google Sheet (misal hanya mencentang satu bulan),
+  // Gviz hanya mengembalikan baris yang tampak. Jika baris baru < 60% dari cache lokal yang sudah terverifikasi,
+  // lakukan merge cerdas agar data bulan-bulan terdahulu tidak hilang dari dashboard.
+  const cached = cachedFallback && cachedFallback.length > 0 ? cachedFallback : loadCachedDataset();
+  if (cached.length >= 30 && rows.length > 0 && rows.length < cached.length * 0.6) {
+    console.warn(`[Anti-Potong Filter] Gviz mengembalikan ${rows.length} baris (terpotong filter). Melakukan merge dengan ${cached.length} baris cache lokal.`);
+    const mergedMap = new Map<string, RawRowCengkeh>();
+    cached.forEach((r) => {
+      const key = `${r.tanggal}|${r.jenis.toLowerCase()}|${round1(r.gldKering)}`;
+      mergedMap.set(key, r);
+    });
+    rows.forEach((r) => {
+      const key = `${r.tanggal}|${r.jenis.toLowerCase()}|${round1(r.gldKering)}`;
+      mergedMap.set(key, r);
+    });
+    rows = Array.from(mergedMap.values()).sort((a, b) => a.tanggal.localeCompare(b.tanggal));
   }
 
   return rows;

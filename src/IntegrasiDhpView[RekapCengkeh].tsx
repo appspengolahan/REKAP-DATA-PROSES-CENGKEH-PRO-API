@@ -148,19 +148,17 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     return partaiList.find((p) => p.id === selectedPartaiId) || partaiList[0];
   }, [partaiList, selectedPartaiId]);
 
-  // Cek apakah data partai ini sudah pernah ada di Master Rows (Anti-Duplikasi)
+  // Cek apakah data partai ini sudah pernah ada di Master Rows (Layer 3 Idempotency Key Guard)
   const duplicateInMaster = useMemo(() => {
     if (!activePartai || activePartai.status === 'kosong') return null;
     const tgl = activePartai.tanggalSelesai || activePartai.tanggalMulai;
     if (!tgl || tgl === '-' || tgl === 'Belum Tercatat') return null;
 
     return masterRows.find((r) => {
-      // Normalisasi perbandingan tanggal & jenis
-      return (
-        r.rawTanggal === tgl || 
-        r.tanggal === tgl || 
-        (r.jenis.toLowerCase() === activePartai.jenis.toLowerCase() && tgl.includes(r.bulan) && tgl.includes(r.tahun))
-      );
+      const sameTanggal = (r.rawTanggal === tgl || r.tanggal === tgl);
+      const sameJenis = r.jenis.trim().toLowerCase() === activePartai.jenis.trim().toLowerCase();
+      const sameBaku = Math.abs(r.gldKering - activePartai.gldKering) < 0.5;
+      return (sameTanggal && sameJenis) || (sameTanggal && sameBaku);
     });
   }, [activePartai, masterRows]);
 
@@ -571,6 +569,14 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       {p?.sourceDryerStatus === 'Proses' ? '● PROSES' : '○ OFF'}
                     </span>
                   </div>
+                  {p?.statusDropdownKertasKerja && p?.status !== 'kosong' && (
+                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                      <span>Status Akhir:</span>
+                      <span className={`font-semibold truncate max-w-[130px] ${p.isSusutAkhir ? 'text-emerald-400' : 'text-amber-400'}`} title={p.statusDropdownKertasKerja}>
+                        {p.isSusutAkhir ? 'Susut Akhir (Habis)' : 'Sementara'}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {isSelected && (
@@ -605,20 +611,22 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </div>
 
               {/* Status Badge */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {activePartai.status === 'selesai' && (
                   <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/80 flex items-center gap-1.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>Dryer Tuntas — Siap Kirim</span>
+                    <span>Dryer Tuntas — {activePartai.isSusutAkhir ? 'Susut Akhir (Habis)' : 'Selesai'} (Siap Kirim)</span>
                   </span>
                 )}
                 {activePartai.status === 'berjalan' && (
                   <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-950 text-amber-300 border border-amber-700/80 flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-amber-400 animate-spin" />
                     <span>
-                      {activePartai.isTodayActive 
-                        ? 'Sedang Berjalan (Aktif Hari Ini · SOURCE HASIL DRYER: Proses)' 
-                        : 'Sedang Berjalan (Multi-Day Dryer · SOURCE HASIL DRYER: OFF)'}
+                      {activePartai.statusDropdownKertasKerja 
+                        ? `Sedang Berjalan (Status Kolom Q: "${activePartai.statusDropdownKertasKerja}")`
+                        : (activePartai.isTodayActive 
+                            ? 'Sedang Berjalan (Aktif Hari Ini · SOURCE HASIL DRYER: Proses)' 
+                            : 'Sedang Berjalan (Multi-Day Dryer · SOURCE HASIL DRYER: OFF)')}
                     </span>
                   </span>
                 )}
@@ -881,6 +889,49 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </div>
             </div>
 
+            {/* Layer 2 Physics Sanity Guard Banner */}
+            {activePartai.physicsValidation?.quarantined && (
+              <div className="p-3.5 rounded-xl bg-rose-950/80 border border-rose-500/80 text-rose-200 text-xs flex items-start gap-2.5">
+                <AlertOctagon className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="font-bold text-rose-300">
+                    DITAHAN KARANTINA FISIKA (LAYER 2 DEFENSE)
+                  </div>
+                  <div>{activePartai.physicsValidation.reason}</div>
+                  <div className="text-[11px] text-rose-300/80">
+                    Tombol pengiriman ke Google Sheets Rekap dinonaktifkan secara otomatis hingga operator memperbaiki data timbangan pada lembar kerja DHP.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activePartai.physicsValidation?.level === 'waspada' && (
+              <div className="p-3.5 rounded-xl bg-amber-950/70 border border-amber-600/70 text-amber-200 text-xs flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="font-bold text-amber-300">
+                    PERINGATAN AUDIT KESUSUTAN OPERASIONAL
+                  </div>
+                  <div>{activePartai.physicsValidation.reason}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Status Multi-Day Reminder */}
+            {activePartai.status === 'berjalan' && (
+              <div className="p-3.5 rounded-xl bg-blue-950/60 border border-blue-700/60 text-blue-200 text-xs flex items-start gap-2.5">
+                <Clock className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <div className="font-bold text-blue-300">
+                    PROSES MULTI-HARI SEDANG BERJALAN (BELUM SUSUT AKHIR)
+                  </div>
+                  <div className="text-[11px] text-blue-200/90">
+                    Partai ini berstatus &ldquo;{activePartai.statusDropdownKertasKerja || 'Proses Berjalan'}&rdquo; pada lembar kerja DHP. Sesuai standar operasional cengkeh, baris transaksi resmi hanya dibukukan ke Rekap Susut setelah operator mengubah status menjadi &ldquo;<strong>Susut Akhir (Gld Kering-Rj. Kering)</strong>&rdquo;.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Action Bar Push */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
               <div className="text-xs text-slate-400">
@@ -889,14 +940,33 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
               <button
                 onClick={() => setIsConfirmPushOpen(true)}
-                disabled={isPushing || activePartai.status === 'kosong'}
+                disabled={
+                  isPushing || 
+                  activePartai.status === 'kosong' || 
+                  activePartai.physicsValidation?.quarantined ||
+                  activePartai.status === 'berjalan'
+                }
                 className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 text-xs font-bold transition-all shadow-md cursor-pointer ${
-                  isPushing || activePartai.status === 'kosong' ? 'opacity-50 cursor-not-allowed' : ''
+                  isPushing || activePartai.status === 'kosong' || activePartai.physicsValidation?.quarantined || activePartai.status === 'berjalan' 
+                    ? 'opacity-50 cursor-not-allowed' 
+                    : ''
                 }`}
-                title="Kirim 1 Baris Resmi Partai Ini ke Google Sheets Master Rekap"
+                title={
+                  activePartai.physicsValidation?.quarantined
+                    ? 'Dilarang: Data ditahan karantina fisika'
+                    : activePartai.status === 'berjalan'
+                    ? 'Partai masih berjalan (Multi-day). Menunggu status Susut Akhir dari operator.'
+                    : 'Kirim 1 Baris Resmi Partai Ini ke Google Sheets Master Rekap'
+                }
               >
                 <Send className="w-4 h-4 text-slate-950" />
-                <span>Kirim & Simpan ke Rekap Susut Cengkeh</span>
+                <span>
+                  {activePartai.physicsValidation?.quarantined
+                    ? 'Terkunci (Karantina Fisika)'
+                    : activePartai.status === 'berjalan'
+                    ? 'Menunggu Susut Akhir Operator'
+                    : 'Kirim & Simpan ke Rekap Susut Cengkeh'}
+                </span>
               </button>
             </div>
           </div>

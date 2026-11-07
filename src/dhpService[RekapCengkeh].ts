@@ -58,6 +58,69 @@ export function saveDhpSyncLog(log: DhpSyncLog): void {
   }
 }
 
+/**
+ * Validator Batas Fisika & Karantina Neraca Massa Cengkeh (Layer 2 Physics Sanity Guard)
+ * Disesuaikan khusus untuk siklus multi-hari & karakter cengkeh (1:1 degradasi kadar air).
+ */
+export function validateCengkehPhysics(params: {
+  gldKering: number;
+  totalRjBasah: number;
+  totalRjKering: number;
+  totalSusutPct: number;
+  statusDropdown?: string;
+}): { valid: boolean; quarantined: boolean; reason?: string; level: 'normal' | 'waspada' | 'karantina' } {
+  const { gldKering, totalRjBasah, totalRjKering, totalSusutPct } = params;
+
+  if (gldKering <= 0) {
+    return { valid: true, quarantined: false, level: 'normal' };
+  }
+
+  // Fraksi negatif tidak mungkin ada secara fisik
+  if (totalRjBasah < 0 || totalRjKering < 0) {
+    return {
+      valid: false,
+      quarantined: true,
+      reason: 'Berat timbangan bernilai negatif (< 0 Kg). Periksa input lembar kerja.',
+      level: 'karantina'
+    };
+  }
+
+  // Jika sudah ada hasil dryer
+  if (totalRjKering > 0 && gldKering > 0) {
+    // 1. Susut Ekstrem > 15% (Sangat jarang cengkeh susut > 15%, indikasi salah ketik desimal, misal 300 Kg vs 3000 Kg)
+    if (totalSusutPct > 15.0) {
+      return {
+        valid: false,
+        quarantined: true,
+        reason: `Susut ekstrem ${totalSusutPct.toFixed(2)}% (> 15%). Terindikasi salah ketik desimal timbangan hasil dryer. Dilarang dibukukan ke Rekap.`,
+        level: 'karantina'
+      };
+    }
+
+    // 2. Susut Negatif Ekstrem < -3% (Cengkeh tidak menyerap uap melebihi 103% bahan baku)
+    if (totalSusutPct < -3.0) {
+      return {
+        valid: false,
+        quarantined: true,
+        reason: `Hasil melampaui batas serap uap fisik wajar cengkeh (${totalSusutPct.toFixed(2)}% < -3%). Terindikasi salah ketik timbangan.`,
+        level: 'karantina'
+      };
+    }
+
+    // 3. Batas Waspada Operasional: 8% s/d 15%
+    if (totalSusutPct > 8.0) {
+      return {
+        valid: true,
+        quarantined: false,
+        reason: `Susut agak tinggi (${totalSusutPct.toFixed(2)}% > 8.0%). Lakukan audit deviasi terhadap acuan bulanan.`,
+        level: 'waspada'
+      };
+    }
+  }
+
+  return { valid: true, quarantined: false, level: 'normal' };
+}
+
 export function getCachedDhpPartai(): DhpPartaiData[] | null {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_DHP_CACHE_KEY);
@@ -265,6 +328,32 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     kaDryRata = kaDryer2;
   }
 
+  // 3b. Scan Dropdown Status di Kolom Q atau R (sekitar baris 90 s/d 125)
+  // Dropdown ini berisi: "Susut Sementara", "Susut Akhir (Gld Kering-Rj. Kering)", "Perkiraan Susut Sementara"
+  let statusDropdownKertasKerja = '';
+  lines.forEach((line, idx) => {
+    const rowNum = idx + 1;
+    if (rowNum >= 90 && rowNum <= 125) {
+      const cols = line.split('","');
+      const colQ = cols[16] ? cols[16].replace(/\"/g, '').trim() : '';
+      const colR = cols[17] ? cols[17].replace(/\"/g, '').trim() : '';
+      
+      const checkVal = (v: string) => {
+        if (/susut\s*akhir/i.test(v)) return 'Susut Akhir (Gld Kering-Rj. Kering)';
+        if (/perkiraan\s*susut/i.test(v)) return 'Perkiraan Susut Sementara';
+        if (/susut\s*sementara/i.test(v)) return 'Susut Sementara';
+        return '';
+      };
+      
+      const matchQ = checkVal(colQ);
+      const matchR = checkVal(colR);
+      if (matchQ) statusDropdownKertasKerja = matchQ;
+      else if (matchR && !statusDropdownKertasKerja) statusDropdownKertasKerja = matchR;
+    }
+  });
+
+  const isSusutAkhir = statusDropdownKertasKerja === 'Susut Akhir (Gld Kering-Rj. Kering)';
+
   // 4. Bangun Daftar Sesi Dryer
   const sesiList: DhpSesiDryer[] = [
     {
@@ -291,12 +380,18 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     }
   ];
 
-  // 5. Penentuan Status Partai
+  // 5. Penentuan Status Partai Awal
   let status: 'selesai' | 'berjalan' | 'kosong' = 'kosong';
   let catatanStatus = 'Kertas kerja masih kosong / belum ada penimbangan.';
 
   if (gldKering > 0) {
-    if (totalRjKering > 0 && totalRjBasah > 0) {
+    if (isSusutAkhir && totalRjKering > 0) {
+      status = 'selesai';
+      catatanStatus = `Partai dinyatakan habis/tuntas oleh operator (Kolom Q: "Susut Akhir"). Siap dikirim ke Rekap Susut (${totalSusutPct}% total susut).`;
+    } else if (statusDropdownKertasKerja === 'Susut Sementara' || statusDropdownKertasKerja === 'Perkiraan Susut Sementara') {
+      status = 'berjalan';
+      catatanStatus = `Proses sedang berjalan (Kolom Q: "${statusDropdownKertasKerja}"). Belum dinyatakan habis oleh operator.`;
+    } else if (totalRjKering > 0 && totalRjBasah > 0) {
       status = 'selesai';
       catatanStatus = `Seluruh proses pengeringan tuntas. Siap dikirim ke Rekap Susut (${totalSusutPct}% total susut).`;
     } else {
@@ -304,6 +399,14 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       catatanStatus = `Proses sedang berjalan. Gelondong Kering: ${gldKering.toLocaleString('id-ID')} Kg tercatat, menunggu sesi dryer tuntas.`;
     }
   }
+
+  const physicsValidation = validateCengkehPhysics({
+    gldKering,
+    totalRjBasah,
+    totalRjKering,
+    totalSusutPct,
+    statusDropdown: statusDropdownKertasKerja
+  });
 
   return {
     id: tabName,
@@ -327,6 +430,9 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     totalSusutPct,
     status,
     catatanStatus,
+    statusDropdownKertasKerja,
+    isSusutAkhir,
+    physicsValidation,
     sesiList,
     qc: {
       uapBar,
@@ -402,7 +508,7 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
   const [sourceStatusMap, ...partaiDataList] = await Promise.all([
     fetchSourceHasilDryerStatus(spreadsheetId),
     ...DHP_TABS.map((tab) => 
-      fetchDhpPartai(spreadsheetId, tab).catch((err) => {
+      fetchDhpPartai(spreadsheetId, tab).catch((err): DhpPartaiData => {
         console.warn(`Gagal memuat ${tab}:`, err);
         return {
           id: tab,
@@ -426,6 +532,8 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
           totalSusutPct: 0,
           status: 'kosong' as const,
           catatanStatus: 'Tab tidak ditemukan atau belum terisi.',
+          statusDropdownKertasKerja: '',
+          isSusutAkhir: false,
           sourceDryerStatus: 'OFF' as const,
           isTodayActive: false,
           sesiList: [],
@@ -443,23 +551,37 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
     )
   ]);
 
-  // Evaluasi Logika Hybrid 3-State
+  // Evaluasi Logika Hybrid 3-State dengan Indikator Dropdown Kolom Q/R ("Susut Akhir")
   const hybridResults = partaiDataList.map((p) => {
     const srcStatus = sourceStatusMap[p.id]?.status || 'OFF';
     const isTodayActive = srcStatus === 'Proses';
+    const isSusutAkhir = p.isSusutAkhir || p.statusDropdownKertasKerja === 'Susut Akhir (Gld Kering-Rj. Kering)';
+    const isSusutSementara = p.statusDropdownKertasKerja === 'Susut Sementara' || p.statusDropdownKertasKerja === 'Perkiraan Susut Sementara';
 
     let status: 'selesai' | 'berjalan' | 'kosong' = 'kosong';
     let catatanStatus = '';
 
-    if (p.gldKering > 0 && p.totalRjKering > 0 && p.totalRjBasah > 0) {
-      status = 'selesai';
-      catatanStatus = `Seluruh proses pengeringan tuntas. Siap dikirim ke Rekap Susut (${p.totalSusutPct}% total susut).`;
-    } else if (p.gldKering > 0) {
-      status = 'berjalan';
-      if (isTodayActive) {
-        catatanStatus = `Sedang berjalan aktif hari ini (Tercatat "Proses" di SOURCE HASIL DRYER). Gld Kering: ${p.gldKering.toLocaleString('id-ID')} Kg tercatat.`;
+    if (p.gldKering > 0) {
+      if (isSusutAkhir && p.totalRjKering > 0) {
+        status = 'selesai';
+        catatanStatus = `Partai dinyatakan habis/tuntas oleh operator (Dropdown Kolom Q: "Susut Akhir"). Siap dikirim ke Rekap Susut (${p.totalSusutPct}% total susut).`;
+      } else if (isSusutSementara) {
+        status = 'berjalan';
+        if (isTodayActive) {
+          catatanStatus = `Proses sedang berjalan aktif hari ini (Kolom Q: "${p.statusDropdownKertasKerja}" · SOURCE HASIL DRYER: "Proses"). Gld Kering: ${p.gldKering.toLocaleString('id-ID')} Kg.`;
+        } else {
+          catatanStatus = `Proses sedang berjalan (Multi-day dryer · Kolom Q: "${p.statusDropdownKertasKerja}"). Belum dinyatakan habis oleh operator.`;
+        }
+      } else if (p.totalRjKering > 0 && p.totalRjBasah > 0) {
+        status = 'selesai';
+        catatanStatus = `Seluruh proses pengeringan tuntas. Siap dikirim ke Rekap Susut (${p.totalSusutPct}% total susut).`;
       } else {
-        catatanStatus = `Proses sedang berjalan (Multi-day dryer / menunggu sesi berikutnya tuntas). Gld Kering: ${p.gldKering.toLocaleString('id-ID')} Kg.`;
+        status = 'berjalan';
+        if (isTodayActive) {
+          catatanStatus = `Sedang berjalan aktif hari ini (Tercatat "Proses" di SOURCE HASIL DRYER). Gld Kering: ${p.gldKering.toLocaleString('id-ID')} Kg tercatat.`;
+        } else {
+          catatanStatus = `Proses sedang berjalan (Multi-day dryer / menunggu sesi berikutnya tuntas). Gld Kering: ${p.gldKering.toLocaleString('id-ID')} Kg.`;
+        }
       }
     } else if (isTodayActive) {
       status = 'berjalan';
@@ -473,6 +595,9 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
       ...p,
       status,
       catatanStatus,
+      statusDropdownKertasKerja: p.statusDropdownKertasKerja,
+      isSusutAkhir,
+      physicsValidation: p.physicsValidation,
       sourceDryerStatus: srcStatus,
       isTodayActive
     };
@@ -493,6 +618,18 @@ export async function pushDhpToMasterSheet(
 ): Promise<{ success: boolean; message: string; responseData?: any }> {
   if (partai.gldKering <= 0) {
     throw new Error('Gagal: Gelondong Kering masih 0 Kg. Data belum siap dikirim.');
+  }
+
+  // Layer 2 Physics Sanity Guard: Cegah pengiriman data yang dikarantina
+  const physicsCheck = validateCengkehPhysics({
+    gldKering: partai.gldKering,
+    totalRjBasah: partai.totalRjBasah,
+    totalRjKering: partai.totalRjKering,
+    totalSusutPct: partai.totalSusutPct,
+    statusDropdown: partai.statusDropdownKertasKerja
+  });
+  if (physicsCheck.quarantined) {
+    throw new Error(`Pengiriman Ditolak (Karantina Fisika): ${physicsCheck.reason}`);
   }
 
   // Ekstraksi Bulan dan Tahun dari tanggal proses
@@ -675,15 +812,28 @@ function handleDhpGet(e) {
 }
 
 /**
- * Handle HTTP POST - Eksekusi Sinkronisasi 5-Layer Defense
+ * Handle HTTP POST - Eksekusi Sinkronisasi 5-Layer Defense (Multi-Day Cengkeh Ready)
  */
 function handleDhpPost(e) {
+  var lock = LockService.getScriptLock();
+  var hasLock = false;
+  
   try {
     var contents = e.postData && e.postData.contents ? JSON.parse(e.postData.contents) : {};
     var action = contents.action || "";
     
     if (action !== "syncDhpToRekap" && action !== "appendRow") {
       return null; // Teruskan ke handler utama jika bukan aksi DHP
+    }
+
+    // CONCURRENCY GUARD: Tunggu hingga 15 detik jika ada request bersamaan
+    hasLock = lock.tryLock(15000);
+    if (!hasLock) {
+      return createJsonResponse({
+        status: "error",
+        layer: "Layer 4 (LockService Concurrency Guard)",
+        message: "Server sedang sibuk memproses transaksi lain. Silakan coba 5-10 detik lagi."
+      });
     }
     
     // Ekstraksi data input dari payload terstruktur atau row fallback
@@ -716,44 +866,64 @@ function handleDhpPost(e) {
         message: "Ditolak: Gelondong Kering masih 0 Kg atau belum ditimbang."
       });
     }
+
+    // LAYER 2: Physics Sanity Guard Server-Side (Cengkeh Multi-Day)
+    if (rjKeringNum > 0 && gldKeringNum > 0) {
+      var susutKg = gldKeringNum - rjKeringNum;
+      var susutPct = (susutKg / gldKeringNum) * 100;
+
+      // 1. Ditolak jika susut ekstrem > 15% (typo timbangan hasil dryer)
+      if (susutPct > 15.0) {
+        return createJsonResponse({
+          status: "error",
+          layer: "Layer 2 (Physics Sanity Guard)",
+          message: "Karantina Fisika: Susut ekstrem " + susutPct.toFixed(2) + "% (> 15%). Terindikasi salah ketik desimal timbangan hasil dryer."
+        });
+      }
+
+      // 2. Ditolak jika susut < -3% (hasil dryer melebihi kapasitas serap uap fisik)
+      if (susutPct < -3.0) {
+        return createJsonResponse({
+          status: "error",
+          layer: "Layer 2 (Physics Sanity Guard)",
+          message: "Karantina Fisika: Hasil melebihi kapasitas serap air riil cengkeh (" + susutPct.toFixed(2) + "% < -3%). Periksa timbangan."
+        });
+      }
+    }
     
     // Buka Spreadsheet Master
     var ssMaster = SpreadsheetApp.openById(contents.spreadsheetId || MASTER_TARGET_SPREADSHEET_ID);
     var targetSheet = ssMaster.getSheetByName(contents.sheet || MASTER_TARGET_SHEET_NAME) || ssMaster.getActiveSheet();
     
-    // LAYER 3: Cross-Day Duplicate Shield (Cek Tanggal & Jenis dari baris 11)
-    var maxRows = targetSheet.getMaxRows();
-    var checkRows = Math.min(maxRows, 150);
-    if (checkRows >= 11) {
-      var existingData = targetSheet.getRange(11, 2, checkRows - 10, 4).getValues();
+    // TEMPLATE FINDER: Temukan baris riil terakhir (mengabaikan 823 baris formula template kosong)
+    var actualLast = findActualLastRow_(targetSheet);
+    
+    // LAYER 3: Multi-Day Idempotency Key & Duplicate Shield
+    // Cek apakah tanggal + jenis + bobot bahan baku sudah ada di baris 11 s/d actualLast
+    if (actualLast >= 11) {
+      var scanCount = actualLast - 10;
+      var existingData = targetSheet.getRange(11, 2, scanCount, 6).getValues();
       for (var i = 0; i < existingData.length; i++) {
-        var existingTgl = String(existingData[i][0]).trim();
-        var existingJenis = String(existingData[i][3]).trim();
-        if (existingTgl && existingTgl === tglBaru && existingJenis === jenisBaru) {
+        var exTgl = String(existingData[i][0]).trim();
+        var exJenis = String(existingData[i][3]).trim();
+        var exGld = Number(existingData[i][5]) || 0;
+        
+        var sameTgl = (exTgl === tglBaru);
+        var sameJenis = (exJenis.toLowerCase() === jenisBaru.toLowerCase());
+        var sameGld = Math.abs(exGld - gldKeringNum) < 0.5;
+        
+        if (sameTgl && sameJenis && sameGld) {
           return createJsonResponse({
             status: "error",
-            layer: "Layer 3 (Duplicate Shield)",
-            message: "Duplikasi Terdeteksi: Transaksi untuk tanggal '" + tglBaru + "' dengan jenis '" + jenisBaru + "' sudah ada di baris " + (i + 11) + "."
+            layer: "Layer 3 (Idempotent Guard)",
+            message: "Duplikasi Terdeteksi: Transaksi untuk tanggal '" + tglBaru + "' (" + jenisBaru + ", " + gldKeringNum + " Kg) sudah pernah dibukukan di baris #" + (i + 11) + "."
           });
         }
       }
     }
     
-    // LAYER 5: Smart Formula-Preserving Row Insertion
-    // Cari baris pertama yang kosong di Kolom B (Partai Rendam) mulai dari baris 11
-    var scanLimit = Math.max(targetSheet.getLastRow(), 100);
-    var bRangeValues = targetSheet.getRange(11, 2, scanLimit - 10, 1).getValues();
-    var targetRow = -1;
-    for (var r = 0; r < bRangeValues.length; r++) {
-      var cellVal = bRangeValues[r][0];
-      if (cellVal === "" || cellVal === null || cellVal === undefined || String(cellVal).trim() === "") {
-        targetRow = r + 11;
-        break;
-      }
-    }
-    if (targetRow === -1) {
-      targetRow = scanLimit + 1;
-    }
+    // Baris target baru adalah baris riil berikutnya
+    var targetRow = Math.max(actualLast + 1, 11);
     
     // PROTEKSI FORMULA: Jika baris target belum memiliki rumus bawaan di kolom I (misal template habis),
     // salin seluruh rumus dari baris sebelumnya agar formula C, D, I, J, M, N, O, P tetap aktif
@@ -766,7 +936,7 @@ function handleDhpPost(e) {
       );
     }
     
-    // TULIS NILAI HANYA KE KOLOM RAW DATA INPUT:
+    // LAYER 5: TULIS NILAI HANYA KE KOLOM RAW DATA INPUT:
     // Kolom B (2): Hari, Tanggal
     // Kolom E (5): Jenis Cengkeh
     // Kolom F (6): K. AIR GLD
@@ -775,7 +945,7 @@ function handleDhpPost(e) {
     // Kolom K (11): RJ. KERING (numeric)
     // Kolom L (12): K. AIR DRY
     // Kolom Q (17): K. AIR SIMPAN (kosong)
-    // CATATAN: Kolom C, D, I, J, M, N, O, P 100% TIDAK DISENTUH KARENA BERISI FORMULA!
+    // CATATAN: Kolom C, D, I, J, M, N, O, P 100% TIDAK DISENTUH KARENA BERISI FORMULA MASTER!
     targetSheet.getRange(targetRow, 2).setValue(tglBaru);
     targetSheet.getRange(targetRow, 5).setValue(jenisBaru);
     targetSheet.getRange(targetRow, 6).setValue(kaGldStr);
@@ -820,7 +990,33 @@ function handleDhpPost(e) {
       status: "error",
       message: "Server GAS Exception: " + err.toString()
     });
+  } finally {
+    if (hasLock) {
+      try {
+        lock.releaseLock();
+      } catch (lockErr) {}
+    }
   }
+}
+
+/**
+ * Helper: Mencari Baris Berisi Data Terakhir di Kolom B (Partai Rendam)
+ * Melewati hingga 823 baris formula template yang belum terisi data fisik.
+ */
+function findActualLastRow_(sheet) {
+  var maxRows = Math.min(sheet.getLastRow(), 950);
+  if (maxRows < 11) return 10;
+  
+  var bValues = sheet.getRange(11, 2, maxRows - 10, 1).getValues();
+  var lastFilled = 10;
+  for (var r = bValues.length - 1; r >= 0; r--) {
+    var val = bValues[r][0];
+    if (val !== "" && val !== null && val !== undefined && String(val).trim() !== "") {
+      lastFilled = r + 11;
+      break;
+    }
+  }
+  return lastFilled;
 }
 
 function createJsonResponse(obj) {

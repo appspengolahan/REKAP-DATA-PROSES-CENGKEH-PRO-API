@@ -180,6 +180,14 @@ export interface DhpPartaiData {
   totalSusutPct: number;
   status: 'selesai' | 'berjalan' | 'kosong';
   catatanStatus: string;
+  statusDropdownKertasKerja?: string; // Dropdown status Kolom Q / R lembar kerja ("Susut Akhir", "Susut Sementara", "Perkiraan Susut Sementara")
+  isSusutAkhir?: boolean;             // True jika operator memilih "Susut Akhir (Gld Kering-Rj. Kering)"
+  physicsValidation?: {
+    valid: boolean;
+    quarantined: boolean;
+    reason?: string;
+    level: 'normal' | 'waspada' | 'karantina';
+  };
   sourceDryerStatus?: 'Proses' | 'OFF'; // Status dari SOURCE HASIL DRYER Cell I14:I25
   isTodayActive?: boolean;              // True jika ada sesi partai yang tanggalnya == Today
   sesiList: DhpSesiDryer[];

@@ -50,7 +50,10 @@ function doGet(e) {
 }
 
 function doPost(e) {
+  var lock = LockService.getScriptLock();
+  var hasLock = false;
   try {
+    hasLock = lock.tryLock(15000);
     var body = e.postData && e.postData.contents ? JSON.parse(e.postData.contents) : {};
     var action = body.action || "ping";
     
@@ -70,17 +73,17 @@ function doPost(e) {
       
       // Jika menulis ke sheet DATA PROSES CKH, lindungi kolom formula C, D, I, J, M, N, O, P
       if (sheetName === 'DATA PROSES CKH' && Array.isArray(body.row)) {
-        var scanLimit = Math.max(sheet.getLastRow(), 100);
-        var bRangeValues = sheet.getRange(11, 2, scanLimit - 10, 1).getValues();
-        var targetRow = -1;
-        for (var r = 0; r < bRangeValues.length; r++) {
-          var cellVal = bRangeValues[r][0];
-          if (cellVal === "" || cellVal === null || String(cellVal).trim() === "") {
-            targetRow = r + 11;
+        var maxRows = Math.min(sheet.getLastRow(), 950);
+        var bRangeValues = sheet.getRange(11, 2, Math.max(maxRows - 10, 1), 1).getValues();
+        var lastFilled = 10;
+        for (var r = bRangeValues.length - 1; r >= 0; r--) {
+          var cVal = bRangeValues[r][0];
+          if (cVal !== "" && cVal !== null && cVal !== undefined && String(cVal).trim() !== "") {
+            lastFilled = r + 11;
             break;
           }
         }
-        if (targetRow === -1) targetRow = scanLimit + 1;
+        var targetRow = lastFilled + 1;
         
         // Tulis hanya ke kolom mentah: B (2), E (5), F (6), G (7), H (8), K (11), L (12)
         var row = body.row;
@@ -117,6 +120,10 @@ function doPost(e) {
       status: "error",
       message: err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    if (hasLock) {
+      try { lock.releaseLock(); } catch(e) {}
+    }
   }
 }`;
 
