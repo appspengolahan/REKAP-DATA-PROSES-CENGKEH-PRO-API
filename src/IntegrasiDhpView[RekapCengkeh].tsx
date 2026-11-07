@@ -34,7 +34,8 @@ import {
   Scale,
   AlertOctagon,
   MessageSquare,
-  Edit3
+  Edit3,
+  ChevronDown
 } from 'lucide-react';
 import { 
   DhpPartaiData, 
@@ -102,6 +103,22 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   const [tempDhpId, setTempDhpId] = useState<string>(getDhpSpreadsheetId());
   const [isCopiedGasCode, setIsCopiedGasCode] = useState<boolean>(false);
   const [activeGasTab, setActiveGasTab] = useState<'integrasi' | 'kode_gs'>('integrasi');
+
+  // Dynamic Dropdown Opsi & Alat DHP
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState<boolean>(false);
+  const actionsMenuRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
+        setIsActionsMenuOpen(false);
+      }
+    };
+    if (isActionsMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isActionsMenuOpen]);
 
   // Ambil data pertama kali saat mount jika belum ada cache
   useEffect(() => {
@@ -305,13 +322,13 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center flex-wrap gap-2">
-          {/* Tarik Data Kertas Kerja */}
+        {/* Action Buttons: Primary Quick Action + Unified Dynamic Dropdown */}
+        <div className="flex items-center gap-2 relative">
+          {/* Tombol Utama: Tarik Data Kertas Kerja */}
           <button
             onClick={loadAllPartai}
             disabled={isLoading}
-            className={`flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-all shadow-sm cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-all shadow-sm cursor-pointer ${
               isLoading ? 'opacity-70 cursor-not-allowed' : ''
             }`}
             title="Tarik / Refresh Kertas Kerja DHP Cengkeh dari Google Sheet"
@@ -320,35 +337,91 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             <span>{isLoading ? 'Menarik DHP...' : 'Tarik Kertas Kerja DHP'}</span>
           </button>
 
-          {/* Konfigurasi DHP */}
-          <button
-            onClick={() => setIsConfigModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
-            title="Pengaturan ID Google Sheets DHP Kertas Kerja"
-          >
-            <Settings2 className="w-3.5 h-3.5 text-slate-400" />
-            <span className="hidden sm:inline">Konfigurasi ID DHP</span>
-          </button>
+          {/* Unified Dynamic Dropdown: Opsi & Alat DHP */}
+          <div className="relative" ref={actionsMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsActionsMenuOpen((prev) => !prev)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+              title="Menu Pengaturan, Skrip GAS & Export PDF"
+            >
+              <Settings2 className="w-3.5 h-3.5 text-slate-400" />
+              <span>Opsi & Alat</span>
+              <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${isActionsMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-          {/* Panduan & Kode GAS IntegrasiDHP.gs */}
-          <button
-            onClick={() => setIsGasCodeModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 text-xs font-semibold border border-slate-700 hover:border-cyan-600/50 transition-colors cursor-pointer"
-            title="Lihat & Salin Kode IntegrasiDHP.gs untuk Google Apps Script Editor"
-          >
-            <FileCode className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="hidden sm:inline">Kode GAS IntegrasiDHP.gs</span>
-          </button>
+            {isActionsMenuOpen && (
+              <div className="absolute right-0 mt-2 w-64 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 text-xs divide-y divide-slate-800">
+                <div className="px-3.5 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  Pengaturan & Alat Integrasi
+                </div>
 
-          {/* Export PDF */}
-          <button
-            onClick={() => exportToPdf('IntegrasiDhpCengkeh')}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-            title="Cetak / Export PDF Laporan DHP"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Export PDF</span>
-          </button>
+                <div className="py-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsActionsMenuOpen(false);
+                      setIsConfigModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-slate-200 hover:text-white hover:bg-slate-800 text-left transition-colors cursor-pointer"
+                  >
+                    <Settings2 className="w-4 h-4 text-amber-400 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="font-semibold text-xs text-white">Konfigurasi ID DHP</div>
+                      <div className="text-[10px] text-slate-400 truncate">Atur ID Google Sheets sumber</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsActionsMenuOpen(false);
+                      setIsGasCodeModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-cyan-300 hover:text-cyan-200 hover:bg-slate-800 text-left transition-colors cursor-pointer"
+                  >
+                    <FileCode className="w-4 h-4 text-cyan-400 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="font-semibold text-xs text-cyan-300">Kode GAS IntegrasiDHP.gs</div>
+                      <div className="text-[10px] text-slate-400 truncate">Salin kode utuh untuk Apps Script</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsActionsMenuOpen(false);
+                      exportToPdf('IntegrasiDhpCengkeh');
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-slate-200 hover:text-white hover:bg-slate-800 text-left transition-colors cursor-pointer"
+                  >
+                    <Printer className="w-4 h-4 text-blue-400 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="font-semibold text-xs text-white">Export PDF Laporan</div>
+                      <div className="text-[10px] text-slate-400 truncate">Cetak atau unduh dokumen PDF</div>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsActionsMenuOpen(false);
+                      loadAllPartai();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-amber-300 hover:text-amber-200 hover:bg-slate-800 text-left transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="w-4 h-4 text-amber-400 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="font-semibold text-xs text-amber-300">Tarik Ulang Kertas Kerja</div>
+                      <div className="text-[10px] text-slate-400 truncate">Sinkron ulang segar dari Google Sheet</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
