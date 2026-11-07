@@ -12,14 +12,11 @@ import {
   ChevronLeft, 
   ChevronRight, 
   Download,
-  HelpCircle,
   Sprout,
-  ShieldCheck,
   GitFork,
   Scale
 } from 'lucide-react';
 import { UserRole, ActiveTabCengkeh } from './types[RekapCengkeh]';
-import { BUILD_VERSION } from './Code[RekapCengkeh]';
 
 interface SidebarProps {
   activeTab: ActiveTabCengkeh;
@@ -157,32 +154,9 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
         })}
       </div>
 
-      {/* Bottom Section: Help, Install PWA & Role */}
-      <div className="p-3 border-t border-slate-800 space-y-2 shrink-0">
-
-        {/* Bantuan & Rumus */}
-        {onOpenHelp && (
-          <button
-            onClick={onOpenHelp}
-            className="w-full flex items-center gap-3 p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition-colors cursor-pointer text-left"
-            title="Bantuan & Rumus (Petunjuk Kerja)"
-          >
-            <HelpCircle className="w-4 h-4 shrink-0 text-amber-400" />
-            {!isCollapsed && (
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold leading-tight truncate text-white">
-                  Bantuan & Rumus
-                </div>
-                <div className="text-[10px] text-slate-400 leading-tight truncate mt-0.5">
-                  Petunjuk Kerja
-                </div>
-              </div>
-            )}
-          </button>
-        )}
-
-        {/* Pasang PWA */}
-        {onOpenInstallPwa && (
+      {/* Bottom Section: Install PWA (jika tersedia) */}
+      {onOpenInstallPwa && (
+        <div className="p-3 border-t border-slate-800 shrink-0">
           <button
             onClick={onOpenInstallPwa}
             className="w-full flex items-center gap-3 p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 hover:bg-amber-500/20 transition-all cursor-pointer text-left"
@@ -201,25 +175,8 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
               </div>
             )}
           </button>
-        )}
-
-        {/* User Card */}
-        <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
-            <ShieldCheck className="w-4 h-4" />
-          </div>
-          {!isCollapsed && (
-            <div className="min-w-0">
-              <div className="text-xs font-bold text-slate-200 truncate">
-                {userRole === 'Project Manager' ? 'Project Manager' : userRole}
-              </div>
-              <div className="text-[10px] text-slate-400 truncate">
-                Monitoring KPI & Target
-              </div>
-            </div>
-          )}
         </div>
-      </div>
+      )}
     </aside>
   );
 };

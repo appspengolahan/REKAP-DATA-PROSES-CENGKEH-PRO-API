@@ -412,15 +412,15 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                       className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 transition-colors text-left group cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-500/10 text-blue-400 rounded-lg group-hover:bg-blue-500/20 transition-colors">
+                        <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg group-hover:bg-amber-500/20 transition-colors">
                           <HelpCircle className="w-4 h-4" />
                         </div>
                         <div>
-                          <div className="text-xs font-semibold text-white">Bantuan & Panduan Sistem</div>
-                          <div className="text-[10px] text-slate-400">Versi build & kontak developer</div>
+                          <div className="text-xs font-semibold text-white">Bantuan & Rumus</div>
+                          <div className="text-[10px] text-slate-400">Petunjuk kerja, formula susut & panduan sistem</div>
                         </div>
                       </div>
-                      <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-blue-400 transition-colors" />
+                      <ArrowRight className="w-4 h-4 text-slate-500 group-hover:text-amber-400 transition-colors" />
                     </button>
                   </div>
 
