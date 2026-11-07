@@ -1466,6 +1466,20 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 </div>
               </div>
 
+              {/* Box Proteksi Rumus Kolom */}
+              <div className="p-3 rounded-xl bg-blue-950/70 border border-blue-600/70 text-blue-200 text-[11px] leading-relaxed flex items-start gap-2.5">
+                <ShieldCheck className="w-4 h-4 text-blue-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold text-white flex items-center gap-1.5">
+                    <span>Proteksi Formula Sheet Aktif</span>
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-900 text-blue-300 font-mono">Formula-Safe</span>
+                  </div>
+                  <div className="text-slate-300 mt-1">
+                    Input otomatis <strong>hanya mengisi Kolom Mentah: B, E, F, G, H, K, L</strong>. Kolom yang berisi rumus (<strong>C, D, I, J, M, N, O, P</strong>) tidak disentuh dan dihitung otomatis oleh Google Sheet.
+                  </div>
+                </div>
+              </div>
+
               {duplicateInMaster && (
                 <div className="p-3 rounded-xl bg-amber-950/80 border border-amber-600/80 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />

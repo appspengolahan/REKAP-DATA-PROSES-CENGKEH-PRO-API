@@ -66,12 +66,46 @@ function doPost(e) {
     if (action === "appendRow" && body.row) {
       var ss = SpreadsheetApp.getActiveSpreadsheet();
       var sheet = ss.getSheetByName(body.sheet || 'DATA PROSES CKH') || ss.getActiveSheet();
-      sheet.appendRow(body.row);
-      return ContentService.createTextOutput(JSON.stringify({
-        status: "success",
-        action: "appendRow",
-        message: "Baris baru berhasil ditulis ke Google Sheets"
-      })).setMimeType(ContentService.MimeType.JSON);
+      var sheetName = sheet.getName();
+      
+      // Jika menulis ke sheet DATA PROSES CKH, lindungi kolom formula C, D, I, J, M, N, O, P
+      if (sheetName === 'DATA PROSES CKH' && Array.isArray(body.row)) {
+        var scanLimit = Math.max(sheet.getLastRow(), 100);
+        var bRangeValues = sheet.getRange(11, 2, scanLimit - 10, 1).getValues();
+        var targetRow = -1;
+        for (var r = 0; r < bRangeValues.length; r++) {
+          var cellVal = bRangeValues[r][0];
+          if (cellVal === "" || cellVal === null || String(cellVal).trim() === "") {
+            targetRow = r + 11;
+            break;
+          }
+        }
+        if (targetRow === -1) targetRow = scanLimit + 1;
+        
+        // Tulis hanya ke kolom mentah: B (2), E (5), F (6), G (7), H (8), K (11), L (12)
+        var row = body.row;
+        if (row[1]) sheet.getRange(targetRow, 2).setValue(row[1]);
+        if (row[4]) sheet.getRange(targetRow, 5).setValue(row[4]);
+        if (row[5]) sheet.getRange(targetRow, 6).setValue(row[5]);
+        if (row[6] !== undefined) sheet.getRange(targetRow, 7).setValue(row[6]);
+        if (row[7] !== undefined) sheet.getRange(targetRow, 8).setValue(row[7]);
+        if (row[10] !== undefined) sheet.getRange(targetRow, 11).setValue(row[10]);
+        if (row[11]) sheet.getRange(targetRow, 12).setValue(row[11]);
+        
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          action: "appendRow",
+          targetRow: targetRow,
+          message: "Data berhasil dibukukan ke baris #" + targetRow + " (Formula Kolom C, D, I, J, M, N, O, P terlindungi aman)."
+        })).setMimeType(ContentService.MimeType.JSON);
+      } else {
+        sheet.appendRow(body.row);
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          action: "appendRow",
+          message: "Baris baru berhasil ditulis ke Google Sheets"
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
     }
     
     return ContentService.createTextOutput(JSON.stringify({

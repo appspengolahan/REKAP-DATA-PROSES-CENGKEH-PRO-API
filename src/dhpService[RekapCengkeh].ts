@@ -532,6 +532,19 @@ export async function pushDhpToMasterSheet(
     '' // Col Q: K. AIR SIMPAN (opsional)
   ];
 
+  // Data input murni yang boleh ditulis ke Google Sheet (Kolom B, E, F, G, H, K, L)
+  // Kolom C, D, I, J, M, N, O, P adalah FORMULA SHEET yang DILINDUNGI & TIDAK BOLEH DITIMPA
+  const inputData = {
+    colB_tanggal: tglStr,
+    colE_jenis: partai.jenis,
+    colF_kaGld: formatMcSheet(partai.kaGld),
+    colG_gldKering: partai.gldKering,
+    colH_rjBasah: partai.totalRjBasah,
+    colK_rjKering: partai.totalRjKering,
+    colL_kaDry: formatMcSheet(partai.kaDryRata),
+    colQ_kaSimpan: ''
+  };
+
   const payload = {
     action: 'syncDhpToRekap',
     spreadsheetId: masterSpreadsheetId,
@@ -539,7 +552,9 @@ export async function pushDhpToMasterSheet(
     partaiId: partai.id,
     noLaporan: partai.noLaporan,
     userRole,
-    row: rowData,
+    inputData,
+    protectedFormulaColumns: ['C', 'D', 'I', 'J', 'M', 'N', 'O', 'P'],
+    row: rowData, // Kompatibilitas mundur
     partaiSummary: {
       gldKering: partai.gldKering,
       totalRjBasah: partai.totalRjBasah,
@@ -671,21 +686,30 @@ function handleDhpPost(e) {
       return null; // Teruskan ke handler utama jika bukan aksi DHP
     }
     
-    var row = contents.row;
-    if (!row || !Array.isArray(row) || row.length < 15) {
-      return createJsonResponse({
-        status: "error",
-        layer: "Layer 1 (Payload Guard)",
-        message: "Format baris data tidak lengkap atau cacat."
-      });
+    // Ekstraksi data input dari payload terstruktur atau row fallback
+    var inputData = contents.inputData || {};
+    var row = contents.row || [];
+
+    var tglBaru = String(inputData.colB_tanggal || row[1] || "").trim();
+    var jenisBaru = String(inputData.colE_jenis || row[4] || "").trim();
+    var kaGldStr = String(inputData.colF_kaGld || row[5] || "").trim();
+    var kaDryStr = String(inputData.colL_kaDry || row[11] || "").trim();
+    
+    var gldKeringNum = Number(inputData.colG_gldKering || 0);
+    if (!gldKeringNum && row[6]) {
+      gldKeringNum = typeof row[6] === "number" ? row[6] : parseFloat(String(row[6]).replace(/\./g, "").replace(/,/g, ".")) || 0;
+    }
+    var rjBasahNum = Number(inputData.colH_rjBasah || 0);
+    if (!rjBasahNum && row[7]) {
+      rjBasahNum = typeof row[7] === "number" ? row[7] : parseFloat(String(row[7]).replace(/\./g, "").replace(/,/g, ".")) || 0;
+    }
+    var rjKeringNum = Number(inputData.colK_rjKering || 0);
+    if (!rjKeringNum && row[10]) {
+      rjKeringNum = typeof row[10] === "number" ? row[10] : parseFloat(String(row[10]).replace(/\./g, "").replace(/,/g, ".")) || 0;
     }
     
     // LAYER 1: Non-Destructive Zero Guard
-    var gldKeringStr = row[6] || "";
-    var rjBasahStr = row[7] || "";
-    var rjKeringStr = row[10] || "";
-    
-    if (!gldKeringStr || gldKeringStr === "0" || gldKeringStr === "0,0") {
+    if (gldKeringNum <= 0) {
       return createJsonResponse({
         status: "error",
         layer: "Layer 1 (Non-Destructive Zero Guard)",
@@ -697,36 +721,76 @@ function handleDhpPost(e) {
     var ssMaster = SpreadsheetApp.openById(contents.spreadsheetId || MASTER_TARGET_SPREADSHEET_ID);
     var targetSheet = ssMaster.getSheetByName(contents.sheet || MASTER_TARGET_SHEET_NAME) || ssMaster.getActiveSheet();
     
-    // LAYER 3: Cross-Day Duplicate Shield (Cek Tanggal & Jenis)
-    var tglBaru = String(row[1]).trim();
-    var jenisBaru = String(row[4]).trim();
-    var lastRow = targetSheet.getLastRow();
-    
-    if (lastRow >= 7) {
-      var existingData = targetSheet.getRange(7, 2, lastRow - 6, 4).getValues();
+    // LAYER 3: Cross-Day Duplicate Shield (Cek Tanggal & Jenis dari baris 11)
+    var maxRows = targetSheet.getMaxRows();
+    var checkRows = Math.min(maxRows, 150);
+    if (checkRows >= 11) {
+      var existingData = targetSheet.getRange(11, 2, checkRows - 10, 4).getValues();
       for (var i = 0; i < existingData.length; i++) {
         var existingTgl = String(existingData[i][0]).trim();
         var existingJenis = String(existingData[i][3]).trim();
-        if (existingTgl === tglBaru && existingJenis === jenisBaru) {
+        if (existingTgl && existingTgl === tglBaru && existingJenis === jenisBaru) {
           return createJsonResponse({
             status: "error",
             layer: "Layer 3 (Duplicate Shield)",
-            message: "Duplikasi Terdeteksi: Transaksi untuk tanggal '" + tglBaru + "' dengan jenis '" + jenisBaru + "' sudah ada di baris " + (i + 7) + "."
+            message: "Duplikasi Terdeteksi: Transaksi untuk tanggal '" + tglBaru + "' dengan jenis '" + jenisBaru + "' sudah ada di baris " + (i + 11) + "."
           });
         }
       }
     }
     
-    // LAYER 5: Atomic Append Row ke Master
-    targetSheet.appendRow(row);
-    var appendedRowNum = targetSheet.getLastRow();
+    // LAYER 5: Smart Formula-Preserving Row Insertion
+    // Cari baris pertama yang kosong di Kolom B (Partai Rendam) mulai dari baris 11
+    var scanLimit = Math.max(targetSheet.getLastRow(), 100);
+    var bRangeValues = targetSheet.getRange(11, 2, scanLimit - 10, 1).getValues();
+    var targetRow = -1;
+    for (var r = 0; r < bRangeValues.length; r++) {
+      var cellVal = bRangeValues[r][0];
+      if (cellVal === "" || cellVal === null || cellVal === undefined || String(cellVal).trim() === "") {
+        targetRow = r + 11;
+        break;
+      }
+    }
+    if (targetRow === -1) {
+      targetRow = scanLimit + 1;
+    }
     
-    // LAYER 4: Audit Logging ke Sheet AUDIT_LOG (Opsional jika tab ada)
+    // PROTEKSI FORMULA: Jika baris target belum memiliki rumus bawaan di kolom I (misal template habis),
+    // salin seluruh rumus dari baris sebelumnya agar formula C, D, I, J, M, N, O, P tetap aktif
+    var existingFormulaI = targetSheet.getRange(targetRow, 9).getFormula();
+    if (!existingFormulaI && targetRow > 11) {
+      targetSheet.getRange(targetRow - 1, 1, 1, 17).copyTo(
+        targetSheet.getRange(targetRow, 1, 1, 17),
+        SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
+        false
+      );
+    }
+    
+    // TULIS NILAI HANYA KE KOLOM RAW DATA INPUT:
+    // Kolom B (2): Hari, Tanggal
+    // Kolom E (5): Jenis Cengkeh
+    // Kolom F (6): K. AIR GLD
+    // Kolom G (7): GLD KERING (numeric)
+    // Kolom H (8): RJ. BASAH (numeric)
+    // Kolom K (11): RJ. KERING (numeric)
+    // Kolom L (12): K. AIR DRY
+    // Kolom Q (17): K. AIR SIMPAN (kosong)
+    // CATATAN: Kolom C, D, I, J, M, N, O, P 100% TIDAK DISENTUH KARENA BERISI FORMULA!
+    targetSheet.getRange(targetRow, 2).setValue(tglBaru);
+    targetSheet.getRange(targetRow, 5).setValue(jenisBaru);
+    targetSheet.getRange(targetRow, 6).setValue(kaGldStr);
+    targetSheet.getRange(targetRow, 7).setValue(gldKeringNum);
+    targetSheet.getRange(targetRow, 8).setValue(rjBasahNum);
+    targetSheet.getRange(targetRow, 11).setValue(rjKeringNum);
+    targetSheet.getRange(targetRow, 12).setValue(kaDryStr);
+    targetSheet.getRange(targetRow, 17).setValue("");
+    
+    // LAYER 4: Audit Logging ke Sheet AUDIT_LOG_INTEGRASI
     try {
       var auditSheet = ssMaster.getSheetByName("AUDIT_LOG_INTEGRASI");
       if (!auditSheet) {
         auditSheet = ssMaster.insertSheet("AUDIT_LOG_INTEGRASI");
-        auditSheet.appendRow(["Timestamp", "Partai ID", "No Laporan", "Tanggal Proses", "Jenis", "Gld Kering", "Total Susut Kg", "Total Susut %", "Operator/Peran", "Baris Target"]);
+        auditSheet.appendRow(["Timestamp", "Partai ID", "No Laporan", "Tanggal Proses", "Jenis", "Gld Kering", "Target Baris", "Formula Terjaga", "Operator"]);
       }
       auditSheet.appendRow([
         new Date().toISOString(),
@@ -734,11 +798,10 @@ function handleDhpPost(e) {
         contents.noLaporan || "-",
         tglBaru,
         jenisBaru,
-        gldKeringStr,
-        row[14] || "-",
-        row[15] || "-",
-        contents.userRole || "Admin",
-        appendedRowNum
+        gldKeringNum,
+        targetRow,
+        "Kolom C, D, I, J, M, N, O, P Terlindungi",
+        contents.userRole || "Admin"
       ]);
     } catch(auditErr) {
       Logger.log("Gagal mencatat audit log: " + auditErr.toString());
@@ -746,8 +809,8 @@ function handleDhpPost(e) {
     
     return createJsonResponse({
       status: "success",
-      message: "Sukses: Data " + (contents.partaiId || "Partai") + " (" + tglBaru + ") berhasil dibukukan ke baris #" + appendedRowNum + " Sheet Master.",
-      appendedRow: appendedRowNum,
+      message: "Sukses: Data " + (contents.partaiId || "Partai") + " (" + tglBaru + ") berhasil dibukukan ke baris #" + targetRow + " Sheet Master. Seluruh kolom rumus (C, D, I, J, M, N, O, P) tetap utuh.",
+      appendedRow: targetRow,
       partaiId: contents.partaiId,
       timestamp: new Date().toISOString()
     });
