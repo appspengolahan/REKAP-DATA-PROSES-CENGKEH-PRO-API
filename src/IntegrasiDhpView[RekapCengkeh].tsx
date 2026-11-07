@@ -35,7 +35,8 @@ import {
   AlertOctagon,
   MessageSquare,
   Edit3,
-  ChevronDown
+  ChevronDown,
+  Zap
 } from 'lucide-react';
 import { 
   DhpPartaiData, 
@@ -120,6 +121,25 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isActionsMenuOpen]);
 
+  // Headless Auto-Dispatch State (Persisted in localStorage)
+  const [isAutoDispatch, setIsAutoDispatch] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('_REKAP_CKH_AUTO_DISPATCH_V1') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleAutoDispatch = () => {
+    const next = !isAutoDispatch;
+    setIsAutoDispatch(next);
+    try {
+      localStorage.setItem('_REKAP_CKH_AUTO_DISPATCH_V1', String(next));
+    } catch (e) {
+      console.warn('Gagal menyimpan preferensi auto-dispatch:', e);
+    }
+  };
+
   // Ambil data pertama kali saat mount jika belum ada cache
   useEffect(() => {
     if (partaiList.length === 0) {
@@ -127,22 +147,75 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     }
   }, []);
 
-  const loadAllPartai = async () => {
-    setIsLoading(true);
-    setPushStatusMessage(null);
+  const loadAllPartai = async (isSilent: boolean = false) => {
+    if (!isSilent) {
+      setIsLoading(true);
+      setPushStatusMessage(null);
+    }
     try {
       const data = await fetchAllDhpPartai(getDhpSpreadsheetId());
       setPartaiList(data);
+
+      // HEADLESS AUTO-DISPATCH CHECKER (Unattended Mode)
+      if (isAutoDispatch && data.length > 0 && !isPushing) {
+        for (const p of data) {
+          if (
+            p.status === 'selesai' && 
+            p.gldKering > 0 && 
+            p.totalRjKering > 0 && 
+            !p.physicsValidation?.quarantined
+          ) {
+            const tgl = p.tanggalSelesai || p.tanggalMulai;
+            const isAlreadyInMaster = masterRows.some((r) => {
+              const sameTanggal = (r.rawTanggal === tgl || r.tanggal === tgl);
+              const sameJenis = r.jenis.trim().toLowerCase() === p.jenis.trim().toLowerCase();
+              const sameBaku = Math.abs(r.gldKering - p.gldKering) < 0.5;
+              return (sameTanggal && sameJenis) || (sameTanggal && sameBaku);
+            });
+
+            if (!isAlreadyInMaster) {
+              setIsPushing(true);
+              try {
+                await pushDhpToMasterSheet(p, 'Auto-Dispatch (Sistem)', gasConfig.execUrl);
+                await onRefreshMaster();
+                setPushStatusMessage({
+                  type: 'success',
+                  text: `[AUTO-DISPATCH] Berhasil membukukan otomatis ${p.namaTab} (${p.jenis}, ${p.gldKering.toLocaleString('id-ID')} Kg) ke Sheet Master Rekap!`
+                });
+                setSyncLogs(getDhpSyncLogs());
+              } catch (pushErr: any) {
+                console.warn('Auto-dispatch error:', pushErr);
+              } finally {
+                setIsPushing(false);
+              }
+              break; // Batasi 1 partai per siklus agar atomic & aman
+            }
+          }
+        }
+      }
     } catch (err: any) {
       console.error('Error memuat data DHP:', err);
-      setPushStatusMessage({
-        type: 'error',
-        text: `Gagal menarik kertas kerja DHP: ${err.message || 'Periksa koneksi atau ID spreadsheet'}`
-      });
+      if (!isSilent) {
+        setPushStatusMessage({
+          type: 'error',
+          text: `Gagal menarik kertas kerja DHP: ${err.message || 'Periksa koneksi atau ID spreadsheet'}`
+        });
+      }
     } finally {
-      setIsLoading(false);
+      if (!isSilent) {
+        setIsLoading(false);
+      }
     }
   };
+
+  // Background Auto-Dispatch Poller: Berjalan hening setiap 60 detik jika auto-dispatch aktif
+  useEffect(() => {
+    if (!isAutoDispatch) return;
+    const timer = setInterval(() => {
+      loadAllPartai(true);
+    }, 60000);
+    return () => clearInterval(timer);
+  }, [isAutoDispatch, masterRows, gasConfig.execUrl]);
 
   const activePartai = useMemo(() => {
     return partaiList.find((p) => p.id === selectedPartaiId) || partaiList[0];
@@ -324,7 +397,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         <div className="flex items-center gap-2 relative">
           {/* Tombol Utama: Tarik Data Kertas Kerja */}
           <button
-            onClick={loadAllPartai}
+            onClick={() => loadAllPartai()}
             disabled={isLoading}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-all shadow-sm cursor-pointer ${
               isLoading ? 'opacity-70 cursor-not-allowed' : ''
@@ -479,16 +552,42 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           </button>
         </div>
 
-        {onNavigateToTab && (
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Headless Auto-Dispatch Toggle */}
           <button
             type="button"
-            onClick={() => onNavigateToTab('analisis-deviasi')}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold border border-slate-700 hover:border-cyan-500/50 transition-colors cursor-pointer"
+            onClick={toggleAutoDispatch}
+            className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+              isAutoDispatch
+                ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500/50 shadow-md shadow-emerald-950/30'
+                : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
+            }`}
+            title={
+              isAutoDispatch
+                ? 'Auto-Dispatch AKTIF: Partai yang tuntas (Susut Akhir) akan otomatis dibukukan ke Rekap Master tanpa klik tombol'
+                : 'Klik untuk mengaktifkan Auto-Dispatch: Otomatis kirim & simpan partai tuntas tanpa klik manual'
+            }
           >
-            <Scale className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Buka Evaluasi Bulanan & Acuan</span>
+            <Zap className={`w-3.5 h-3.5 ${isAutoDispatch ? 'text-amber-400 animate-bounce' : 'text-slate-500'}`} />
+            <span>Auto-Kirim:</span>
+            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+              isAutoDispatch ? 'bg-emerald-800 text-emerald-100' : 'bg-slate-900 text-slate-400'
+            }`}>
+              {isAutoDispatch ? 'AUTO (ON)' : 'MANUAL'}
+            </span>
           </button>
-        )}
+
+          {onNavigateToTab && (
+            <button
+              type="button"
+              onClick={() => onNavigateToTab('analisis-deviasi')}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold border border-slate-700 hover:border-cyan-500/50 transition-colors cursor-pointer"
+            >
+              <Scale className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Buka Evaluasi Bulanan & Acuan</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {activeSubTab === 'transaksi' ? (
@@ -1402,10 +1501,18 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               <div className="p-4 rounded-xl bg-slate-800/80 border border-cyan-800/60 text-slate-300 space-y-2">
                 <div className="font-bold text-cyan-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5" />
-                  Panduan Pemasangan di Google Apps Script (Pilih File):
+                  Panduan Pemasangan di Google Apps Script (100% Otomatis / Headless):
                 </div>
-                <div className="text-[11px] text-slate-300 leading-relaxed">
-                  Tersedia <strong>Kode Utuh 100%</strong> untuk kedua file sehingga Anda cukup melakukan <em>Salin &amp; Tempel Utuh</em> tanpa perlu memotong atau mengedit kode sebagian:
+                <div className="text-[11px] text-slate-300 leading-relaxed space-y-1">
+                  <p>
+                    Tersedia <strong>Kode Utuh 100%</strong> untuk kedua file (Salin &amp; Tempel Utuh).
+                  </p>
+                  <p className="text-emerald-300 font-semibold flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>
+                      <strong>Mode 100% Otomatis (Tanpa Klik Tombol):</strong> Di dalam file <code>IntegrasiDHP.gs</code>, tersedia fungsi <code>installAutoSyncTrigger()</code>. Jalankan fungsi ini 1x di editor Apps Script agar Google Cloud memindai dan membukukan partai tuntas secara otomatis setiap 15 menit 24/7!
+                    </span>
+                  </p>
                 </div>
               </div>
 

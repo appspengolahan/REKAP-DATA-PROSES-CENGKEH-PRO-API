@@ -1023,6 +1023,183 @@ function createJsonResponse(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
+/**
+ * =========================================================================
+ * OTOMASI PENUH SERVER-SIDE (100% UNATTENDED / TANPA KLIK TOMBOL)
+ * =========================================================================
+ * Fungsi ini dapat dijadwalkan berjalan otomatis via Time-Driven Trigger
+ * di Google Apps Script (misal: setiap 15 atau 30 menit).
+ * 
+ * Alur:
+ * 1. Membuka spreadsheet sumber DHP Cengkeh.
+ * 2. Memindai PARTAI 1 s/d PARTAI 4.
+ * 3. Memeriksa apakah status di kolom Q/R adalah "Susut Akhir (Gld Kering-Rj. Kering)".
+ * 4. Jika tuntas, lolos Layer 1 (Zero-Guard) & Layer 2 (Physics Guard).
+ * 5. Memeriksa Layer 3 (Idempotency Key: belum ada di DATA PROSES CKH).
+ * 6. Langsung menulis baris resmi ke DATA PROSES CKH (melindungi 8 kolom rumus).
+ * 7. Mencatat log otomatisasi ke AUDIT_LOG_INTEGRASI.
+ */
+function autoSyncAllPartaiToServer() {
+  var logs = [];
+  try {
+    var ssDhp = SpreadsheetApp.openById(DHP_SOURCE_SPREADSHEET_ID);
+    var partaiTabs = ["PARTAI 1", "PARTAI 2", "PARTAI 3", "PARTAI 4"];
+    
+    for (var p = 0; p < partaiTabs.length; p++) {
+      var tabName = partaiTabs[p];
+      var sheet = ssDhp.getSheetByName(tabName);
+      if (!sheet) continue;
+      
+      var maxRows = Math.min(sheet.getLastRow(), 150);
+      if (maxRows < 20) continue;
+      
+      // 1. Ekstraksi Header
+      var headerValues = sheet.getRange(1, 1, 3, 20).getValues();
+      var noLap = "";
+      var tglMulai = "";
+      var jenis = "Manado Grade A (2024)";
+      
+      var l1Str = headerValues[0].join(" ");
+      var l2Str = headerValues[1].join(" ");
+      
+      var mNoLap = l1Str.match(/:\s*([0-9A-Za-z\/\-_]+)/);
+      if (mNoLap) noLap = mNoLap[1].trim();
+      
+      var mTgl = l2Str.match(/([A-Za-z]+,\s*\d{1,2}\s+[A-Za-z]+\s+\d{4})/);
+      if (mTgl) tglMulai = mTgl[1].trim();
+      
+      var mStock = l1Str.match(/Nama Stock[^:]*:\s*([^"]+)/i) || l1Str.match(/:\s*(Manado[^\",]+)/i);
+      if (mStock) jenis = mStock[1].trim();
+      
+      // 2. Scan Status Dropdown Kolom Q/R (baris 90 - 130)
+      var statusDropdown = "";
+      var scanStart = Math.min(maxRows, 85);
+      var scanCount = Math.max(maxRows - scanStart + 1, 1);
+      var qValues = sheet.getRange(scanStart, 16, scanCount, 3).getValues();
+      
+      for (var r = 0; r < qValues.length; r++) {
+        var valQ = String(qValues[r][1] || "");
+        var valR = String(qValues[r][2] || "");
+        if (/susut\s*akhir/i.test(valQ) || /susut\s*akhir/i.test(valR)) {
+          statusDropdown = "Susut Akhir (Gld Kering-Rj. Kering)";
+          break;
+        }
+      }
+      
+      // Hanya proses partai yang sudah dinyatakan "Susut Akhir" oleh operator
+      if (statusDropdown !== "Susut Akhir (Gld Kering-Rj. Kering)") {
+        continue;
+      }
+      
+      // 3. Scan Timbangan Netto (Gld Kering, Rj Basah, Rj Kering)
+      var allData = sheet.getRange(1, 1, maxRows, 15).getValues();
+      var gldKering = 0;
+      var rjBasah = 0;
+      var rjKering = 0;
+      var kaGldStr = "";
+      var kaDryStr = "";
+      
+      for (var i = 0; i < allData.length; i++) {
+        var rowStr = allData[i].join(" ");
+        if (rowStr.indexOf("Netto :") > -1 && rowStr.indexOf("SYNC") > -1 && !gldKering) {
+          for (var c = 0; c < allData[i].length; c++) {
+            var v = allData[i][c];
+            if (typeof v === "number" && v > 100) { gldKering = v; break; }
+          }
+        }
+        if (rowStr.indexOf("Kadar Air Pra Rendam :") > -1 || rowStr.indexOf("Pra Rendam :") > -1) {
+          for (var c = 0; c < allData[i].length; c++) {
+            if (String(allData[i][c]).indexOf("%") > -1 || (typeof allData[i][c] === "number" && allData[i][c] < 40)) {
+              kaGldStr = String(allData[i][c]).trim();
+              break;
+            }
+          }
+        }
+        if (rowStr.indexOf("Susut Akhir (Gld Kering-Rj. Kering)") > -1 && !rjKering) {
+          for (var c = 0; c < allData[i].length; c++) {
+            var v = allData[i][c];
+            if (typeof v === "number" && v > 100) { rjKering = v; break; }
+          }
+        }
+      }
+      
+      if (!rjKering) {
+        for (var i = 70; i < allData.length; i++) {
+          var rowStr = allData[i].join(" ");
+          if (rowStr.indexOf("Proses Dryer") > -1 || rowStr.indexOf("Total Dryer") > -1) {
+            for (var c = 0; c < allData[i].length; c++) {
+              var v = allData[i][c];
+              if (typeof v === "number" && v > 500) { rjKering = v; }
+            }
+          }
+        }
+      }
+      
+      if (gldKering <= 0 || rjKering <= 0) {
+        continue;
+      }
+      
+      // Jalankan handleDhpPost secara internal (5-Layer Defense)
+      var payload = {
+        action: "syncDhpToRekap",
+        partaiId: tabName,
+        noLaporan: noLap,
+        userRole: "Auto-Trigger (Headless Server-Side)",
+        inputData: {
+          colB_tanggal: tglMulai,
+          colE_jenis: jenis,
+          colF_kaGld: kaGldStr,
+          colG_gldKering: gldKering,
+          colH_rjBasah: rjBasah || gldKering,
+          colK_rjKering: rjKering,
+          colL_kaDry: kaDryStr,
+          colQ_kaSimpan: ""
+        }
+      };
+      
+      var mockEvent = {
+        postData: {
+          contents: JSON.stringify(payload)
+        }
+      };
+      
+      var resOutput = handleDhpPost(mockEvent);
+      var resJson = JSON.parse(resOutput.getContent());
+      logs.push(tabName + ": " + resJson.status + " - " + resJson.message);
+    }
+    
+    Logger.log("Auto-Sync Selesai. Hasil: " + JSON.stringify(logs));
+  } catch (err) {
+    Logger.log("Auto-Sync Exception: " + err.toString());
+  }
+}
+
+/**
+ * Pemasang Trigger Otomatis: Menjalankan autoSyncAllPartaiToServer setiap 15 menit
+ * Cukup jalankan fungsi ini SATU KALI di Google Apps Script editor.
+ */
+function installAutoSyncTrigger() {
+  uninstallAutoSyncTrigger();
+  ScriptApp.newTrigger("autoSyncAllPartaiToServer")
+    .timeBased()
+    .everyMinutes(15)
+    .create();
+  Logger.log("SUKSES: Trigger otomatis setiap 15 menit berhasil dipasang!");
+}
+
+/**
+ * Pencopot Trigger Otomatis
+ */
+function uninstallAutoSyncTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === "autoSyncAllPartaiToServer") {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  Logger.log("Trigger otomatis autoSyncAllPartaiToServer telah dinonaktifkan.");
+}
 `;
 
 /**
