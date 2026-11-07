@@ -16,7 +16,8 @@ import {
   Download,
   HelpCircle,
   Sprout,
-  ShieldCheck
+  ShieldCheck,
+  GitFork
 } from 'lucide-react';
 import { UserRole, ActiveTabCengkeh } from './types[RekapCengkeh]';
 import { BUILD_VERSION } from './Code[RekapCengkeh]';
@@ -68,6 +69,12 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
       label: 'Log Data Harian',
       sublabel: 'Transaksi Terkini',
       icon: Table
+    },
+    {
+      id: 'integrasi-dhp' as const,
+      label: 'Integrasi DHP Cengkeh',
+      sublabel: 'Tarik & Kirim Kertas Kerja',
+      icon: GitFork
     }
   ];
 

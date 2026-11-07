@@ -93,7 +93,8 @@ export type ActiveTabCengkeh =
   | 'dashboard' 
   | 'rekap-bulan' 
   | 'rekap-jenis' 
-  | 'data-explorer';
+  | 'data-explorer'
+  | 'integrasi-dhp';
 
 export interface GasConfig {
   execUrl: string;
@@ -101,5 +102,71 @@ export interface GasConfig {
   sheetName: string;
   lastSyncedAt: string | null;
   autoSync: boolean;
+  dhpSpreadsheetId?: string;
+}
+
+export interface DhpSesiDryer {
+  sesi: number;
+  label: string;
+  tanggal: string;
+  rjBasah: number;
+  hasilDryer: number;
+  kaDry: number | null;
+  susutDryerKg: number;
+  susutDryerPct: number;
+  status: 'selesai' | 'berjalan' | 'belum';
+}
+
+export interface DhpQcParams {
+  uapBar: number | null;
+  admoistRpm: number | null;
+  airLpm: number | null;
+  kaPraRendam: number | null;
+  mesin: string;
+  pengering: string;
+}
+
+export interface DhpPartaiData {
+  id: string; // 'PARTAI 1', 'PARTAI 2', etc.
+  namaTab: string;
+  noLaporan: string;
+  tanggalMulai: string;
+  tanggalSelesai: string;
+  jenis: string;
+  mesin: string;
+  gldKering: number;
+  koliGld: number;
+  kaGld: number | null;
+  totalRjBasah: number;
+  totalRjKering: number;
+  kaDryRata: number | null;
+  selisihKg: number;
+  selisihPct: number;
+  susutDryerKg: number;
+  susutDryerPct: number;
+  totalSusutKg: number;
+  totalSusutPct: number;
+  status: 'selesai' | 'berjalan' | 'kosong';
+  catatanStatus: string;
+  sesiList: DhpSesiDryer[];
+  qc: DhpQcParams;
+  rawFetchedAt: string;
+}
+
+export interface DhpSyncLog {
+  id: string;
+  partai: string;
+  noLaporan: string;
+  tanggalProses: string;
+  jenis: string;
+  gldKering: number;
+  rjBasah: number;
+  rjKering: number;
+  totalSusutKg: number;
+  totalSusutPct: number;
+  waktuKirim: string;
+  pengirim: string;
+  status: 'sukses' | 'gagal';
+  pesan: string;
 }
 

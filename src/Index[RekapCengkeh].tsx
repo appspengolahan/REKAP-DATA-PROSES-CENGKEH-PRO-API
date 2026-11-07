@@ -54,6 +54,7 @@ import { SwitchBoardModalRekapCengkeh } from './SwitchBoardModal[RekapCengkeh]';
 import { GasCenterModalRekapCengkeh } from './GasCenterModal[RekapCengkeh]';
 import { ChartExpandedModalRekapCengkeh } from './ChartExpandedModal[RekapCengkeh]';
 import { PwaInstallModalRekapCengkeh } from './PwaInstallModalRekapCengkeh';
+import { IntegrasiDhpViewRekapCengkeh } from './IntegrasiDhpView[RekapCengkeh]';
 import { usePWAInstall } from './usePWAInstall';
 import { INITIAL_SNAPSHOT_DATA } from './snapshotData[RekapCengkeh]';
 import { 
@@ -61,6 +62,7 @@ import {
   Calendar, 
   Layers, 
   Table, 
+  GitFork,
   Printer, 
   Search,
   Sparkles,
@@ -425,7 +427,8 @@ export const IndexRekapCengkeh: React.FC = () => {
               { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
               { id: 'rekap-bulan' as const, label: 'Rekap Bulan', icon: Calendar },
               { id: 'rekap-jenis' as const, label: 'Rekap Jenis', icon: Layers },
-              { id: 'data-explorer' as const, label: 'Log Harian', icon: Table }
+              { id: 'data-explorer' as const, label: 'Log Harian', icon: Table },
+              { id: 'integrasi-dhp' as const, label: 'Integrasi DHP', icon: GitFork }
             ].map((tab) => {
             const Icon = tab.icon;
             const isAct = activeTab === tab.id;
@@ -1452,6 +1455,16 @@ export const IndexRekapCengkeh: React.FC = () => {
                 />
               </div>
             </div>
+          )}
+
+          {/* VIEW 5: INTEGRASI DHP CENGKEH */}
+          {activeTab === 'integrasi-dhp' && (
+            <IntegrasiDhpViewRekapCengkeh
+              userRole={userRole}
+              gasConfig={gasConfig}
+              masterRows={rows}
+              onRefreshMaster={() => syncWithCloud(true)}
+            />
           )}
         </main>
 
