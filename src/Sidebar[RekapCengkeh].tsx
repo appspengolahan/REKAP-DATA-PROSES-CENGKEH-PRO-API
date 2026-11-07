@@ -11,8 +11,6 @@ import {
   Table, 
   ChevronLeft, 
   ChevronRight, 
-  Database, 
-  UserCheck, 
   Download,
   HelpCircle,
   Sprout,
@@ -157,57 +155,10 @@ export const SidebarRekapCengkeh: React.FC<SidebarProps> = ({
             </button>
           );
         })}
-
-        {/* Switch App Menu - Sinkron dengan Switch App Board di Header */}
-        {onOpenSwitchBoard && (
-          <div className="pt-2 mt-2 border-t border-slate-800/80">
-            <button
-              onClick={onOpenSwitchBoard}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer text-left bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/25 hover:border-amber-500/40 group shadow-2xs"
-              title={isCollapsed ? 'Switch App (Ekosistem PP1)' : undefined}
-            >
-              <div className="w-5 h-5 flex items-center justify-center text-amber-400 shrink-0 group-hover:scale-110 transition-transform">
-                <Layers className="w-5 h-5" />
-              </div>
-              {!isCollapsed && (
-                <div className="min-w-0 flex-1">
-                  <div className="truncate leading-tight font-bold text-xs text-amber-200 flex items-center justify-between">
-                    <span>Switch App</span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-amber-950 text-amber-300 border border-amber-800 font-mono">
-                      PP1 Board
-                    </span>
-                  </div>
-                  <div className="text-[10px] leading-tight truncate text-amber-400/80 mt-0.5">
-                    Pindah Web App Ekosistem
-                  </div>
-                </div>
-              )}
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* Bottom Section: GAS Center Shortcut, Help, Install PWA & Role */}
+      {/* Bottom Section: Help, Install PWA & Role */}
       <div className="p-3 border-t border-slate-800 space-y-2 shrink-0">
-        {/* Headless GAS Center */}
-        <button
-          onClick={onOpenGasCenter}
-          className="w-full flex items-center gap-3 p-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-cyan-400 hover:text-cyan-300 transition-colors cursor-pointer text-left"
-          title="Headless GAS Center (REST API & Testing)"
-        >
-          <Database className="w-4 h-4 shrink-0" />
-          {!isCollapsed && (
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-semibold leading-tight truncate text-white flex items-center justify-between">
-                <span>Headless GAS Center</span>
-                <span className="text-[9px] px-1 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">REST</span>
-              </div>
-              <div className="text-[10px] text-slate-400 leading-tight truncate mt-0.5">
-                REST API & Testing
-              </div>
-            </div>
-          )}
-        </button>
 
         {/* Bantuan & Rumus */}
         {onOpenHelp && (
