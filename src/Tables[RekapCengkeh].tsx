@@ -6,6 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { RekapItemCengkeh, RawRowCengkeh } from './types[RekapCengkeh]';
 import { formatKg, formatPct, getPctClass, formatTanggalIndo, MONTH_ORDER } from './Code[RekapCengkeh]';
+import { cleanJenisCengkeh } from './dhpService[RekapCengkeh]';
 import { Search, ChevronLeft, ChevronRight, CheckCircle2, ArrowUpDown } from 'lucide-react';
 
 // ===== 1. TABEL REKAP BULANAN =====
@@ -363,9 +364,15 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
             {pagedRows.map((r) => {
               const pClass = getPctClass(r.totalSusutPct);
               return (
-                <tr key={`${r.sumber || 'master'}-${r.srcRow}`} className="hover:bg-[#f8fafc] transition-colors">
-                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#6b7280] font-mono">
-                    #{r.srcRow}
+                <tr key={`${r.sumber || 'master'}-${r.dhpPartaiId || r.srcRow}`} className="hover:bg-[#f8fafc] transition-colors">
+                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] font-mono whitespace-nowrap">
+                    {r.sumber === 'DHP' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs">
+                        {r.dhpPartaiId || 'DHP Live'}
+                      </span>
+                    ) : (
+                      <span className="text-[#6b7280]">#{r.srcRow}</span>
+                    )}
                   </td>
                   <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">
                     {r.sumber === 'DHP' ? (
@@ -379,8 +386,18 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
                       </span>
                     )}
                   </td>
-                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937]">{formatTanggalIndo(r.tanggal)}</td>
-                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937] font-medium">{r.jenis}</td>
+                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937]">
+                    {r.tanggal && r.tanggal !== 'Belum Tercatat' && !r.tanggal.includes('Belum') ? (
+                      formatTanggalIndo(r.tanggal)
+                    ) : (
+                      <span className="text-amber-700 italic text-[11px] font-medium bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                        Belum Tercatat
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937] font-medium">
+                    {cleanJenisCengkeh(r.jenis)}
+                  </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatKg(r.gldKering)}</td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatKg(r.rjBasah)}</td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1b8a5a] font-mono">+{formatPct(r.selisihPct)}</td>

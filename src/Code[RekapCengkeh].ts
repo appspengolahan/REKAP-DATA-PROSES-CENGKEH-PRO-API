@@ -61,6 +61,7 @@ export function formatPct(n: number | null | undefined): string {
  */
 export function formatTanggalIndo(isoDateStr: string): string {
   if (!isoDateStr) return '-';
+  if (isoDateStr === 'Belum Tercatat' || isoDateStr.toLowerCase().includes('belum')) return 'Belum Tercatat';
   try {
     // Normalisasi jika masih mengandung komponen waktu/zona waktu UTC (misal dari Google Apps Script getValues())
     const normalized = cleanDate(isoDateStr);

@@ -56,7 +56,7 @@ import { ChartExpandedModalRekapCengkeh } from './ChartExpandedModal[RekapCengke
 import { PwaInstallModalRekapCengkeh } from './PwaInstallModalRekapCengkeh';
 import { IntegrasiDhpViewRekapCengkeh } from './IntegrasiDhpView[RekapCengkeh]';
 import { AnalisisDeviasiViewRekapCengkeh } from './AnalisisDeviasiView[RekapCengkeh]';
-import { getCachedDhpPartai } from './dhpService[RekapCengkeh]';
+import { getCachedDhpPartai, cleanJenisCengkeh } from './dhpService[RekapCengkeh]';
 import { usePWAInstall } from './usePWAInstall';
 import { INITIAL_SNAPSHOT_DATA } from './snapshotData[RekapCengkeh]';
 import { 
@@ -210,7 +210,7 @@ export const IndexRekapCengkeh: React.FC = () => {
 
     cachedDhp.forEach((p, idx) => {
       if (p.status !== 'kosong') {
-        const rawDate = p.tanggalSelesai || p.tanggalMulai || '2026-11-05';
+        const rawDate = p.tanggalSelesai || p.tanggalMulai || 'Belum Tercatat';
         const parts = rawDate.split('-');
         let tahun = '2026';
         let bulan = 'November';
@@ -226,11 +226,11 @@ export const IndexRekapCengkeh: React.FC = () => {
         }
 
         dhpRows.push({
-          srcRow: 9000 + (idx + 1),
+          srcRow: idx + 1,
           tanggal: rawDate,
           bulan,
           tahun,
-          jenis: p.jenis,
+          jenis: cleanJenisCengkeh(p.jenis),
           kaGld: p.kaGld || p.qc.kaPraRendam || 19.5,
           gldKering: p.gldKering,
           rjBasah: p.totalRjBasah,

@@ -126,7 +126,12 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
     const raw = localStorage.getItem(LOCAL_STORAGE_DHP_CACHE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((p) => ({
+          ...p,
+          jenis: cleanJenisCengkeh(p.jenis)
+        }));
+      }
     }
   } catch (e) {
     console.error('Gagal membaca cache partai DHP:', e);
@@ -152,6 +157,22 @@ function cleanIndoNumber(val: string | number | null | undefined): number {
     .replace(/,/g, '.');
   const n = parseFloat(clean);
   return isNaN(n) ? 0 : n;
+}
+
+/**
+ * Bersihkan nama jenis cengkeh dari residu teks judul kolom lembar kerja DHP
+ * (seperti "RC4 RESUME HASIL RAJANG BASAH")
+ */
+export function cleanJenisCengkeh(raw: string | undefined): string {
+  if (!raw) return 'Manado Grade A (2024)';
+  let s = String(raw).replace(/^[:\s"]+/, '').replace(/[:"\r\n]+/g, '').trim();
+  // Buang imbuhan nama mesin (misal: RC4, KT1) atau judul kolom resume
+  s = s.replace(/\bRC\s*\d+\b/gi, '').replace(/\bRESUME\b.*/gi, '').replace(/\bHASIL RAJANG\b.*/gi, '').trim();
+  s = s.replace(/^[:\s-]+|[:\s-]+$/g, '').trim();
+  if (!s || s.length < 3 || /^(NO|NETTO|RC\d+|HASIL|RAJANG|RESUME)$/i.test(s)) {
+    return 'Manado Grade A (2024)';
+  }
+  return s;
 }
 
 /**
@@ -208,9 +229,13 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   }
 
   // Nama Stock / Jenis (contoh: Manado Grade A (2024))
-  const matchStock = l1.match(/Nama Stock[^"]*","[^"]*","[^"]*:\s*([^"]+)"/i) || l1.match(/:\s*(Manado[^\",]+)/i);
+  // Gunakan regex non-greedy agar tidak terlewat ke kolom : RC4 RESUME HASIL RAJANG BASAH
+  const matchStock = l1.match(/:\s*(Manado[^\":,\n\r]+(?:\([0-9]+\))?)/i) || 
+                     l1.match(/Nama Stock[^"*]*","[^"]*","[^:"]*:\s*([^:"]+)/i);
   if (matchStock) {
-    jenis = matchStock[1].replace(/^[:\s]+/, '').trim();
+    jenis = cleanJenisCengkeh(matchStock[1]);
+  } else {
+    jenis = cleanJenisCengkeh(jenis);
   }
 
   // Mesin (contoh: : RC4)
@@ -276,10 +301,11 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   });
 
   // Jika namaStock belum tertangkap di baris 1, cari di baris resume
-  if (!jenis || jenis === 'Manado Grade A (2024)') {
+  if (!jenis || jenis === 'Manado Grade A (2024)' || jenis.includes('RESUME')) {
     const matchAltJenis = csvText.match(/Nama Stock\s*:\s*([^"\r\n]+)/i);
-    if (matchAltJenis) jenis = matchAltJenis[1].replace(/[:"]/g, '').trim();
+    if (matchAltJenis) jenis = cleanJenisCengkeh(matchAltJenis[1]);
   }
+  jenis = cleanJenisCengkeh(jenis);
 
   // 3. Ekstraksi Nilai Rajang Basah & Hasil Dryer
   // Dari struktur sheet: Netto Rajang Basah & Dryer Sesi 1 & 2
