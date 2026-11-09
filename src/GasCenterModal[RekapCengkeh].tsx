@@ -34,7 +34,7 @@ function doGet(e) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sheetName = (e && e.parameter && e.parameter.sheet) || 'DATA PROSES CKH';
     var sheet = ss.getSheetByName(sheetName) || ss.getActiveSheet();
-    var values = sheet.getDataRange().getValues();
+    var values = sheet.getDataRange().getDisplayValues();
     
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",

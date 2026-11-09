@@ -1229,7 +1229,7 @@ function doGet(e) {
     var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheetName = (e && e.parameter && e.parameter.sheet) || DEFAULT_SHEET;
     var sheet = ss.getSheetByName(sheetName) || ss.getActiveSheet();
-    var values = sheet.getDataRange().getValues();
+    var values = sheet.getDataRange().getDisplayValues();
 
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",

@@ -56,13 +56,15 @@ export function formatPct(n: number | null | undefined): string {
 }
 
 /**
- * Format tanggal panjang Indonesia
- * Contoh: '18 Agustus 2026'
+ * Format tanggal panjang Indonesia (Zona Waktu Indonesia Barat / Asia/Jakarta)
+ * Contoh: '22 September 2026'
  */
 export function formatTanggalIndo(isoDateStr: string): string {
   if (!isoDateStr) return '-';
   try {
-    const parts = isoDateStr.split('-');
+    // Normalisasi jika masih mengandung komponen waktu/zona waktu UTC (misal dari Google Apps Script getValues())
+    const normalized = cleanDate(isoDateStr);
+    const parts = normalized.split('-');
     if (parts.length === 3) {
       const thn = parts[0];
       const blnIdx = parseInt(parts[1], 10) - 1;
@@ -745,7 +747,6 @@ async function doFetchGvizSheet(spreadsheetId: string, sheetName: string): Promi
       continue;
     }
 
-    const bulan = cols[2] || 'Mei';
     const tahun = (cols[3] || '2026').trim();
     const jenis = (cols[4] || 'Cengkeh').trim();
     const kaGld = parseIndoNum(cols[5]);
@@ -758,11 +759,19 @@ async function doFetchGvizSheet(spreadsheetId: string, sheetName: string): Promi
     const totalSusutKg = round1(gldKering - rjKering);
     const totalSusutPct = round2(((gldKering - rjKering) / gldKering) * 100);
 
+    const cleanTgl = cleanDate(rawTgl, tahun);
+    const dateParts = cleanTgl.split('-');
+    const thn = dateParts[0] || tahun;
+    const blnIdx = parseInt(dateParts[1], 10) - 1;
+    const bulan = (blnIdx >= 0 && blnIdx < 12) ? MONTH_ORDER[blnIdx] : (cols[2] || 'Mei');
+    const formattedIndo = formatTanggalIndo(cleanTgl);
+
     rows.push({
       srcRow: i + 1,
-      tanggal: cleanDate(rawTgl, tahun),
+      tanggal: cleanTgl,
+      rawTanggal: formattedIndo,
       bulan: bulan,
-      tahun: String(tahun),
+      tahun: String(thn),
       jenis: jenis,
       kaGld: kaGld,
       gldKering: gldKering,
@@ -782,11 +791,26 @@ async function doFetchGvizSheet(spreadsheetId: string, sheetName: string): Promi
   return rows;
 }
 
-function cleanDate(d: string, fallbackYear = '2026'): string {
+export function cleanDate(d: string, fallbackYear = '2026'): string {
   if (!d) return `${fallbackYear}-05-04`;
-  d = d.replace(/['"]/g, '').trim();
+  d = String(d).replace(/['"]/g, '').trim();
   
-  // Format "Senin, 04 Mei 2026"
+  // 1. Kasus ISO Date UTC (misal: "2026-09-21T17:00:00.000Z" dari Google Apps Script Date Object)
+  // Konversi presisi ke Zona Waktu Indonesia Barat (WIB, Asia/Jakarta, GMT+7)
+  if (d.includes('T') || d.endsWith('Z')) {
+    const dt = new Date(d);
+    if (!isNaN(dt.getTime())) {
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+      return formatter.format(dt); // Format: "YYYY-MM-DD" di waktu Indonesia
+    }
+  }
+
+  // 2. Format Indonesia: "Selasa, 22 September 2026" atau "22 September 2026"
   const matchIndo = d.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
   if (matchIndo) {
     const day = matchIndo[1].padStart(2, '0');
@@ -796,12 +820,22 @@ function cleanDate(d: string, fallbackYear = '2026'): string {
     return `${year}-${month}-${day}`;
   }
 
-  // Format "04/05/2026"
+  // 3. Format Date Slash "22/09/2026" atau "2026/09/22"
   if (d.includes('/')) {
     const parts = d.split('/');
     if (parts.length === 3) {
-      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      if (parts[0].length === 4) {
+        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      } else {
+        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
     }
+  }
+
+  // 4. Format ISO Date Murni "2026-09-22"
+  const matchIso = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (matchIso) {
+    return `${matchIso[1]}-${matchIso[2].padStart(2, '0')}-${matchIso[3].padStart(2, '0')}`;
   }
 
   return d;
@@ -829,6 +863,7 @@ function parseCsvLine(line: string): string[] {
 
 /**
  * Konversi 2D Array dari sheet.getDataRange().getValues() menjadi RawRowCengkeh[]
+ * Dilengkapi Penyelarasan Zona Waktu Indonesia (Asia/Jakarta) Anti-Geser Tanggal
  */
 export function parse2DArrayToRows(values: any[][]): RawRowCengkeh[] {
   const rows: RawRowCengkeh[] = [];
@@ -856,8 +891,14 @@ export function parse2DArrayToRows(values: any[][]): RawRowCengkeh[] {
       continue;
     }
 
-    const bulan = String(cols[2] || 'Mei').trim();
     const tahun = String(cols[3] || '2026').trim();
+    const cleanTgl = cleanDate(rawTgl, tahun);
+    const dateParts = cleanTgl.split('-');
+    const thn = dateParts[0] || tahun;
+    const blnIdx = parseInt(dateParts[1], 10) - 1;
+    const bulan = (blnIdx >= 0 && blnIdx < 12) ? MONTH_ORDER[blnIdx] : String(cols[2] || 'Mei').trim();
+    const formattedIndo = formatTanggalIndo(cleanTgl);
+
     const jenis = String(cols[4] || 'Cengkeh').trim();
     const kaGld = parseIndoNum(cols[5]);
     const kaDry = parseIndoNum(cols[11]);
@@ -871,10 +912,10 @@ export function parse2DArrayToRows(values: any[][]): RawRowCengkeh[] {
 
     rows.push({
       srcRow: i + 1,
-      tanggal: cleanDate(rawTgl, tahun),
-      rawTanggal: rawTgl,
+      tanggal: cleanTgl,
+      rawTanggal: formattedIndo,
       bulan: bulan,
-      tahun: String(tahun),
+      tahun: String(thn),
       jenis: jenis,
       kaGld: kaGld,
       gldKering: gldKering,
