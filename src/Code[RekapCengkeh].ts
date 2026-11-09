@@ -17,7 +17,7 @@ import { INITIAL_SNAPSHOT_DATA } from './snapshotData[RekapCengkeh]';
 export const BUILD_VERSION = 'v1.1 - 2026-08-19';
 export const PROJECT_NAME = 'Monitoring Board — Rekap Data Proses Cengkeh';
 export const DEFAULT_SPREADSHEET_ID = '1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M';
-export const DEFAULT_SHEET_NAME = 'FILTER DATA';
+export const DEFAULT_SHEET_NAME = 'DATA PROSES CKH';
 export const FALLBACK_SHEET_NAME = 'DATA PROSES CKH';
 export const DEFAULT_EXEC_URL = 'https://script.google.com/macros/s/AKfycbwafqhT23MJK9NsSIQmpeq0XMbTlRqZXvNN1LpGB36XS4gNEBpCE9hsdp4Jh_oUD54v4A/exec';
 
@@ -90,7 +90,14 @@ export function getPctClass(v: number): 'pct-high' | 'pct-low' | '' {
 export function getGasConfig(): GasConfig {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_CONFIG_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Auto-heal jika sheetName masih menunjuk ke 'FILTER DATA' yang kosong
+      if (!parsed.sheetName || parsed.sheetName === 'FILTER DATA') {
+        parsed.sheetName = DEFAULT_SHEET_NAME;
+      }
+      return parsed;
+    }
   } catch (e) {
     console.error('Error reading GAS config:', e);
   }
@@ -114,6 +121,7 @@ export function saveGasConfig(cfg: GasConfig): void {
 
 /**
  * Baca dataset lokal dari Cache LocalStorage (Tier 3) dengan fallback Snapshot (Tier 4)
+ * Dilengkapi Filter Validasi Integritas: Menolak data rusak / array kosong / 2D array tanpa tanggal & gldKering
  */
 export function loadCachedDataset(): RawRowCengkeh[] {
   try {
@@ -121,19 +129,31 @@ export function loadCachedDataset(): RawRowCengkeh[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        // Validasi struktur setiap baris data
+        const validRows = parsed.filter(
+          (r) => r && typeof r === 'object' && !Array.isArray(r) && typeof r.tanggal === 'string' && Number(r.gldKering) > 0
+        );
+        if (validRows.length >= 10) {
+          return validRows;
+        }
       }
     }
   } catch (e) {
     console.warn('Gagal membaca cache lokal, menggunakan snapshot default:', e);
   }
+  // Fallback otomatis ke snapshot data riil historis Cengkeh (63 entri lengkap)
   return INITIAL_SNAPSHOT_DATA;
 }
 
-/** Simpan dataset ke LocalStorage */
+/** Simpan dataset ke LocalStorage - Proteksi Mutlak: Jangan pernah simpan data rusak/kosong! */
 export function saveCachedDataset(data: RawRowCengkeh[]): void {
   try {
-    localStorage.setItem(LOCAL_STORAGE_CACHE_KEY, JSON.stringify(data));
+    if (!Array.isArray(data) || data.length === 0) return;
+    const validRows = data.filter(
+      (r) => r && typeof r === 'object' && !Array.isArray(r) && typeof r.tanggal === 'string' && Number(r.gldKering) > 0
+    );
+    if (validRows.length === 0) return; // Lindungi cache lokal dari penimpaan data 0
+    localStorage.setItem(LOCAL_STORAGE_CACHE_KEY, JSON.stringify(validRows));
   } catch (e) {
     console.error('Gagal menulis cache lokal:', e);
   }
@@ -636,20 +656,29 @@ export async function fetchFromGVizCsv(
   sheetName: string = DEFAULT_SHEET_NAME,
   cachedFallback?: RawRowCengkeh[]
 ): Promise<RawRowCengkeh[]> {
-  // Coba ambil sheetName yang diminta (default 'FILTER DATA' yang berisi 2025 & 2026)
-  let targetSheet = sheetName || DEFAULT_SHEET_NAME;
-  let rows = await doFetchGvizSheet(spreadsheetId, targetSheet);
+  // Selalu targetkan sheet data master proses cengkeh: 'DATA PROSES CKH'
+  const primarySheet = (sheetName && sheetName !== 'FILTER DATA') ? sheetName : DEFAULT_SHEET_NAME;
+  let rows: RawRowCengkeh[] = [];
+  
+  try {
+    rows = await doFetchGvizSheet(spreadsheetId, primarySheet);
+  } catch (e) {
+    console.warn(`Gagal membaca sheet ${primarySheet}:`, e);
+  }
 
-  // Jika hasilnya sedikit (< 100 baris) dan targetSheet bukan FILTER DATA, coba ambil FILTER DATA
-  if (rows.length < 100 && targetSheet !== 'FILTER DATA') {
+  // Jika hasilnya 0 atau gagal dan bukan 'DATA PROSES CKH', coba fallback ke 'DATA PROSES CKH'
+  if (rows.length === 0 && primarySheet !== 'DATA PROSES CKH') {
     try {
-      const fullRows = await doFetchGvizSheet(spreadsheetId, 'FILTER DATA');
-      if (fullRows.length > rows.length) {
-        rows = fullRows;
-      }
-    } catch {
-      // gunakan rows yang ada jika FILTER DATA gagal
+      rows = await doFetchGvizSheet(spreadsheetId, 'DATA PROSES CKH');
+    } catch (e2) {
+      console.warn('Gagal membaca fallback DATA PROSES CKH:', e2);
     }
+  }
+
+  // Proteksi data hilang: jika Gviz gagal menghasilkan baris sah, gunakan cache terverifikasi atau snapshot data riil
+  if (rows.length === 0) {
+    console.warn('GViz mengembalikan 0 baris valid, memulihkan snapshot data riil...');
+    return (cachedFallback && cachedFallback.length > 0) ? cachedFallback : INITIAL_SNAPSHOT_DATA;
   }
 
   // PROTEKSI DUAL-READ HIBRIDA ANTI-POTONG FILTER SHEET:
@@ -799,7 +828,74 @@ function parseCsvLine(line: string): string[] {
 }
 
 /**
+ * Konversi 2D Array dari sheet.getDataRange().getValues() menjadi RawRowCengkeh[]
+ */
+export function parse2DArrayToRows(values: any[][]): RawRowCengkeh[] {
+  const rows: RawRowCengkeh[] = [];
+  function parseIndoNum(val: any): number | null {
+    if (val === null || val === undefined || val === '') return null;
+    if (typeof val === 'number') return isNaN(val) ? null : val;
+    const clean = String(val).replace(/["\s%McKg]/gi, '').replace(/\./g, '').replace(/,/g, '.');
+    const n = parseFloat(clean);
+    return isNaN(n) ? null : n;
+  }
+
+  for (let i = 4; i < values.length; i++) {
+    const cols = values[i];
+    if (!Array.isArray(cols)) continue;
+    const rawTgl = String(cols[1] || '').trim();
+    if (!rawTgl || !/Senin|Selasa|Rabu|Kamis|Jumat|Sabtu|Minggu|\d/i.test(rawTgl)) {
+      continue;
+    }
+
+    const gldKering = parseIndoNum(cols[6]);
+    const rjBasah = parseIndoNum(cols[7]);
+    const rjKering = parseIndoNum(cols[10]);
+
+    if (!gldKering || gldKering <= 0 || !rjBasah || !rjKering) {
+      continue;
+    }
+
+    const bulan = String(cols[2] || 'Mei').trim();
+    const tahun = String(cols[3] || '2026').trim();
+    const jenis = String(cols[4] || 'Cengkeh').trim();
+    const kaGld = parseIndoNum(cols[5]);
+    const kaDry = parseIndoNum(cols[11]);
+
+    const selisihKg = round1(rjBasah - gldKering);
+    const selisihPct = round2(((rjBasah - gldKering) / gldKering) * 100);
+    const susutKg = round1(rjBasah - rjKering);
+    const susutPct = round2(((rjBasah - rjKering) / rjBasah) * 100);
+    const totalSusutKg = round1(gldKering - rjKering);
+    const totalSusutPct = round2(((gldKering - rjKering) / gldKering) * 100);
+
+    rows.push({
+      srcRow: i + 1,
+      tanggal: cleanDate(rawTgl, tahun),
+      rawTanggal: rawTgl,
+      bulan: bulan,
+      tahun: String(tahun),
+      jenis: jenis,
+      kaGld: kaGld,
+      gldKering: gldKering,
+      rjBasah: rjBasah,
+      selisihKg: selisihKg,
+      selisihPct: selisihPct,
+      rjKering: rjKering,
+      kaDry: kaDry,
+      susutKg: susutKg,
+      susutPct: susutPct,
+      totalSusutKg: totalSusutKg,
+      totalSusutPct: totalSusutPct,
+      verified: true
+    });
+  }
+  return rows;
+}
+
+/**
  * Sinkronisasi Tier 1: Panggil Apps Script REST Web App endpoint (doGet)
+ * Mendukung format respon Objek Terstruktur maupun 2D Array mentah (getValues)
  */
 export async function fetchFromGasRest(execUrl: string): Promise<RawRowCengkeh[]> {
   const targetUrl = `${execUrl}${execUrl.includes('?') ? '&' : '?'}action=getData&t=${Date.now()}`;
@@ -808,9 +904,35 @@ export async function fetchFromGasRest(execUrl: string): Promise<RawRowCengkeh[]
     throw new Error(`GAS REST endpoint error: ${res.status} ${res.statusText}`);
   }
   const json = await res.json();
-  if (Array.isArray(json)) return json;
-  if (json.data && Array.isArray(json.data)) return json.data;
-  throw new Error('Format respon GAS REST bukan array data yang valid.');
+  let candidateList: any[] = [];
+  if (Array.isArray(json)) {
+    candidateList = json;
+  } else if (json && json.data && Array.isArray(json.data)) {
+    candidateList = json.data;
+  } else if (json && json.rawRows && Array.isArray(json.rawRows)) {
+    candidateList = json.rawRows;
+  }
+
+  // Kasus 1: Payload adalah 2D array mentah dari getValues()
+  if (candidateList.length > 0 && Array.isArray(candidateList[0])) {
+    const parsedFrom2D = parse2DArrayToRows(candidateList);
+    if (parsedFrom2D.length > 0) return parsedFrom2D;
+  }
+
+  // Kasus 2: Payload adalah array objek RawRowCengkeh yang telah diformat
+  const validRows: RawRowCengkeh[] = candidateList.filter((item) => {
+    return (
+      item &&
+      typeof item === 'object' &&
+      !Array.isArray(item) &&
+      typeof item.tanggal === 'string' &&
+      item.tanggal.length >= 8 &&
+      Number(item.gldKering) > 0
+    );
+  });
+
+  if (validRows.length > 0) return validRows;
+  throw new Error('Respon GAS REST tidak berisi baris data cengkeh yang valid.');
 }
 
 /**

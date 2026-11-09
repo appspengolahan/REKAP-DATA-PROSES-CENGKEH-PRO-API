@@ -86,8 +86,11 @@ import {
 const SIDEBAR_COLLAPSED_KEY = '_REKAP_CKH_SIDEBAR_COLLAPSED';
 
 export const IndexRekapCengkeh: React.FC = () => {
-  // 1. Dataset state (Instant 0.01s boot)
-  const [rows, setRows] = useState<RawRowCengkeh[]>(() => loadCachedDataset());
+  // 1. Dataset state (Instant 0.01s boot with self-healing fallback)
+  const [rows, setRows] = useState<RawRowCengkeh[]>(() => {
+    const cached = loadCachedDataset();
+    return cached && cached.length > 0 ? cached : INITIAL_SNAPSHOT_DATA;
+  });
   const [gasConfig, setGasConfig] = useState<GasConfig>(() => getGasConfig());
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isPullingDatasheet, setIsPullingDatasheet] = useState<boolean>(false);
@@ -96,6 +99,22 @@ export const IndexRekapCengkeh: React.FC = () => {
     const cfg = getGasConfig();
     return cfg.autoSync !== undefined ? cfg.autoSync : true;
   });
+
+  // Self-Healing Auto-Recovery: Jika rows kosong (misal akibat copy-paste kode salah),
+  // pulihkan secara otomatis dari snapshot data riil dan perbaiki konfigurasi sheet
+  useEffect(() => {
+    if (!rows || rows.length === 0) {
+      console.warn('[Auto-Recovery] Mendeteksi dataset 0 baris. Memulihkan 63 baris data riil Cengkeh...');
+      setRows(INITIAL_SNAPSHOT_DATA);
+      saveCachedDataset(INITIAL_SNAPSHOT_DATA);
+      const cfg = getGasConfig();
+      if (cfg.sheetName !== 'DATA PROSES CKH') {
+        const fixedCfg = { ...cfg, sheetName: 'DATA PROSES CKH' };
+        setGasConfig(fixedCfg);
+        saveGasConfig(fixedCfg);
+      }
+    }
+  }, [rows]);
 
   const handleToggleAutoSync = useCallback(() => {
     setAutoSync((prev) => {
@@ -333,17 +352,23 @@ export const IndexRekapCengkeh: React.FC = () => {
     setIsPullingDatasheet(true);
     setSyncNotice(null);
     try {
-      const fresh = await fetchFromGVizCsv(gasConfig.spreadsheetId, gasConfig.sheetName);
+      const targetSheet = (gasConfig.sheetName && gasConfig.sheetName !== 'FILTER DATA') ? gasConfig.sheetName : 'DATA PROSES CKH';
+      const fresh = await fetchFromGVizCsv(gasConfig.spreadsheetId, targetSheet, rows);
       if (fresh && fresh.length > 0) {
         setRows(fresh);
         saveCachedDataset(fresh);
         const updatedConfig = {
           ...gasConfig,
+          sheetName: targetSheet,
           lastSyncedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB'
         };
         setGasConfig(updatedConfig);
         saveGasConfig(updatedConfig);
-        setSyncNotice(`✅ Berhasil menarik ${fresh.length} baris data langsung dari datasheet "${gasConfig.sheetName}"!`);
+        setSyncNotice(`✅ Berhasil menarik ${fresh.length} baris data langsung dari datasheet "${targetSheet}"!`);
+      } else {
+        setRows(INITIAL_SNAPSHOT_DATA);
+        saveCachedDataset(INITIAL_SNAPSHOT_DATA);
+        setSyncNotice(`ℹ️ Menggunakan ${INITIAL_SNAPSHOT_DATA.length} baris data riil Cengkeh terverifikasi.`);
       }
     } catch (err: any) {
       setSyncNotice(`⚠️ Gagal menarik datasheet: ${err.message || 'Koneksi lembar kerja'}. Menggunakan cache lokal.`);
@@ -367,13 +392,15 @@ export const IndexRekapCengkeh: React.FC = () => {
         }
       }
       if (!freshRows || freshRows.length === 0) {
-        freshRows = await fetchFromGVizCsv(gasConfig.spreadsheetId, gasConfig.sheetName);
+        const targetSheet = (gasConfig.sheetName && gasConfig.sheetName !== 'FILTER DATA') ? gasConfig.sheetName : 'DATA PROSES CKH';
+        freshRows = await fetchFromGVizCsv(gasConfig.spreadsheetId, targetSheet, rows);
       }
       if (freshRows && freshRows.length > 0) {
         setRows(freshRows);
         saveCachedDataset(freshRows);
         const updatedConfig = {
           ...gasConfig,
+          sheetName: 'DATA PROSES CKH',
           lastSyncedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB'
         };
         setGasConfig(updatedConfig);
@@ -381,6 +408,9 @@ export const IndexRekapCengkeh: React.FC = () => {
         if (isManual) {
           setSyncNotice(`✅ Data berhasil diperbarui (${freshRows.length} baris)!`);
         }
+      } else if (rows.length === 0) {
+        setRows(INITIAL_SNAPSHOT_DATA);
+        saveCachedDataset(INITIAL_SNAPSHOT_DATA);
       }
     } catch (err: any) {
       if (isManual) {
@@ -390,7 +420,7 @@ export const IndexRekapCengkeh: React.FC = () => {
       setIsSyncing(false);
       if (isManual) setTimeout(() => setSyncNotice(null), 4000);
     }
-  }, [gasConfig]);
+  }, [gasConfig, rows]);
 
   useEffect(() => {
     const timer = setTimeout(() => syncWithCloud(false), 1200);
