@@ -167,9 +167,17 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           ) {
             const tgl = p.tanggalSelesai || p.tanggalMulai;
             const isAlreadyInMaster = masterRows.some((r) => {
-              const sameTanggal = (r.rawTanggal === tgl || r.tanggal === tgl);
-              const sameJenis = r.jenis.trim().toLowerCase() === p.jenis.trim().toLowerCase();
-              const sameBaku = Math.abs(r.gldKering - p.gldKering) < 0.5;
+              if (!r) return false;
+              const sameTanggal = Boolean(
+                (r.rawTanggal && r.rawTanggal === tgl) || 
+                (r.tanggal && r.tanggal === tgl)
+              );
+              const rJenis = String(r.jenis || '').trim().toLowerCase();
+              const pJenis = String(p.jenis || '').trim().toLowerCase();
+              const sameJenis = Boolean(rJenis && pJenis && rJenis === pJenis);
+              const rBaku = Number(r.gldKering || 0);
+              const pBaku = Number(p.gldKering || 0);
+              const sameBaku = pBaku > 0 && Math.abs(rBaku - pBaku) < 0.5;
               return (sameTanggal && sameJenis) || (sameTanggal && sameBaku);
             });
 
@@ -228,9 +236,17 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     if (!tgl || tgl === '-' || tgl === 'Belum Tercatat') return null;
 
     return masterRows.find((r) => {
-      const sameTanggal = (r.rawTanggal === tgl || r.tanggal === tgl);
-      const sameJenis = r.jenis.trim().toLowerCase() === activePartai.jenis.trim().toLowerCase();
-      const sameBaku = Math.abs(r.gldKering - activePartai.gldKering) < 0.5;
+      if (!r) return false;
+      const sameTanggal = Boolean(
+        (r.rawTanggal && r.rawTanggal === tgl) || 
+        (r.tanggal && r.tanggal === tgl)
+      );
+      const rJenis = String(r.jenis || '').trim().toLowerCase();
+      const aJenis = String(activePartai.jenis || '').trim().toLowerCase();
+      const sameJenis = Boolean(rJenis && aJenis && rJenis === aJenis);
+      const rBaku = Number(r.gldKering || 0);
+      const aBaku = Number(activePartai.gldKering || 0);
+      const sameBaku = aBaku > 0 && Math.abs(rBaku - aBaku) < 0.5;
       return (sameTanggal && sameJenis) || (sameTanggal && sameBaku);
     });
   }, [activePartai, masterRows]);
@@ -238,16 +254,16 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   // Analisis Harian Komparasi Bahan Cengkeh untuk setiap partai aktif
   const dhpAnalisisList = useMemo(() => {
     return partaiList
-      .filter((p) => p.status !== 'kosong')
+      .filter((p) => p && p.status !== 'kosong')
       .map((p) => {
-        const bakuKg = p.gldKering || 0;
-        const hasilKg = p.totalRjKering || 0;
-        const susutRiilKg = p.totalSusutKg || (bakuKg - hasilKg);
-        const susutRiilPct = p.totalSusutPct || (bakuKg > 0 ? (susutRiilKg / bakuKg) * 100 : 0);
+        const bakuKg = Number(p.gldKering || 0);
+        const hasilKg = Number(p.totalRjKering || 0);
+        const susutRiilKg = Number(p.totalSusutKg || (bakuKg - hasilKg));
+        const susutRiilPct = Number(p.totalSusutPct || (bakuKg > 0 ? (susutRiilKg / bakuKg) * 100 : 0));
 
         // Standar Acuan Cengkeh: Model degradasi kadar air 1:1 (Cell T1:T3 DATA PROSES CKH)
-        const kaPra = p.qc.kaPraRendam || p.kaGld || 19.5;
-        const kaDry = p.kaDryRata || 14.5;
+        const kaPra = Number(p.qc?.kaPraRendam || p.kaGld || 19.5);
+        const kaDry = Number(p.kaDryRata || 14.5);
         let acuanPct = round2(kaPra - kaDry);
         if (acuanPct <= 0 || isNaN(acuanPct)) acuanPct = 5.0;
 
@@ -264,7 +280,8 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         }
 
         // Jalur
-        const isSkm = p.jenis.toLowerCase().includes('skm') || p.jenis.toLowerCase().includes('filter');
+        const jenisLower = String(p.jenis || '').toLowerCase();
+        const isSkm = jenisLower.includes('skm') || jenisLower.includes('filter');
         const jalur: 'SKT' | 'SKM' = isSkm ? 'SKM' : 'SKT';
 
         // Auto-diagnosa 2 tahap ilmiah
