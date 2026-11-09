@@ -14,7 +14,7 @@ import {
 } from './types[RekapCengkeh]';
 import { INITIAL_SNAPSHOT_DATA } from './snapshotData[RekapCengkeh]';
 
-export const BUILD_VERSION = 'v1.1 - 2026-08-19';
+export const BUILD_VERSION = 'v2.0-Baseline-2026-11-09';
 export const PROJECT_NAME = 'Monitoring Board — Rekap Data Proses Cengkeh';
 export const DEFAULT_SPREADSHEET_ID = '1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M';
 export const DEFAULT_SHEET_NAME = 'DATA PROSES CKH';
