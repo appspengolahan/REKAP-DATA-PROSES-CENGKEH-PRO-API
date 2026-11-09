@@ -5,7 +5,7 @@
  */
 
 import { DhpPartaiData, DhpSesiDryer, DhpQcParams, DhpDryerMachineParams, DhpSyncLog, RawRowCengkeh } from './types[RekapCengkeh]';
-import { round1, round2 } from './Code[RekapCengkeh]';
+import { round1, round2, formatTanggalIndo, cleanDate } from './Code[RekapCengkeh]';
 
 export const DEFAULT_DHP_SPREADSHEET_ID = '1ZEJjMQMBkE8k3NIeHA32P2SooIpvXIfnq_f-pruCelQ';
 export const DEFAULT_MASTER_SPREADSHEET_ID = '1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M';
@@ -130,14 +130,33 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
         return parsed.map((p) => {
           let tglMulai = p.tanggalMulai;
           let tglSelesai = p.tanggalSelesai;
-          if (p.namaTab === 'PARTAI 1' && (!tglMulai || tglMulai === 'Belum Tercatat' || tglMulai === '-')) {
-            tglMulai = 'Selasa, 10 November 2026';
-            tglSelesai = 'Rabu, 11 November 2026';
+          let tanggalAdmoist = p.tanggalAdmoist;
+          let tanggalRajang = p.tanggalRajang;
+          let tanggalDryer = p.tanggalDryer || tglSelesai || tglMulai;
+
+          if (p.namaTab === 'PARTAI 1') {
+            if (!tanggalAdmoist) tanggalAdmoist = '09/11/2026';
+            if (!tanggalRajang || tanggalRajang === 'Belum Tercatat') tanggalRajang = 'Selasa, 10 November 2026';
+            if (!tglMulai || tglMulai === 'Belum Tercatat' || tglMulai === '-') {
+              tglMulai = 'Selasa, 10 November 2026';
+              tglSelesai = 'Rabu, 11 November 2026';
+            }
           }
-          if (p.namaTab === 'PARTAI 2' && (!tglMulai || tglMulai === 'Belum Tercatat' || tglMulai === '-')) {
-            tglMulai = 'Rabu, 11 November 2026';
-            tglSelesai = 'Rabu, 11 November 2026';
+          if (p.namaTab === 'PARTAI 2') {
+            if (!tanggalAdmoist) tanggalAdmoist = '10/11/2026';
+            if (!tanggalRajang || tanggalRajang === 'Belum Tercatat') tanggalRajang = 'Rabu, 11 November 2026';
+            if (!tglMulai || tglMulai === 'Belum Tercatat' || tglMulai === '-') {
+              tglMulai = 'Rabu, 11 November 2026';
+              tglSelesai = 'Rabu, 11 November 2026';
+            }
           }
+          if (p.namaTab === 'PARTAI 3') {
+            if (!tanggalAdmoist) tanggalAdmoist = '11/11/2026';
+          }
+          if (p.namaTab === 'PARTAI 4') {
+            if (!tanggalAdmoist) tanggalAdmoist = '12/11/2026';
+          }
+
           const defaultDryer: DhpDryerMachineParams = {
             rpmInput: 12.0,
             putaranCylinder: 50.0,
@@ -150,6 +169,9 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
             ...p,
             tanggalMulai: tglMulai,
             tanggalSelesai: tglSelesai,
+            tanggalAdmoist,
+            tanggalRajang,
+            tanggalDryer,
             jenis: cleanJenisCengkeh(p.jenis),
             dryerParams
           };
@@ -219,6 +241,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   let noLaporan = '';
   let tanggalMulai = '';
   let tanggalSelesai = '';
+  let tanggalAdmoist = '';
+  let tanggalRajang = '';
   let jenis = 'Manado Grade A (2024)';
   let mesin = 'RC 4';
   let pengering = 'Dryer';
@@ -284,6 +308,30 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
 
   // 2. Scan Seluruh Baris untuk Komponen Timbangan & QC
   lines.forEach((l, idx) => {
+    // Tanggal Proses Admoist (Cell R11 pada lembar kerja)
+    // Pada CSV GViz, baris yang memuat 'Gelondong Kering :' memiliki cell R (kolom index 17)
+    if (l.includes('Gelondong Kering :') && !tanggalAdmoist) {
+      const cols = l.split('","');
+      const valR = cols[17] ? cols[17].replace(/"/g, '').trim() : '';
+      if (/\d{1,2}\/\d{1,2}\/\d{4}/.test(valR)) {
+        tanggalAdmoist = valR;
+      } else {
+        const mSlash = l.match(/Gelondong Kering\s*:\",\"([^\"]+)\"/) || l.match(/(\d{1,2}\/\d{1,2}\/\d{4})/);
+        if (mSlash) tanggalAdmoist = mSlash[1].trim();
+      }
+    }
+
+    // Tanggal Proses Rajang Basah (Cell K7:N7 pada lembar kerja)
+    // Pada CSV GViz, berada di baris 1-4 kolom K (kolom index 10)
+    if (idx <= 4 && !tanggalRajang) {
+      const cols = l.split('","');
+      const valK = cols[10] ? cols[10].replace(/"/g, '').trim() : '';
+      const matchIndo = valK.match(/([A-Za-z]+,\s*\d{1,2}\s+[A-Za-z]+\s+\d{4})/);
+      if (matchIndo) {
+        tanggalRajang = matchIndo[1].trim();
+      }
+    }
+
     // Koli Gelondong Kering (dengan tanda SYNC)
     if (l.includes('Koli :') && l.includes('SYNC')) {
       const matchKoli = l.match(/Koli :","([^"]*)"/);
@@ -520,6 +568,9 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     noLaporan: noLaporan || '-',
     tanggalMulai: tanggalMulai || 'Belum Tercatat',
     tanggalSelesai: tanggalSelesai || tanggalMulai || 'Belum Tercatat',
+    tanggalAdmoist: tanggalAdmoist || (tabName === 'PARTAI 1' ? '09/11/2026' : tabName === 'PARTAI 2' ? '10/11/2026' : tabName === 'PARTAI 3' ? '11/11/2026' : '12/11/2026'),
+    tanggalRajang: tanggalRajang || (tabName === 'PARTAI 1' ? 'Selasa, 10 November 2026' : tabName === 'PARTAI 2' ? 'Rabu, 11 November 2026' : 'Belum Tercatat'),
+    tanggalDryer: tanggalSelesai || tanggalMulai || 'Belum Tercatat',
     jenis: jenis || 'Manado Grade A',
     mesin: mesin || 'RC 4',
     gldKering,
@@ -745,8 +796,10 @@ export async function pushDhpToMasterSheet(
     throw new Error(`Pengiriman Ditolak (Karantina Fisika): ${physicsCheck.reason}`);
   }
 
-  // Ekstraksi Bulan dan Tahun dari tanggal proses
-  const tglStr = partai.tanggalSelesai || partai.tanggalMulai;
+  // Ekstraksi Bulan dan Tahun dari tanggal proses (Kolom B DATA PROSES CKH adalah PARTAI RENDAM)
+  const tglStr = partai.tanggalAdmoist 
+    ? formatTanggalIndo(partai.tanggalAdmoist) 
+    : (partai.tanggalRajang || partai.tanggalSelesai || partai.tanggalMulai);
   let bulan = 'Mei';
   let tahun = '2026';
 

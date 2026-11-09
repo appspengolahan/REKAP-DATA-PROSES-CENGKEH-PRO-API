@@ -60,7 +60,7 @@ import {
   INTEGRASI_DHP_GAS_CODE,
   KODE_GS_FULL_TEMPLATE 
 } from './dhpService[RekapCengkeh]';
-import { formatKg, formatPct, round1, round2, exportToPdf } from './Code[RekapCengkeh]';
+import { formatKg, formatPct, round1, round2, exportToPdf, formatTanggalIndo } from './Code[RekapCengkeh]';
 
 interface IntegrasiDhpViewProps {
   userRole: UserRole;
@@ -675,9 +675,15 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-400">
-                    <span>Tgl Proses:</span>
+                    <span>Admoist (R11):</span>
                     <span className="text-slate-300 truncate max-w-[130px]">
-                      {p?.tanggalMulai || '-'}
+                      {p?.tanggalAdmoist ? formatTanggalIndo(p.tanggalAdmoist) : '-'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span>Rajang (K7):</span>
+                    <span className="text-slate-300 truncate max-w-[130px]">
+                      {p?.tanggalRajang && p.tanggalRajang !== 'Belum Tercatat' ? formatTanggalIndo(p.tanggalRajang) : '-'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-500 text-[10px] pt-0.5 border-t border-slate-800/60">
@@ -723,6 +729,20 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   </div>
                   <div className="text-xs text-slate-400">
                     Varian Stock: <span className="text-amber-300 font-semibold">{activePartai.jenis}</span> (Mesin: {activePartai.mesin})
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-800 text-[11px]">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                      <Droplet className="w-3 h-3 text-blue-400" />
+                      <span>Admoist: <strong>{activePartai.tanggalAdmoist ? formatTanggalIndo(activePartai.tanggalAdmoist) : '-'}</strong> (Cell R11)</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                      <Layers className="w-3 h-3 text-cyan-400" />
+                      <span>Rajang Basah: <strong>{activePartai.tanggalRajang && activePartai.tanggalRajang !== 'Belum Tercatat' ? formatTanggalIndo(activePartai.tanggalRajang) : '-'}</strong> (Cell K7:N7)</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-300 border border-orange-500/20">
+                      <Flame className="w-3 h-3 text-orange-400" />
+                      <span>Dryer: <strong>{activePartai.tanggalDryer || activePartai.tanggalSelesai || '-'}</strong></span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -804,9 +824,15 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <Droplet className="w-4 h-4 text-blue-400" />
                 <span>Tahap 1 — Parameter Mesin Admoist (Proses Gelondong Kering)</span>
               </div>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                Bahan: Gelondong Kering (Sebelum Cuting / Rajang)
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                  <Droplet className="w-3 h-3 text-blue-400" />
+                  <span>Tanggal Admoist: <strong className="text-white font-mono">{activePartai.tanggalAdmoist ? formatTanggalIndo(activePartai.tanggalAdmoist) : '-'}</strong> (Cell R11)</span>
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
+                  Bahan: Gelondong Kering (Sebelum Cuting / Rajang)
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -879,7 +905,11 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <Flame className="w-4 h-4 text-orange-400" />
                 <span>Tahap 2 — Parameter Mesin Dryer (Proses Pengeringan Rajang)</span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-500/15 text-orange-300 border border-orange-500/30">
+                  <Flame className="w-3 h-3 text-orange-400" />
+                  <span>Tanggal Sesi: <strong className="text-white font-mono">{activePartai.sesiList?.find((s) => s.sesi === selectedDryerSesiTab)?.tanggal || activePartai.tanggalDryer || '-'}</strong></span>
+                </span>
                 <span className="text-[10px] text-slate-400 hidden sm:inline">Kolom Q & R Lembar Kerja</span>
                 <div className="inline-flex rounded-lg border border-slate-700 bg-slate-800/80 p-0.5">
                   <button

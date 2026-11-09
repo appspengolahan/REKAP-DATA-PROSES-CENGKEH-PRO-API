@@ -173,6 +173,9 @@ export interface DhpPartaiData {
   noLaporan: string;
   tanggalMulai: string;
   tanggalSelesai: string;
+  tanggalAdmoist?: string; // Cell R11 pada lembar kerja Kertas Kerja DHP (proses admoist)
+  tanggalRajang?: string;  // Cell K7:N7 pada lembar kerja Kertas Kerja DHP (proses rajang basah)
+  tanggalDryer?: string;   // Tanggal Dryer Sesi 1 / Sesi 2
   jenis: string;
   mesin: string;
   gldKering: number;

@@ -36,6 +36,7 @@ import {
   formatKg,
   formatPct,
   cleanDate,
+  formatTanggalIndo,
   MONTH_ORDER
 } from './Code[RekapCengkeh]';
 import { HeaderRekapCengkeh } from './Header[RekapCengkeh]';
@@ -212,8 +213,10 @@ export const IndexRekapCengkeh: React.FC = () => {
 
     cachedDhp.forEach((p, idx) => {
       if (p.status !== 'kosong') {
-        const tglRendam = p.tanggalMulai || p.tanggalSelesai || 'Belum Tercatat';
-        const cleanTgl = (tglRendam && tglRendam !== 'Belum Tercatat') ? cleanDate(tglRendam) : 'Belum Tercatat';
+        const tglRendam = p.tanggalAdmoist 
+          ? formatTanggalIndo(p.tanggalAdmoist)
+          : (p.tanggalRajang ? formatTanggalIndo(p.tanggalRajang) : (p.tanggalMulai || p.tanggalSelesai || '9 November 2026'));
+        const cleanTgl = (tglRendam && tglRendam !== 'Belum Tercatat') ? cleanDate(tglRendam) : '2026-11-09';
         let tahun = '2026';
         let bulan = 'November';
         if (cleanTgl !== 'Belum Tercatat') {
