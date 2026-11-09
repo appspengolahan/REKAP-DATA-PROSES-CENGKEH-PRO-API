@@ -141,11 +141,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     }
   };
 
-  // Ambil data pertama kali saat mount jika belum ada cache
+  // Selalu sync data live terbaru dari Google Sheets saat view dibuka/mount
   useEffect(() => {
-    if (partaiList.length === 0) {
-      loadAllPartai();
-    }
+    loadAllPartai(partaiList.length > 0);
   }, []);
 
   const loadAllPartai = async (isSilent: boolean = false) => {

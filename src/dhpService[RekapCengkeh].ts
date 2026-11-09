@@ -1321,7 +1321,7 @@ function autoSyncAllPartaiToServer() {
       
       for (var i = 0; i < allData.length; i++) {
         var rowStr = allData[i].join(" ");
-        if (rowStr.indexOf("Netto :") > -1 && rowStr.indexOf("SYNC") > -1 && !gldKering) {
+        if (rowStr.indexOf("Netto :") > -1 && (i < 12 || rowStr.indexOf("SYNC") > -1) && !gldKering) {
           for (var c = 0; c < allData[i].length; c++) {
             var v = allData[i][c];
             if (typeof v === "number" && v > 100) { gldKering = v; break; }
