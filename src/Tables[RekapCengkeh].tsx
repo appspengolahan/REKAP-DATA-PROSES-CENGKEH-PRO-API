@@ -5,7 +5,7 @@
  */
 import React, { useState, useMemo } from 'react';
 import { RekapItemCengkeh, RawRowCengkeh } from './types[RekapCengkeh]';
-import { formatKg, formatPct, getPctClass, formatTanggalIndo, MONTH_ORDER } from './Code[RekapCengkeh]';
+import { formatKg, formatPct, getPctClass, formatTanggalIndo, MONTH_ORDER, cleanDate } from './Code[RekapCengkeh]';
 import { cleanJenisCengkeh } from './dhpService[RekapCengkeh]';
 import { Search, ChevronLeft, ChevronRight, CheckCircle2, ArrowUpDown } from 'lucide-react';
 
@@ -238,11 +238,16 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
   const countDhp = useMemo(() => rows.filter((r) => r.sumber === 'DHP').length, [rows]);
   const countMaster = useMemo(() => rows.filter((r) => r.sumber !== 'DHP').length, [rows]);
 
-  // Urutan data: default tanggal terbaru / baris terbaru di paling atas
+  // Urutan data: default tanggal terbaru (Tanggal Rendam) selalu berada paling atas
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => {
-      const dateA = a.tanggal || '';
-      const dateB = b.tanggal || '';
+      const dateA = (a.tanggal && a.tanggal !== 'Belum Tercatat') ? cleanDate(a.tanggal) : '';
+      const dateB = (b.tanggal && b.tanggal !== 'Belum Tercatat') ? cleanDate(b.tanggal) : '';
+
+      // Jika salah satu belum tercatat, batch aktif live diletakkan paling atas saat desc
+      if (!dateA && dateB) return sortOrder === 'desc' ? -1 : 1;
+      if (dateA && !dateB) return sortOrder === 'desc' ? 1 : -1;
+
       const dateDiff = dateB.localeCompare(dateA);
       if (dateDiff !== 0) {
         return sortOrder === 'desc' ? dateDiff : -dateDiff;

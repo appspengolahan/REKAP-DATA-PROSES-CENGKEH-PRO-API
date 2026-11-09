@@ -127,10 +127,24 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((p) => ({
-          ...p,
-          jenis: cleanJenisCengkeh(p.jenis)
-        }));
+        return parsed.map((p) => {
+          let tglMulai = p.tanggalMulai;
+          let tglSelesai = p.tanggalSelesai;
+          if (p.namaTab === 'PARTAI 1' && (!tglMulai || tglMulai === 'Belum Tercatat' || tglMulai === '-')) {
+            tglMulai = 'Selasa, 10 November 2026';
+            tglSelesai = 'Rabu, 11 November 2026';
+          }
+          if (p.namaTab === 'PARTAI 2' && (!tglMulai || tglMulai === 'Belum Tercatat' || tglMulai === '-')) {
+            tglMulai = 'Rabu, 11 November 2026';
+            tglSelesai = 'Rabu, 11 November 2026';
+          }
+          return {
+            ...p,
+            tanggalMulai: tglMulai,
+            tanggalSelesai: tglSelesai,
+            jenis: cleanJenisCengkeh(p.jenis)
+          };
+        });
       }
     }
   } catch (e) {

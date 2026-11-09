@@ -34,7 +34,9 @@ import {
   fetchFromGasRest,
   exportToPdf,
   formatKg,
-  formatPct
+  formatPct,
+  cleanDate,
+  MONTH_ORDER
 } from './Code[RekapCengkeh]';
 import { HeaderRekapCengkeh } from './Header[RekapCengkeh]';
 import { SidebarRekapCengkeh } from './Sidebar[RekapCengkeh]';
@@ -210,24 +212,25 @@ export const IndexRekapCengkeh: React.FC = () => {
 
     cachedDhp.forEach((p, idx) => {
       if (p.status !== 'kosong') {
-        const rawDate = p.tanggalSelesai || p.tanggalMulai || 'Belum Tercatat';
-        const parts = rawDate.split('-');
+        const tglRendam = p.tanggalMulai || p.tanggalSelesai || 'Belum Tercatat';
+        const cleanTgl = (tglRendam && tglRendam !== 'Belum Tercatat') ? cleanDate(tglRendam) : 'Belum Tercatat';
         let tahun = '2026';
         let bulan = 'November';
-        if (parts.length === 3) {
-          tahun = parts[0];
-          const mNum = parseInt(parts[1], 10);
-          if (mNum >= 1 && mNum <= 12) {
-            bulan = [
-              'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-              'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
-            ][mNum - 1];
+        if (cleanTgl !== 'Belum Tercatat') {
+          const parts = cleanTgl.split('-');
+          if (parts.length === 3) {
+            tahun = parts[0];
+            const mNum = parseInt(parts[1], 10);
+            if (mNum >= 1 && mNum <= 12) {
+              bulan = MONTH_ORDER[mNum - 1];
+            }
           }
         }
 
         dhpRows.push({
           srcRow: idx + 1,
-          tanggal: rawDate,
+          tanggal: cleanTgl,
+          rawTanggal: tglRendam,
           bulan,
           tahun,
           jenis: cleanJenisCengkeh(p.jenis),
