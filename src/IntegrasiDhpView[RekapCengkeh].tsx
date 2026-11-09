@@ -80,6 +80,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   const [partaiList, setPartaiList] = useState<DhpPartaiData[]>(() => getCachedDhpPartai() || []);
   const [selectedPartaiId, setSelectedPartaiId] = useState<string>('PARTAI 1');
   const [activeSubTab, setActiveSubTab] = useState<'transaksi' | 'analisis'>('transaksi');
+  const [selectedDryerSesiTab, setSelectedDryerSesiTab] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPushing, setIsPushing] = useState<boolean>(false);
   const [pushStatusMessage, setPushStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -796,80 +797,229 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             </div>
           </div>
 
-          {/* Card 2: Parameter QC & Kontrol Fisik Mesin */}
+          {/* Card 2A: Tahap 1 — Parameter Mesin Admoist (Proses Gelondong Kering) */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-              <Gauge className="w-3.5 h-3.5 text-cyan-400" />
-              <span>Parameter Operasional Mesin & Mutu (QC Audit)</span>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <Droplet className="w-4 h-4 text-blue-400" />
+                <span>Tahap 1 — Parameter Mesin Admoist (Proses Gelondong Kering)</span>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                Bahan: Gelondong Kering (Sebelum Cuting / Rajang)
+              </span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {/* 1. Tekanan Uap Admoist */}
               <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
                   <Wind className="w-3.5 h-3.5 text-cyan-400" />
                   <span>Tekanan Uap</span>
                 </div>
-                <div className="text-sm font-bold text-white">
-                  {activePartai.qc.uapBar !== null ? `${activePartai.qc.uapBar.toFixed(2)} Bar` : '-'}
+                <div className="text-sm font-bold text-white font-mono">
+                  {activePartai.qc.uapBar !== null ? `${activePartai.qc.uapBar.toFixed(2)} Bar` : '5,00 Bar'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">Standard: 5.0 Bar</div>
               </div>
 
+              {/* 2. Putaran Admoist */}
               <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
                   <RotateCw className="w-3.5 h-3.5 text-amber-400" />
                   <span>Putaran Admoist</span>
                 </div>
-                <div className="text-sm font-bold text-white">
-                  {activePartai.qc.admoistRpm !== null ? `${activePartai.qc.admoistRpm.toFixed(1)} Rpm` : '-'}
+                <div className="text-sm font-bold text-white font-mono">
+                  {activePartai.qc.admoistRpm !== null ? `${activePartai.qc.admoistRpm.toFixed(1)} Rpm` : '35,0 Rpm'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">Standard: 35.0 Rpm</div>
               </div>
 
+              {/* 3. Pemakaian Air */}
               <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
                   <Droplet className="w-3.5 h-3.5 text-blue-400" />
                   <span>Pemakaian Air</span>
                 </div>
-                <div className="text-sm font-bold text-white">
-                  {activePartai.qc.airLpm !== null ? `${activePartai.qc.airLpm.toFixed(1)} Lpm` : '-'}
+                <div className="text-sm font-bold text-white font-mono">
+                  {activePartai.qc.airLpm !== null ? `${activePartai.qc.airLpm.toFixed(1)} Lpm` : '5,0 Lpm'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">Liter per Menit</div>
               </div>
 
+              {/* 4. KA Pra-Rendam */}
               <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
                   <Flame className="w-3.5 h-3.5 text-orange-400" />
                   <span>KA Pra-Rendam</span>
                 </div>
-                <div className="text-sm font-bold text-amber-300">
+                <div className="text-sm font-bold text-amber-300 font-mono">
                   {activePartai.qc.kaPraRendam !== null ? `${activePartai.qc.kaPraRendam.toFixed(2)} %Mc` : '-'}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Bahan Awal</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Kadar Air Awal Bahan</div>
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
-                  <Flame className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>KA Hasil Dryer</span>
-                </div>
-                <div className="text-sm font-bold text-emerald-300">
-                  {activePartai.kaDryRata !== null ? `${activePartai.kaDryRata.toFixed(2)} %Mc` : '-'}
-                </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Target: 14.5 - 15.5%</div>
-              </div>
-
+              {/* 5. Line Mesin */}
               <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
                   <Settings2 className="w-3.5 h-3.5 text-slate-400" />
                   <span>Line Mesin</span>
                 </div>
-                <div className="text-sm font-bold text-white">
-                  {activePartai.mesin}
+                <div className="text-sm font-bold text-white font-mono">
+                  {activePartai.mesin || 'RC 4'}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">{activePartai.qc.pengering}</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Admoist Conditioning</div>
               </div>
             </div>
+          </div>
+
+          {/* Card 2B: Tahap 2 — Parameter Mesin Dryer (Proses Pengeringan Rajang) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+              <div className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                <Flame className="w-4 h-4 text-orange-400" />
+                <span>Tahap 2 — Parameter Mesin Dryer (Proses Pengeringan Rajang)</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-400 hidden sm:inline">Kolom Q & R Lembar Kerja</span>
+                <div className="inline-flex rounded-lg border border-slate-700 bg-slate-800/80 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDryerSesiTab(1)}
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
+                      selectedDryerSesiTab === 1
+                        ? 'bg-orange-500 text-white shadow-xs font-bold'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Sesi 1 (Dryer Pertama)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDryerSesiTab(2)}
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
+                      selectedDryerSesiTab === 2
+                        ? 'bg-orange-500 text-white shadow-xs font-bold'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Sesi 2 (Dryer Kedua)
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {(() => {
+              const sesiData = activePartai.sesiList?.find((s) => s.sesi === selectedDryerSesiTab);
+              const dryerParams = sesiData?.dryerParams || activePartai.dryerParams || {
+                rpmInput: 12.0,
+                putaranCylinder: 50.0,
+                tekananUap: 5.0,
+                suhuCylinder: 43.0,
+                anginHe: 2.0
+              };
+              const sesiKaDry = sesiData?.kaDry ?? (selectedDryerSesiTab === 1 ? activePartai.sesiList?.[0]?.kaDry : activePartai.sesiList?.[1]?.kaDry) ?? activePartai.kaDryRata;
+              const sesiHasilDryer = sesiData?.hasilDryer ?? 0;
+              const sesiSusutPct = sesiData?.susutDryerPct ?? 0;
+
+              return (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {/* 1. RPM Input Cengkeh */}
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
+                        <Gauge className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>RPM Input Cengkeh</span>
+                      </div>
+                      <div className="text-sm font-bold text-white font-mono">
+                        {dryerParams.rpmInput !== null && dryerParams.rpmInput !== undefined ? `${dryerParams.rpmInput.toFixed(2)} Rpm` : '12,00 Rpm'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Feeder Speed</div>
+                    </div>
+
+                    {/* 2. Putaran Cylinder */}
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
+                        <RotateCw className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Putaran Cylinder</span>
+                      </div>
+                      <div className="text-sm font-bold text-white font-mono">
+                        {dryerParams.putaranCylinder !== null && dryerParams.putaranCylinder !== undefined ? `${dryerParams.putaranCylinder.toFixed(2)} Rpm` : '50,00 Rpm'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Rotasi Drum</div>
+                    </div>
+
+                    {/* 3. Tekanan Uap Dryer */}
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
+                        <Wind className="w-3.5 h-3.5 text-blue-400" />
+                        <span>Tekanan Uap</span>
+                      </div>
+                      <div className="text-sm font-bold text-white font-mono">
+                        {dryerParams.tekananUap !== null && dryerParams.tekananUap !== undefined ? `${dryerParams.tekananUap.toFixed(2)} Bar` : '5,00 Bar'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Steam Dryer</div>
+                    </div>
+
+                    {/* 4. Suhu Cylinder */}
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
+                        <Flame className="w-3.5 h-3.5 text-orange-400" />
+                        <span>Suhu Cylinder</span>
+                      </div>
+                      <div className="text-sm font-bold text-orange-300 font-mono">
+                        {dryerParams.suhuCylinder !== null && dryerParams.suhuCylinder !== undefined ? `${dryerParams.suhuCylinder.toFixed(1)} °C` : '43,0 °C'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Suhu Operasional</div>
+                    </div>
+
+                    {/* 5. Angin HE */}
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70 flex flex-col justify-between">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mb-1">
+                        <Wind className="w-3.5 h-3.5 text-teal-400" />
+                        <span>Angin HE</span>
+                      </div>
+                      <div className="text-sm font-bold text-white font-mono">
+                        {dryerParams.anginHe !== null && dryerParams.anginHe !== undefined ? `${dryerParams.anginHe.toFixed(2)} Wi` : '2,00 Wi'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Heat Exchanger</div>
+                    </div>
+
+                    {/* 6. KA Hasil Dryer (Mutu QC) */}
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-emerald-500/30 flex flex-col justify-between">
+                      <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 mb-1 font-semibold">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>KA Hasil Dryer</span>
+                      </div>
+                      <div className="text-sm font-bold text-emerald-300 font-mono">
+                        {sesiKaDry !== null && sesiKaDry !== undefined ? `${Number(sesiKaDry).toFixed(2)} %Mc` : '-'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Target: 14.5 - 15.5%</div>
+                    </div>
+                  </div>
+
+                  {/* Bar Status Sesi Terpilih */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-800/40 border border-slate-800 text-[11px] text-slate-400">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-slate-300">Status Sesi {selectedDryerSesiTab}:</span>
+                      <span className={`px-2 py-0.5 rounded font-bold ${
+                        sesiData?.status === 'selesai' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                        sesiData?.status === 'berjalan' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
+                        'bg-slate-700/50 text-slate-400'
+                      }`}>
+                        {sesiData?.status === 'selesai' ? 'Tuntas' : sesiData?.status === 'berjalan' ? 'Sedang Berjalan' : 'Belum Mulai'}
+                      </span>
+                      {sesiData?.tanggal && sesiData.tanggal !== 'Belum Tercatat' && (
+                        <span className="text-slate-400">({sesiData.tanggal})</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span>Hasil Dryer: <strong className="text-slate-200">{formatKg(sesiHasilDryer)}</strong></span>
+                      <span>Susut Dryer: <strong className="text-slate-200">{formatPct(sesiSusutPct)}</strong></span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Card 3: Tabel Monitoring Sesi Dryer Harian */}
@@ -900,7 +1050,15 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-slate-200">
                   {activePartai.sesiList.map((s) => (
-                    <tr key={s.sesi} className="hover:bg-slate-800/40 transition-colors">
+                    <tr 
+                      key={s.sesi} 
+                      onClick={() => setSelectedDryerSesiTab(s.sesi)}
+                      className={`cursor-pointer transition-colors ${
+                        selectedDryerSesiTab === s.sesi 
+                          ? 'bg-slate-800/80 ring-1 ring-orange-500/40' 
+                          : 'hover:bg-slate-800/40'
+                      }`}
+                    >
                       <td className="px-3.5 py-2.5 font-bold text-white">{s.label}</td>
                       <td className="px-3.5 py-2.5 text-slate-300">{s.tanggal || '-'}</td>
                       <td className="px-3.5 py-2.5 text-right font-mono">{s.rjBasah ? formatKg(s.rjBasah) : '-'}</td>

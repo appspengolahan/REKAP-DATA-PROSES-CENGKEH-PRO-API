@@ -137,6 +137,14 @@ export interface GasConfig {
   dhpSpreadsheetId?: string;
 }
 
+export interface DhpDryerMachineParams {
+  rpmInput: number | null;        // RPM Input Cengkeh (Rpm)
+  putaranCylinder: number | null; // Putaran Cylinder (Rpm)
+  tekananUap: number | null;      // Tekanan Uap (Bar)
+  suhuCylinder: number | null;    // Suhu Cylinder (°C)
+  anginHe: number | null;         // Angin HE (Wi)
+}
+
 export interface DhpSesiDryer {
   sesi: number;
   label: string;
@@ -147,6 +155,7 @@ export interface DhpSesiDryer {
   susutDryerKg: number;
   susutDryerPct: number;
   status: 'selesai' | 'berjalan' | 'belum';
+  dryerParams?: DhpDryerMachineParams;
 }
 
 export interface DhpQcParams {
@@ -190,6 +199,7 @@ export interface DhpPartaiData {
   };
   sourceDryerStatus?: 'Proses' | 'OFF'; // Status dari SOURCE HASIL DRYER Cell I14:I25
   isTodayActive?: boolean;              // True jika ada sesi partai yang tanggalnya == Today
+  dryerParams?: DhpDryerMachineParams;
   sesiList: DhpSesiDryer[];
   qc: DhpQcParams;
   rawFetchedAt: string;

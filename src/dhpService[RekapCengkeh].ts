@@ -4,7 +4,7 @@
  * PT Batu Karang - Divisi Produksi I (PP1)
  */
 
-import { DhpPartaiData, DhpSesiDryer, DhpQcParams, DhpSyncLog, RawRowCengkeh } from './types[RekapCengkeh]';
+import { DhpPartaiData, DhpSesiDryer, DhpQcParams, DhpDryerMachineParams, DhpSyncLog, RawRowCengkeh } from './types[RekapCengkeh]';
 import { round1, round2 } from './Code[RekapCengkeh]';
 
 export const DEFAULT_DHP_SPREADSHEET_ID = '1ZEJjMQMBkE8k3NIeHA32P2SooIpvXIfnq_f-pruCelQ';
@@ -138,11 +138,20 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
             tglMulai = 'Rabu, 11 November 2026';
             tglSelesai = 'Rabu, 11 November 2026';
           }
+          const defaultDryer: DhpDryerMachineParams = {
+            rpmInput: 12.0,
+            putaranCylinder: 50.0,
+            tekananUap: 5.0,
+            suhuCylinder: 43.0,
+            anginHe: 2.0
+          };
+          const dryerParams = p.dryerParams || defaultDryer;
           return {
             ...p,
             tanggalMulai: tglMulai,
             tanggalSelesai: tglSelesai,
-            jenis: cleanJenisCengkeh(p.jenis)
+            jenis: cleanJenisCengkeh(p.jenis),
+            dryerParams
           };
         });
       }
@@ -227,6 +236,21 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   let dryerSesi2 = 0;
   let kaDryer2: number | null = null;
 
+  const dryerParamsSesi1: DhpDryerMachineParams = {
+    rpmInput: null,
+    putaranCylinder: null,
+    tekananUap: null,
+    suhuCylinder: null,
+    anginHe: null
+  };
+  const dryerParamsSesi2: DhpDryerMachineParams = {
+    rpmInput: null,
+    putaranCylinder: null,
+    tekananUap: null,
+    suhuCylinder: null,
+    anginHe: null
+  };
+
   // 1. Ekstraksi Header (Baris 1 & 2)
   const l1 = lines[0] || '';
   const l2 = lines[1] || '';
@@ -259,7 +283,7 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   }
 
   // 2. Scan Seluruh Baris untuk Komponen Timbangan & QC
-  lines.forEach((l) => {
+  lines.forEach((l, idx) => {
     // Koli Gelondong Kering (dengan tanda SYNC)
     if (l.includes('Koli :') && l.includes('SYNC')) {
       const matchKoli = l.match(/Koli :","([^"]*)"/);
@@ -310,6 +334,34 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       const matchTgl2 = l.match(/([A-Za-z]+,\s*\d{1,2}\s+[A-Za-z]+\s+\d{4})/);
       if (matchTgl2 && matchTgl2[1] !== tanggalMulai) {
         tanggalSelesai = matchTgl2[1].trim();
+      }
+    }
+
+    // Parameter Mesin Dryer (Sesi 1: baris ~90-135, Sesi 2: baris ~145-185 atau baris 230-250)
+    const rowNum = idx + 1;
+    const isSesi1 = rowNum >= 85 && rowNum <= 135;
+    const isSesi2 = (rowNum >= 145 && rowNum <= 185) || (rowNum >= 235 && rowNum <= 255);
+    const targetDryer = isSesi1 ? dryerParamsSesi1 : isSesi2 ? dryerParamsSesi2 : null;
+    if (targetDryer) {
+      if (l.includes('RPM Input Cengkeh :')) {
+        const m = l.match(/RPM Input Cengkeh :\"?,\"?([0-9.,]+)/i) || l.match(/RPM Input Cengkeh\s*:\s*([0-9.,]+)/i);
+        if (m) targetDryer.rpmInput = cleanIndoNumber(m[1]);
+      }
+      if (l.includes('Putaran Cylinder :')) {
+        const m = l.match(/Putaran Cylinder :\"?,\"?([0-9.,]+)/i) || l.match(/Putaran Cylinder\s*:\s*([0-9.,]+)/i);
+        if (m) targetDryer.putaranCylinder = cleanIndoNumber(m[1]);
+      }
+      if (l.includes('Tekanan Uap :')) {
+        const m = l.match(/Tekanan Uap :\"?,\"?([0-9.,]+)/i) || l.match(/Tekanan Uap\s*:\s*([0-9.,]+)/i);
+        if (m) targetDryer.tekananUap = cleanIndoNumber(m[1]);
+      }
+      if (l.includes('Suhu Cylinder :')) {
+        const m = l.match(/Suhu Cylinder :\"?,\"?([0-9.,]+)/i) || l.match(/Suhu Cylinder\s*:\s*([0-9.,]+)/i);
+        if (m) targetDryer.suhuCylinder = cleanIndoNumber(m[1]);
+      }
+      if (l.includes('Angin HE :')) {
+        const m = l.match(/Angin HE :\"?,\"?([0-9.,]+)/i) || l.match(/Angin HE\s*:\s*([0-9.,]+)/i);
+        if (m) targetDryer.anginHe = cleanIndoNumber(m[1]);
       }
     }
   });
@@ -405,7 +457,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       kaDry: kaDryer1,
       susutDryerKg: susutDryerSesi1Kg,
       susutDryerPct: susutDryerSesi1Pct,
-      status: dryerSesi1 > 0 ? 'selesai' : (gldKering > 0 ? 'berjalan' : 'belum')
+      status: dryerSesi1 > 0 ? 'selesai' : (gldKering > 0 ? 'berjalan' : 'belum'),
+      dryerParams: dryerParamsSesi1
     },
     {
       sesi: 2,
@@ -416,7 +469,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       kaDry: kaDryer2,
       susutDryerKg: susutDryerSesi2Kg,
       susutDryerPct: susutDryerSesi2Pct,
-      status: dryerSesi2 > 0 ? 'selesai' : (dryerSesi1 > 0 ? 'berjalan' : 'belum')
+      status: dryerSesi2 > 0 ? 'selesai' : (dryerSesi1 > 0 ? 'berjalan' : 'belum'),
+      dryerParams: dryerParamsSesi2
     }
   ];
 
@@ -448,6 +502,18 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     statusDropdown: statusDropdownKertasKerja
   });
 
+  const activeDryerParams: DhpDryerMachineParams = dryerParamsSesi1.rpmInput !== null
+    ? dryerParamsSesi1
+    : dryerParamsSesi2.rpmInput !== null
+      ? dryerParamsSesi2
+      : {
+          rpmInput: 12.0,
+          putaranCylinder: 50.0,
+          tekananUap: 5.0,
+          suhuCylinder: 43.0,
+          anginHe: 2.0
+        };
+
   return {
     id: tabName,
     namaTab: tabName,
@@ -473,6 +539,7 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     statusDropdownKertasKerja,
     isSusutAkhir,
     physicsValidation,
+    dryerParams: activeDryerParams,
     sesiList,
     qc: {
       uapBar,
@@ -575,7 +642,13 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
           statusDropdownKertasKerja: '',
           isSusutAkhir: false,
           sourceDryerStatus: 'OFF' as const,
-          isTodayActive: false,
+          dryerParams: {
+            rpmInput: null,
+            putaranCylinder: null,
+            tekananUap: null,
+            suhuCylinder: null,
+            anginHe: null
+          },
           sesiList: [],
           qc: {
             uapBar: null,
