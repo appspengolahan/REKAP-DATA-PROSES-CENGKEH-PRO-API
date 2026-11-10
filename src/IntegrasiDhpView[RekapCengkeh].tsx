@@ -36,8 +36,6 @@ import {
   MessageSquare,
   Edit3,
   ChevronDown,
-  ChevronUp,
-  Package,
   Scissors,
   Zap
 } from 'lucide-react';
@@ -84,7 +82,6 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   const [selectedPartaiId, setSelectedPartaiId] = useState<string>('PARTAI 1');
   const [activeSubTab, setActiveSubTab] = useState<'transaksi' | 'analisis'>('transaksi');
   const [selectedDryerSesiTab, setSelectedDryerSesiTab] = useState<number>(1);
-  const [isTimbanganOpen, setIsTimbanganOpen] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPushing, setIsPushing] = useState<boolean>(false);
   const [pushStatusMessage, setPushStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -842,14 +839,6 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
                     Mesin: <strong className="text-amber-300 font-mono">{activePartai.mesin || 'RC4'}</strong>
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setIsTimbanganOpen(!isTimbanganOpen)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer transition-colors"
-                  >
-                    <span>{isTimbanganOpen ? 'Tutup Rincian' : `Lihat ${activePartai.timbanganItems?.length || 18} Koli`}</span>
-                    {isTimbanganOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  </button>
                 </div>
               </div>
 
@@ -937,38 +926,6 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <div className="text-[10px] text-slate-500 mt-0.5">Kadar Air Bahan</div>
                 </div>
               </div>
-
-              {/* Rincian Koli Sak Grid (Collapsible) */}
-              {isTimbanganOpen && activePartai.timbanganItems && activePartai.timbanganItems.length > 0 && (
-                <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-3.5 space-y-2.5">
-                  <div className="flex items-center justify-between text-xs text-slate-400">
-                    <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                      <Package className="w-3.5 h-3.5 text-blue-400" />
-                      <span>Rincian Berat Per Sak / Koli ({activePartai.timbanganItems.length} Sak Terisi)</span>
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      Rata-rata: <strong className="text-white font-mono font-bold">{(activePartai.totalRjBasah / activePartai.timbanganItems.length).toFixed(1)} Kg</strong> / sak
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-9 gap-2">
-                    {activePartai.timbanganItems.map((item) => (
-                      <div 
-                        key={item.no}
-                        className="bg-slate-900 border border-slate-800 hover:border-blue-500/50 p-2 rounded-lg text-center transition-colors group"
-                      >
-                        <div className="text-[10px] text-slate-500 group-hover:text-blue-400 font-mono">
-                          #{String(item.no).padStart(2, '0')}
-                        </div>
-                        <div className="text-xs font-bold font-mono text-white mt-0.5">
-                          {item.netto.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
-                          <span className="text-[9px] text-slate-400 ml-0.5">Kg</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
