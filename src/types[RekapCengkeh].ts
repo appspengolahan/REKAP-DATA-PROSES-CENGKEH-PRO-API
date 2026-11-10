@@ -202,6 +202,12 @@ export interface DhpPartaiData {
   };
   sourceDryerStatus?: 'Proses' | 'OFF'; // Status dari SOURCE HASIL DRYER Cell I14:I25
   isTodayActive?: boolean;              // True jika ada sesi partai yang tanggalnya == Today
+  koliRjBasah?: number;
+  rjBasahBruto?: number;
+  rjBasahTarra?: number;
+  sisaGldBelumRajangKg?: number;
+  sisaGldBelumRajangPct?: number;
+  timbanganItems?: { no: number; netto: number }[];
   dryerParams?: DhpDryerMachineParams;
   sesiList: DhpSesiDryer[];
   qc: DhpQcParams;

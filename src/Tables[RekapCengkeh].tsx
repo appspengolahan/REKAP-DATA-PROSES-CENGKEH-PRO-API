@@ -405,7 +405,11 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatKg(r.gldKering)}</td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatKg(r.rjBasah)}</td>
-                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1b8a5a] font-mono">+{formatPct(r.selisihPct)}</td>
+                  <td className={`py-2 px-2.5 text-right border-b border-[#e1e5ec] font-mono ${
+                    r.selisihPct > 0 ? 'text-[#1b8a5a]' : r.selisihPct < 0 ? 'text-amber-600' : 'text-slate-500'
+                  }`}>
+                    {r.selisihPct > 0 ? `+${formatPct(r.selisihPct)}` : formatPct(r.selisihPct)}
+                  </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatKg(r.rjKering)}</td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{formatPct(r.susutPct)}</td>
                   <td className={`py-2 px-2.5 text-right border-b border-[#e1e5ec] font-mono ${
