@@ -155,6 +155,9 @@ export interface DhpSesiDryer {
   susutDryerKg: number;
   susutDryerPct: number;
   status: 'selesai' | 'berjalan' | 'belum';
+  rawStatusText?: string;          // Operator status cell text (e.g. "Progress..", "Selesai")
+  isChecked?: boolean;              // Operator checkbox state (Cell Q188/Q253/Q318)
+  statusCellCoordinate?: string;   // Exact coordinate (e.g. 'R188', 'R253', 'R318')
   dryerParams?: DhpDryerMachineParams;
 }
 

@@ -1024,28 +1024,26 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 </span>
                 <span className="text-[10px] text-slate-400 hidden sm:inline">Kolom Q & R Lembar Kerja</span>
                 <div className="inline-flex rounded-lg border border-slate-700 bg-slate-800/80 p-0.5">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDryerSesiTab(1)}
-                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
-                      selectedDryerSesiTab === 1
-                        ? 'bg-orange-500 text-white shadow-xs font-bold'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Sesi 1 (Dryer Pertama)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDryerSesiTab(2)}
-                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
-                      selectedDryerSesiTab === 2
-                        ? 'bg-orange-500 text-white shadow-xs font-bold'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Sesi 2 (Dryer Kedua)
-                  </button>
+                  {(activePartai.sesiList && activePartai.sesiList.length > 0 
+                    ? activePartai.sesiList 
+                    : [
+                        { sesi: 1, label: 'Sesi 1 (Dryer Pertama)' },
+                        { sesi: 2, label: 'Sesi 2 (Dryer Kedua)' }
+                      ]
+                  ).map((s) => (
+                    <button
+                      key={s.sesi}
+                      type="button"
+                      onClick={() => setSelectedDryerSesiTab(s.sesi)}
+                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
+                        selectedDryerSesiTab === s.sesi
+                          ? 'bg-orange-500 text-white shadow-xs font-bold'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -1143,13 +1141,21 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-slate-800/40 border border-slate-800 text-[11px] text-slate-400">
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-slate-300">Status Sesi {selectedDryerSesiTab}:</span>
-                      <span className={`px-2 py-0.5 rounded font-bold ${
+                      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded font-bold ${
                         sesiData?.status === 'selesai' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
                         sesiData?.status === 'berjalan' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
                         'bg-slate-700/50 text-slate-400'
                       }`}>
-                        {sesiData?.status === 'selesai' ? 'Tuntas' : sesiData?.status === 'berjalan' ? 'Sedang Berjalan' : 'Belum Mulai'}
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          sesiData?.status === 'selesai' ? 'bg-emerald-400' :
+                          sesiData?.status === 'berjalan' ? 'bg-amber-400 animate-pulse' :
+                          'bg-slate-400'
+                        }`} />
+                        {sesiData?.rawStatusText || (sesiData?.status === 'selesai' ? 'Selesai' : sesiData?.status === 'berjalan' ? 'Progress..' : 'Menunggu')}
                       </span>
+                      {sesiData?.statusCellCoordinate && (
+                        <span className="text-[10px] text-slate-400 font-mono">(Cell {sesiData.statusCellCoordinate})</span>
+                      )}
                       {sesiData?.tanggal && sesiData.tanggal !== 'Belum Tercatat' && (
                         <span className="text-slate-400">({sesiData.tanggal})</span>
                       )}
@@ -1187,7 +1193,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <th className="px-3.5 py-2.5 text-right">KA Dryer (%)</th>
                     <th className="px-3.5 py-2.5 text-right">Susut Dryer (Kg)</th>
                     <th className="px-3.5 py-2.5 text-right">Susut Dryer (%)</th>
-                    <th className="px-3.5 py-2.5 text-center">Status</th>
+                    <th className="px-3.5 py-2.5 text-center">Status Operator</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-slate-200">
@@ -1210,17 +1216,44 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       <td className="px-3.5 py-2.5 text-right font-mono font-bold text-rose-300">{s.susutDryerPct ? formatPct(s.susutDryerPct) : '-'}</td>
                       <td className="px-3.5 py-2.5 text-center">
                         {s.status === 'selesai' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
-                            Selesai
-                          </span>
+                          <div className="inline-flex flex-col items-center">
+                            <span 
+                              title={`Status Operator di Cell ${s.statusCellCoordinate || 'R188/R253/R318'} (Dicentang Selesai)`}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-800"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                              <span>{s.rawStatusText || 'Selesai'}</span>
+                            </span>
+                            {s.statusCellCoordinate && (
+                              <span className="text-[9px] text-slate-400 font-mono mt-0.5">Cell {s.statusCellCoordinate}</span>
+                            )}
+                          </div>
                         ) : s.status === 'berjalan' ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800">
-                            Berjalan
-                          </span>
+                          <div className="inline-flex flex-col items-center">
+                            <span 
+                              title={`Status Operator di Cell ${s.statusCellCoordinate || 'R188/R253/R318'} (Proses Sedang Berjalan)`}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] font-bold bg-amber-950 text-amber-300 border border-amber-800"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                              <span>{s.rawStatusText || 'Progress..'}</span>
+                            </span>
+                            {s.statusCellCoordinate && (
+                              <span className="text-[9px] text-amber-400/80 font-mono mt-0.5">Cell {s.statusCellCoordinate}</span>
+                            )}
+                          </div>
                         ) : (
-                          <span className="px-2 py-0.5 rounded text-[10px] text-slate-500 bg-slate-800">
-                            Menunggu
-                          </span>
+                          <div className="inline-flex flex-col items-center">
+                            <span 
+                              title={`Status Operator di Cell ${s.statusCellCoordinate || 'R188/R253/R318'} (Belum Mulai)`}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-[10px] text-slate-400 bg-slate-800 border border-slate-700"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                              <span>{s.rawStatusText || 'Menunggu'}</span>
+                            </span>
+                            {s.statusCellCoordinate && (
+                              <span className="text-[9px] text-slate-400 font-mono mt-0.5">Cell {s.statusCellCoordinate}</span>
+                            )}
+                          </div>
                         )}
                       </td>
                     </tr>

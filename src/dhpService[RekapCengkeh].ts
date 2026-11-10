@@ -215,7 +215,15 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
           };
           const dryerParams = p.dryerParams || defaultDryer;
           const updatedSesiList = Array.isArray(p.sesiList) && p.sesiList.length > 0 
-            ? p.sesiList.map((s: DhpSesiDryer, idx: number) => idx === 0 && totalRjBasah > 0 ? { ...s, rjBasah: s.rjBasah || totalRjBasah } : s)
+            ? p.sesiList.map((s: DhpSesiDryer, idx: number) => {
+                const coord = s.statusCellCoordinate || (idx === 0 ? 'R188' : idx === 1 ? 'R253' : 'R318');
+                return {
+                  ...s,
+                  statusCellCoordinate: coord,
+                  rawStatusText: s.rawStatusText || (s.status === 'selesai' ? 'Selesai' : 'Progress..'),
+                  rjBasah: idx === 0 && totalRjBasah > 0 ? (s.rjBasah || totalRjBasah) : s.rjBasah
+                };
+              })
             : p.sesiList;
 
           return {
@@ -298,12 +306,26 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     }
   };
 
-  const [csvText, r22Csv, s1RangeCsv, s2RangeCsv, totalRangeCsv] = await Promise.all([
+  const [
+    csvText, 
+    r22Csv, 
+    s1RangeCsv, 
+    s2RangeCsv, 
+    totalRangeCsv,
+    s1StatusCsv,
+    s2StatusCsv,
+    s3StatusCsv,
+    s3RangeCsv
+  ] = await Promise.all([
     fetchCsv(),
     fetchCsv('Q20:R24'),
     fetchCsv('Q154:R158'),
     fetchCsv('Q219:R223'),
-    fetchCsv('Q295:R299')
+    fetchCsv('Q295:R299'),
+    fetchCsv('Q188:R188'), // Sesi 1: Operator status Cell R188 & checkbox Q188
+    fetchCsv('Q253:R253'), // Sesi 2: Operator status Cell R253 & checkbox Q253
+    fetchCsv('Q318:R318'), // Sesi 3 (jika ada): Operator status Cell R318 & checkbox Q318
+    fetchCsv('Q283:R287')  // Sesi 3 (jika ada): Rj. Basah (Q285) & Hasil Dryer (R285)
   ]);
 
   const lines = csvText ? csvText.split('\n') : [];
@@ -332,6 +354,9 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   let rjBasahSesi2 = 0;
   let dryerSesi2 = 0;
   let kaDryer2: number | null = null;
+  let rjBasahSesi3 = 0;
+  let dryerSesi3 = 0;
+  let kaDryer3: number | null = null;
 
   const dryerParamsSesi1: DhpDryerMachineParams = {
     rpmInput: null,
@@ -341,6 +366,13 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     anginHe: null
   };
   const dryerParamsSesi2: DhpDryerMachineParams = {
+    rpmInput: null,
+    putaranCylinder: null,
+    tekananUap: null,
+    suhuCylinder: null,
+    anginHe: null
+  };
+  const dryerParamsSesi3: DhpDryerMachineParams = {
     rpmInput: null,
     putaranCylinder: null,
     tekananUap: null,
@@ -450,7 +482,7 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       if (m && airLpm === null) airLpm = cleanIndoNumber(m[1]);
     }
 
-    // Kadar Air Dryer Sesi 1 & 2
+    // Kadar Air Dryer Sesi 1, 2, & 3
     if (l.includes('K. Air Hasil Dryer 1 :')) {
       const m = l.match(/Hasil Dryer 1 :","([^"]*)"/);
       if (m && kaDryer1 === null) kaDryer1 = cleanIndoNumber(m[1]);
@@ -458,6 +490,10 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     if (l.includes('K. Air Hasil Dryer 2 :')) {
       const m = l.match(/Hasil Dryer 2 :","([^"]*)"/);
       if (m && kaDryer2 === null) kaDryer2 = cleanIndoNumber(m[1]);
+    }
+    if (l.includes('K. Air Hasil Dryer 3 :')) {
+      const m = l.match(/Hasil Dryer 3 :","([^"]*)"/);
+      if (m && kaDryer3 === null) kaDryer3 = cleanIndoNumber(m[1]);
     }
 
     // Tanggal Sesi 2 jika berbeda hari
@@ -468,11 +504,12 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       }
     }
 
-    // Parameter Mesin Dryer (Sesi 1: baris ~90-135, Sesi 2: baris ~145-185 atau baris 230-250)
+    // Parameter Mesin Dryer (Sesi 1: baris ~90-135, Sesi 2: baris ~145-185, Sesi 3: baris ~270-315)
     const rowNum = idx + 1;
     const isSesi1 = rowNum >= 85 && rowNum <= 135;
     const isSesi2 = (rowNum >= 145 && rowNum <= 185) || (rowNum >= 235 && rowNum <= 255);
-    const targetDryer = isSesi1 ? dryerParamsSesi1 : isSesi2 ? dryerParamsSesi2 : null;
+    const isSesi3 = rowNum >= 270 && rowNum <= 315;
+    const targetDryer = isSesi1 ? dryerParamsSesi1 : isSesi2 ? dryerParamsSesi2 : isSesi3 ? dryerParamsSesi3 : null;
     if (targetDryer) {
       if (l.includes('RPM Input Cengkeh :')) {
         const m = l.match(/RPM Input Cengkeh :\"?,\"?([0-9.,]+)/i) || l.match(/RPM Input Cengkeh\s*:\s*([0-9.,]+)/i);
@@ -606,6 +643,28 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     });
   }
 
+  // Ekstraksi Proses Dryer Sesi 3 (Jika ada di kertas kerja, misal PARTAI 2)
+  let s3SusutKgExplicit = 0;
+  let s3SusutPctExplicit = 0;
+  if (s3RangeCsv) {
+    const s3Lines = s3RangeCsv.split('\n');
+    s3Lines.forEach((l) => {
+      const cols = l.split('","');
+      if (l.includes('N :')) {
+        const valQ = cleanIndoNumber(cols[0]);
+        const valR = cleanIndoNumber(cols[1]);
+        if (valQ > 0) rjBasahSesi3 = valQ;
+        if (valR > 0) dryerSesi3 = valR;
+      }
+      if (cols[1] && cols[1].includes('Kg') && !cols[1].includes('N :')) {
+        s3SusutKgExplicit = cleanIndoNumber(cols[1]);
+      }
+      if (cols[1] && cols[1].includes('%')) {
+        s3SusutPctExplicit = cleanIndoNumber(cols[1]);
+      }
+    });
+  }
+
   // Fallback ke full sheet match jika range query kosong
   if (rjBasahSesi1 === 0) {
     const matchDryer1Rj = csvText.match(/Proses Dryer Pertama :[\s\S]*?Rj\. Basah[\s\S]*?N : ([0-9.,]+) Kg/);
@@ -623,6 +682,15 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   if (dryerSesi2 === 0) {
     const matchDryer2 = csvText.match(/Proses Dryer Kedua :[\s\S]*?Hasil Dryer 2[\s\S]*?N : ([0-9.,]+) Kg/);
     if (matchDryer2) dryerSesi2 = cleanIndoNumber(matchDryer2[1]);
+  }
+
+  if (rjBasahSesi3 === 0) {
+    const matchDryer3Rj = csvText.match(/Proses Dryer Ketiga :[\s\S]*?Rj\. Basah[\s\S]*?N : ([0-9.,]+) Kg/);
+    if (matchDryer3Rj) rjBasahSesi3 = cleanIndoNumber(matchDryer3Rj[1]);
+  }
+  if (dryerSesi3 === 0) {
+    const matchDryer3 = csvText.match(/Proses Dryer Ketiga :[\s\S]*?Hasil Dryer 3[\s\S]*?N : ([0-9.,]+) Kg/);
+    if (matchDryer3) dryerSesi3 = cleanIndoNumber(matchDryer3[1]);
   }
 
   // Koli Rajang Basah
@@ -672,7 +740,7 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
         ? cellR22Netto 
         : (timbanganItems.length > 0 
             ? round1(timbanganItems.reduce((acc, it) => acc + it.netto, 0)) 
-            : round1(rjBasahSesi1 + rjBasahSesi2)));
+            : round1(rjBasahSesi1 + rjBasahSesi2 + rjBasahSesi3)));
 
   // Cek apakah ada susut akhir riil tertera
   const matchSusutAkhir = csvText.match(/Susut Akhir \(Gld Kering-Rj\. Kering\)[\s\S]*?([0-9.,]+)\s*Kg/);
@@ -681,10 +749,10 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
 
   // Total Rajang Kering:
   // 1. Utamakan Cell R297 jika sudah terisi (Hasil akhir Dryer)
-  // 2. Fallback ke akumulasi sesi dryer (dryerSesi1 + dryerSesi2)
+  // 2. Fallback ke akumulasi sesi dryer (dryerSesi1 + dryerSesi2 + dryerSesi3)
   let totalRjKering = totalDryerR297 > 0
     ? totalDryerR297
-    : round1(dryerSesi1 + dryerSesi2);
+    : round1(dryerSesi1 + dryerSesi2 + dryerSesi3);
 
   // Perhitungan Selisih & Susut Dryer
   const selisihKg = round1(totalRjBasah - gldKering);
@@ -696,20 +764,23 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   const susutDryerSesi2Kg = s2SusutKgExplicit > 0 ? s2SusutKgExplicit : round1(rjBasahSesi2 - dryerSesi2);
   const susutDryerSesi2Pct = s2SusutPctExplicit > 0 ? s2SusutPctExplicit : (rjBasahSesi2 > 0 ? round2((susutDryerSesi2Kg / rjBasahSesi2) * 100) : 0);
 
-  const totalSusutDryerKg = round1(susutDryerSesi1Kg + susutDryerSesi2Kg);
-  const totalSusutDryerPct = (rjBasahSesi1 + rjBasahSesi2) > 0 ? round2((totalSusutDryerKg / (rjBasahSesi1 + rjBasahSesi2)) * 100) : 0;
+  const susutDryerSesi3Kg = s3SusutKgExplicit > 0 ? s3SusutKgExplicit : round1(rjBasahSesi3 - dryerSesi3);
+  const susutDryerSesi3Pct = s3SusutPctExplicit > 0 ? s3SusutPctExplicit : (rjBasahSesi3 > 0 ? round2((susutDryerSesi3Kg / rjBasahSesi3) * 100) : 0);
+
+  const totalSusutDryerKg = round1(susutDryerSesi1Kg + susutDryerSesi2Kg + susutDryerSesi3Kg);
+  const totalRjBasahAkumulasi = (rjBasahSesi1 + rjBasahSesi2 + rjBasahSesi3);
+  const totalSusutDryerPct = totalRjBasahAkumulasi > 0 ? round2((totalSusutDryerKg / totalRjBasahAkumulasi) * 100) : 0;
 
   const totalSusutKg = round1(gldKering - totalRjKering);
   const totalSusutPct = gldKering > 0 ? round2((totalSusutKg / gldKering) * 100) : 0;
 
   // Rata-rata kadar air dryer
   let kaDryRata: number | null = null;
-  if (kaDryer1 !== null && kaDryer2 !== null) {
-    kaDryRata = round2((kaDryer1 + kaDryer2) / 2);
-  } else if (kaDryer1 !== null) {
-    kaDryRata = kaDryer1;
-  } else if (kaDryer2 !== null) {
-    kaDryRata = kaDryer2;
+  const kaRawList: (number | null)[] = [kaDryer1, kaDryer2, kaDryer3];
+  const validKaList: number[] = kaRawList.filter((k): k is number => typeof k === 'number' && !isNaN(k) && k > 0);
+  if (validKaList.length > 0) {
+    const sumKa = validKaList.reduce((acc: number, val: number) => acc + val, 0);
+    kaDryRata = round2(sumKa / validKaList.length);
   }
 
   // 3b. Scan Dropdown Status di Kolom Q atau R (sekitar baris 90 s/d 125)
@@ -738,6 +809,87 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
 
   const isSusutAkhir = statusDropdownKertasKerja === 'Susut Akhir (Gld Kering-Rj. Kering)';
 
+  // Helper Penentuan Status Sesi Dryer Berdasarkan Tanda / Centang Operator:
+  // - Sesi 1 : Cell R188 (dan checkbox Q188)
+  // - Sesi 2 : Cell R253 (dan checkbox Q253)
+  // - Sesi 3 : Cell R318 (dan checkbox Q318)
+  const parseOperatorSessionStatus = (
+    statusCsvText: string,
+    cellRef: string,
+    dryerWeight: number
+  ): { status: 'selesai' | 'berjalan' | 'belum'; rawStatusText: string; isChecked: boolean; statusCellCoordinate: string } => {
+    let isChecked = false;
+    let rawText = '';
+    if (statusCsvText) {
+      const line = statusCsvText.trim().split('\n')[0] || '';
+      const cols = line.split('","').map((c) => c.replace(/"/g, '').trim());
+      if (cols.length >= 2) {
+        isChecked = cols[0].toUpperCase() === 'TRUE';
+        rawText = cols[1];
+      } else if (cols.length === 1) {
+        if (cols[0].toUpperCase() === 'TRUE' || cols[0].toUpperCase() === 'FALSE') {
+          isChecked = cols[0].toUpperCase() === 'TRUE';
+        } else {
+          rawText = cols[0];
+        }
+      }
+    }
+
+    const lower = rawText.toLowerCase();
+
+    // 1. Dicentang selesai oleh operator di kolom Q atau ditulis 'Selesai' / 'Tuntas' di cell R
+    if (isChecked || lower === 'selesai' || lower === 'tuntas') {
+      return {
+        status: 'selesai',
+        rawStatusText: rawText || 'Selesai',
+        isChecked: true,
+        statusCellCoordinate: cellRef
+      };
+    }
+
+    // 2. Ditandai 'Progress..' atau 'Proses' atau 'Berjalan' oleh operator di cell R
+    if (lower.includes('progress') || lower.includes('proses') || lower.includes('jalan')) {
+      return {
+        status: 'berjalan',
+        rawStatusText: rawText || 'Progress..',
+        isChecked: false,
+        statusCellCoordinate: cellRef
+      };
+    }
+
+    // 3. Jika cell R memiliki keterangan teks spesifik lainnya
+    if (rawText && rawText !== '-' && !lower.includes('belum') && !lower.includes('menunggu')) {
+      return {
+        status: 'berjalan',
+        rawStatusText: rawText,
+        isChecked: false,
+        statusCellCoordinate: cellRef
+      };
+    }
+
+    // 4. Jika ada berat hasil dryer tercatat dan belum dicentang selesai oleh operator
+    if (dryerWeight > 0) {
+      return {
+        status: 'berjalan',
+        rawStatusText: 'Progress..',
+        isChecked: false,
+        statusCellCoordinate: cellRef
+      };
+    }
+
+    // 5. Default jika belum dimulai / tidak ada data
+    return {
+      status: 'belum',
+      rawStatusText: 'Menunggu',
+      isChecked: false,
+      statusCellCoordinate: cellRef
+    };
+  };
+
+  const s1StatusInfo = parseOperatorSessionStatus(s1StatusCsv, 'R188', dryerSesi1);
+  const s2StatusInfo = parseOperatorSessionStatus(s2StatusCsv, 'R253', dryerSesi2);
+  const s3StatusInfo = parseOperatorSessionStatus(s3StatusCsv, 'R318', dryerSesi3);
+
   // 4. Bangun Daftar Sesi Dryer
   const sesiList: DhpSesiDryer[] = [
     {
@@ -749,7 +901,10 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       kaDry: kaDryer1,
       susutDryerKg: susutDryerSesi1Kg,
       susutDryerPct: susutDryerSesi1Pct,
-      status: dryerSesi1 > 0 ? 'selesai' : (gldKering > 0 ? 'berjalan' : 'belum'),
+      status: s1StatusInfo.status,
+      rawStatusText: s1StatusInfo.rawStatusText,
+      isChecked: s1StatusInfo.isChecked,
+      statusCellCoordinate: s1StatusInfo.statusCellCoordinate,
       dryerParams: dryerParamsSesi1
     },
     {
@@ -761,10 +916,33 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       kaDry: kaDryer2,
       susutDryerKg: susutDryerSesi2Kg,
       susutDryerPct: susutDryerSesi2Pct,
-      status: dryerSesi2 > 0 ? 'selesai' : (dryerSesi1 > 0 ? 'berjalan' : 'belum'),
+      status: s2StatusInfo.status,
+      rawStatusText: s2StatusInfo.rawStatusText,
+      isChecked: s2StatusInfo.isChecked,
+      statusCellCoordinate: s2StatusInfo.statusCellCoordinate,
       dryerParams: dryerParamsSesi2
     }
   ];
+
+  // Cek apakah ada Sesi 3 pada lembar kerja (misal di PARTAI 2)
+  const hasSesi3 = Boolean(s3StatusCsv && s3StatusCsv.trim()) || rjBasahSesi3 > 0 || dryerSesi3 > 0 || csvText.includes('Proses Dryer Ketiga');
+  if (hasSesi3) {
+    sesiList.push({
+      sesi: 3,
+      label: 'Sesi 3 (Dryer Ketiga)',
+      tanggal: tanggalSelesai || tanggalMulai,
+      rjBasah: rjBasahSesi3,
+      hasilDryer: dryerSesi3,
+      kaDry: kaDryer3,
+      susutDryerKg: susutDryerSesi3Kg,
+      susutDryerPct: susutDryerSesi3Pct,
+      status: s3StatusInfo.status,
+      rawStatusText: s3StatusInfo.rawStatusText,
+      isChecked: s3StatusInfo.isChecked,
+      statusCellCoordinate: s3StatusInfo.statusCellCoordinate,
+      dryerParams: dryerParamsSesi3.rpmInput !== null ? dryerParamsSesi3 : dryerParamsSesi2
+    });
+  }
 
   // 5. Penentuan Status Partai Awal
   let status: 'selesai' | 'berjalan' | 'kosong' = 'kosong';
