@@ -37,7 +37,8 @@ import {
   Edit3,
   ChevronDown,
   Scissors,
-  Zap
+  Zap,
+  Trash2
 } from 'lucide-react';
 import { 
   DhpPartaiData, 
@@ -57,6 +58,8 @@ import {
   fetchAllDhpPartai, 
   pushDhpToMasterSheet, 
   getDhpSyncLogs, 
+  clearDhpSyncLogs,
+  removeDhpSyncLog,
   getCachedDhpPartai, 
   INTEGRASI_DHP_GAS_CODE,
   KODE_GS_FULL_TEMPLATE 
@@ -165,23 +168,37 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             p.totalRjKering > 0 && 
             !p.physicsValidation?.quarantined
           ) {
-            const tgl = p.tanggalSelesai || p.tanggalMulai;
+            const candDates = [
+              p.tanggalRajang,
+              p.tanggalSelesai,
+              p.tanggalMulai,
+              p.tanggalAdmoist ? formatTanggalIndo(p.tanggalAdmoist) : null
+            ].filter((d): d is string => Boolean(d && d !== '-' && d !== 'Belum Tercatat'));
+
             const isAlreadyInMaster = masterRows.some((r) => {
               if (!r) return false;
-              const sameTanggal = Boolean(
-                (r.rawTanggal && r.rawTanggal === tgl) || 
-                (r.tanggal && r.tanggal === tgl)
-              );
+              const rTgl = String(r.rawTanggal || r.tanggal || '').trim().toLowerCase();
+              const sameTanggal = candDates.some((d) => {
+                const dLower = d.trim().toLowerCase();
+                return rTgl.includes(dLower) || dLower.includes(rTgl);
+              });
               const rJenis = String(r.jenis || '').trim().toLowerCase();
               const pJenis = String(p.jenis || '').trim().toLowerCase();
-              const sameJenis = Boolean(rJenis && pJenis && rJenis === pJenis);
+              const sameJenis = Boolean(rJenis && pJenis && (rJenis.includes(pJenis) || pJenis.includes(rJenis)));
               const rBaku = Number(r.gldKering || 0);
               const pBaku = Number(p.gldKering || 0);
-              const sameBaku = pBaku > 0 && Math.abs(rBaku - pBaku) < 0.5;
+              const sameBaku = pBaku > 0 && Math.abs(rBaku - pBaku) < 0.8;
               return (sameTanggal && sameJenis) || (sameTanggal && sameBaku);
             });
 
-            if (!isAlreadyInMaster) {
+            // Cegah auto-dispatch ganda jika sudah ada log sukses di browser
+            const isAlreadyDispatchedInLogs = getDhpSyncLogs().some((l) => 
+              l.partai === p.namaTab && 
+              l.status === 'sukses' && 
+              Math.abs(Number(l.gldKering || 0) - Number(p.gldKering || 0)) < 0.8
+            );
+
+            if (!isAlreadyInMaster && !isAlreadyDispatchedInLogs) {
               setIsPushing(true);
               try {
                 await pushDhpToMasterSheet(p, 'Auto-Dispatch (Sistem)', gasConfig.execUrl);
@@ -229,24 +246,38 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     return partaiList.find((p) => p.id === selectedPartaiId) || partaiList[0];
   }, [partaiList, selectedPartaiId]);
 
+  // Pastikan tab sesi dryer yang terpilih selalu ada pada daftar sesi partai aktif
+  useEffect(() => {
+    if (activePartai?.sesiList && activePartai.sesiList.length > 0) {
+      if (!activePartai.sesiList.some((s) => s.sesi === selectedDryerSesiTab)) {
+        setSelectedDryerSesiTab(activePartai.sesiList[0].sesi);
+      }
+    }
+  }, [activePartai, selectedDryerSesiTab]);
+
   // Cek apakah data partai ini sudah pernah ada di Master Rows (Layer 3 Idempotency Key Guard)
   const duplicateInMaster = useMemo(() => {
     if (!activePartai || activePartai.status === 'kosong') return null;
-    const tgl = activePartai.tanggalSelesai || activePartai.tanggalMulai;
-    if (!tgl || tgl === '-' || tgl === 'Belum Tercatat') return null;
+    const candDates = [
+      activePartai.tanggalRajang,
+      activePartai.tanggalSelesai,
+      activePartai.tanggalMulai,
+      activePartai.tanggalAdmoist ? formatTanggalIndo(activePartai.tanggalAdmoist) : null
+    ].filter((d): d is string => Boolean(d && d !== '-' && d !== 'Belum Tercatat'));
 
     return masterRows.find((r) => {
       if (!r) return false;
-      const sameTanggal = Boolean(
-        (r.rawTanggal && r.rawTanggal === tgl) || 
-        (r.tanggal && r.tanggal === tgl)
-      );
+      const rTgl = String(r.rawTanggal || r.tanggal || '').trim().toLowerCase();
+      const sameTanggal = candDates.some((d) => {
+        const dLower = d.trim().toLowerCase();
+        return rTgl.includes(dLower) || dLower.includes(rTgl);
+      });
       const rJenis = String(r.jenis || '').trim().toLowerCase();
       const aJenis = String(activePartai.jenis || '').trim().toLowerCase();
-      const sameJenis = Boolean(rJenis && aJenis && rJenis === aJenis);
+      const sameJenis = Boolean(rJenis && aJenis && (rJenis.includes(aJenis) || aJenis.includes(rJenis)));
       const rBaku = Number(r.gldKering || 0);
       const aBaku = Number(activePartai.gldKering || 0);
-      const sameBaku = aBaku > 0 && Math.abs(rBaku - aBaku) < 0.5;
+      const sameBaku = aBaku > 0 && Math.abs(rBaku - aBaku) < 0.8;
       return (sameTanggal && sameJenis) || (sameTanggal && sameBaku);
     });
   }, [activePartai, masterRows]);
@@ -1460,48 +1491,95 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
       {/* 4. Riwayat Sinkronisasi (Audit Trail Log) */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-2">
-            <History className="w-3.5 h-3.5 text-blue-400" />
-            <span>Riwayat Pengiriman DHP ke Sheet Rekap (Audit Trail Lokal)</span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-blue-400" />
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
+              Riwayat Pengiriman DHP ke Sheet Rekap (Audit Trail Lokal)
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+              {syncLogs.length} Catatan
+            </span>
           </div>
-          <span className="text-[11px] text-slate-500">Mencatat pengiriman transaksi resmi</span>
+
+          <div className="flex items-center gap-2">
+            {syncLogs.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cleaned = getDhpSyncLogs();
+                    setSyncLogs(cleaned);
+                    setPushStatusMessage({
+                      type: 'success',
+                      text: `Audit Trail diperiksa: ${cleaned.length} transaksi unik tersimpan. Seluruh duplikasi telah dibersihkan.`
+                    });
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-semibold border border-slate-700 transition-colors cursor-pointer"
+                  title="Hapus baris kembar dan simpan hanya transaksi unik"
+                >
+                  <RefreshCw className="w-3 h-3 text-cyan-400" />
+                  <span>Bersihkan Duplikat</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm('Hapus seluruh riwayat pengiriman lokal dari browser ini? Data di Google Sheets Master tidak akan terhapus.')) {
+                      clearDhpSyncLogs();
+                      setSyncLogs([]);
+                      setPushStatusMessage({
+                        type: 'success',
+                        text: 'Riwayat pengiriman lokal berhasil dikosongkan.'
+                      });
+                    }
+                  }}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 text-[11px] font-semibold border border-rose-800/60 transition-colors cursor-pointer"
+                  title="Kosongkan seluruh riwayat log pengiriman lokal"
+                >
+                  <Trash2 className="w-3 h-3 text-rose-400" />
+                  <span>Reset Log</span>
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {syncLogs.length === 0 ? (
           <div className="text-center py-6 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
-            Belum ada data DHP yang dikirim dari browser ini.
+            Belum ada riwayat pengiriman DHP yang tersimpan di browser ini.
           </div>
         ) : (
           <div className="overflow-x-auto border border-slate-800 rounded-xl">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-800 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
                 <tr>
-                  <th className="px-3.5 py-2.5">Waktu Kirim</th>
-                  <th className="px-3.5 py-2.5">Partai</th>
-                  <th className="px-3.5 py-2.5">No. Laporan</th>
-                  <th className="px-3.5 py-2.5">Tanggal Proses</th>
-                  <th className="px-3.5 py-2.5">Varian</th>
-                  <th className="px-3.5 py-2.5 text-right">Gld Kering</th>
-                  <th className="px-3.5 py-2.5 text-right">Susut Total</th>
-                  <th className="px-3.5 py-2.5">Operator</th>
-                  <th className="px-3.5 py-2.5 text-center">Status</th>
+                  <th className="px-3 py-2.5">Waktu Kirim</th>
+                  <th className="px-3 py-2.5">Partai</th>
+                  <th className="px-3 py-2.5">No. Laporan</th>
+                  <th className="px-3 py-2.5">Tanggal Proses</th>
+                  <th className="px-3 py-2.5">Varian</th>
+                  <th className="px-3 py-2.5 text-right">Gld Kering</th>
+                  <th className="px-3 py-2.5 text-right">Susut Total</th>
+                  <th className="px-3 py-2.5">Operator</th>
+                  <th className="px-3 py-2.5 text-center">Status</th>
+                  <th className="px-2 py-2.5 text-center w-10">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800 text-slate-300">
                 {syncLogs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="px-3.5 py-2 font-mono text-[11px] text-slate-400">{log.waktuKirim}</td>
-                    <td className="px-3.5 py-2 font-bold text-white">{log.partai}</td>
-                    <td className="px-3.5 py-2 text-slate-300">{log.noLaporan}</td>
-                    <td className="px-3.5 py-2">{log.tanggalProses}</td>
-                    <td className="px-3.5 py-2 text-amber-300 font-medium">{log.jenis}</td>
-                    <td className="px-3.5 py-2 text-right font-mono">{formatKg(log.gldKering)}</td>
-                    <td className="px-3.5 py-2 text-right font-mono text-rose-300 font-bold">
+                    <td className="px-3 py-2 font-mono text-[11px] text-slate-400">{log.waktuKirim}</td>
+                    <td className="px-3 py-2 font-bold text-white">{log.partai}</td>
+                    <td className="px-3 py-2 text-slate-300">{log.noLaporan}</td>
+                    <td className="px-3 py-2">{log.tanggalProses}</td>
+                    <td className="px-3 py-2 text-amber-300 font-medium">{log.jenis}</td>
+                    <td className="px-3 py-2 text-right font-mono">{formatKg(log.gldKering)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-rose-300 font-bold">
                       {formatKg(log.totalSusutKg)} ({formatPct(log.totalSusutPct)})
                     </td>
-                    <td className="px-3.5 py-2 text-slate-400 text-[11px]">{log.pengirim}</td>
-                    <td className="px-3.5 py-2 text-center">
+                    <td className="px-3 py-2 text-slate-400 text-[11px]">{log.pengirim}</td>
+                    <td className="px-3 py-2 text-center">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         log.status === 'sukses'
                           ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
@@ -1509,6 +1587,19 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       }`}>
                         {log.status === 'sukses' ? 'Sukses' : 'Gagal'}
                       </span>
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          removeDhpSyncLog(log.id);
+                          setSyncLogs(getDhpSyncLogs());
+                        }}
+                        className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Hapus baris riwayat ini"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </td>
                   </tr>
                 ))}

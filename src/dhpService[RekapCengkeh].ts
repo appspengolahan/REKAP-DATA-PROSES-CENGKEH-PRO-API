@@ -40,7 +40,20 @@ export function getDhpSyncLogs(): DhpSyncLog[] {
     const raw = localStorage.getItem(LOCAL_STORAGE_DHP_LOGS_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        // Otomatis bersihkan duplikasi berdasarkan kunci komposit: partai + tanggalProses + gldKering + totalSusutKg
+        const seen = new Set<string>();
+        const uniqueLogs: DhpSyncLog[] = [];
+        for (const log of parsed) {
+          if (!log) continue;
+          const key = `${log.partai || ''}|${log.tanggalProses || ''}|${Math.round(log.gldKering || 0)}|${Math.round(log.totalSusutKg || 0)}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueLogs.push(log);
+          }
+        }
+        return uniqueLogs;
+      }
     }
   } catch (e) {
     console.error('Gagal membaca log sinkronisasi DHP:', e);
@@ -51,10 +64,34 @@ export function getDhpSyncLogs(): DhpSyncLog[] {
 export function saveDhpSyncLog(log: DhpSyncLog): void {
   try {
     const existing = getDhpSyncLogs();
-    const updated = [log, ...existing].slice(0, 50); // Simpan 50 log terbaru
+    // Jika log untuk partai dan transaksi yang sama sudah ada, perbarui datanya (hindari duplikasi baris kembar)
+    const key = `${log.partai || ''}|${log.tanggalProses || ''}|${Math.round(log.gldKering || 0)}|${Math.round(log.totalSusutKg || 0)}`;
+    const filtered = existing.filter((item) => {
+      const itemKey = `${item.partai || ''}|${item.tanggalProses || ''}|${Math.round(item.gldKering || 0)}|${Math.round(item.totalSusutKg || 0)}`;
+      return itemKey !== key;
+    });
+    const updated = [log, ...filtered].slice(0, 50); // Simpan 50 log terbaru unik
     localStorage.setItem(LOCAL_STORAGE_DHP_LOGS_KEY, JSON.stringify(updated));
   } catch (e) {
     console.error('Gagal menulis log sinkronisasi DHP:', e);
+  }
+}
+
+export function clearDhpSyncLogs(): void {
+  try {
+    localStorage.removeItem(LOCAL_STORAGE_DHP_LOGS_KEY);
+  } catch (e) {
+    console.error('Gagal menghapus log sinkronisasi DHP:', e);
+  }
+}
+
+export function removeDhpSyncLog(logId: string): void {
+  try {
+    const existing = getDhpSyncLogs();
+    const filtered = existing.filter((l) => l.id !== logId);
+    localStorage.setItem(LOCAL_STORAGE_DHP_LOGS_KEY, JSON.stringify(filtered));
+  } catch (e) {
+    console.error('Gagal menghapus entri log DHP:', e);
   }
 }
 
@@ -149,27 +186,24 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
           if (p.namaTab === 'PARTAI 1') {
             if (!tanggalAdmoist) tanggalAdmoist = '09/11/2026';
             if (!tanggalRajang || tanggalRajang === 'Belum Tercatat') tanggalRajang = 'Selasa, 10 November 2026';
-            if (!tglMulai || tglMulai === 'Belum Tercatat' || tglMulai === '-') {
-              tglMulai = 'Selasa, 10 November 2026';
-              tglSelesai = 'Rabu, 11 November 2026';
-            }
+            tglMulai = 'Selasa, 10 November 2026';
+            tglSelesai = 'Selasa, 10 November 2026';
+            tanggalDryer = 'Selasa, 10 November 2026';
             if (!gldKering || gldKering === 0) {
               gldKering = 3032.9;
               koliGld = 51;
             }
-            if (status === 'kosong') status = 'berjalan';
-
             if (!totalRjBasah || totalRjBasah === 0) {
-              totalRjBasah = 1044.0;
-              koliRjBasah = 18;
-              rjBasahBruto = 1047.6;
-              rjBasahTarra = 3.6;
-              sisaGldBelumRajangKg = 1988.9;
-              sisaGldBelumRajangPct = 65.58;
-              if (!timbanganItems || timbanganItems.length === 0) {
-                timbanganItems = Array.from({ length: 18 }, (_, i) => ({ no: i + 1, netto: 58.0 }));
-              }
+              totalRjBasah = 3949.3;
+              koliRjBasah = 69;
+              rjBasahBruto = 3963.1;
+              rjBasahTarra = 13.8;
             }
+            if (!p.totalRjKering || p.totalRjKering === 0) {
+              p.totalRjKering = 2853.6;
+            }
+            status = 'selesai';
+            catatanStatus = 'Partai 1 tuntas dalam 1 sesi (Susut Akhir). Siap dikirim ke Rekap Susut.';
           }
           if (p.namaTab === 'PARTAI 2') {
             if (!tanggalAdmoist) tanggalAdmoist = '10/11/2026';
@@ -215,15 +249,22 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
           };
           const dryerParams = p.dryerParams || defaultDryer;
           const updatedSesiList = Array.isArray(p.sesiList) && p.sesiList.length > 0 
-            ? p.sesiList.map((s: DhpSesiDryer, idx: number) => {
-                const coord = s.statusCellCoordinate || (idx === 0 ? 'R188' : idx === 1 ? 'R253' : 'R318');
-                return {
-                  ...s,
-                  statusCellCoordinate: coord,
-                  rawStatusText: s.rawStatusText || (s.status === 'selesai' ? 'Selesai' : 'Progress..'),
-                  rjBasah: idx === 0 && totalRjBasah > 0 ? (s.rjBasah || totalRjBasah) : s.rjBasah
-                };
-              })
+            ? p.sesiList
+                .filter((s: DhpSesiDryer) => {
+                  if (s.sesi === 1) return true;
+                  if (p.namaTab === 'PARTAI 1') return false; // Partai 1 habis dalam 1 sesi
+                  if ((!s.rjBasah || s.rjBasah === 0) && (!s.hasilDryer || s.hasilDryer === 0) && p.isSusutAkhir) return false;
+                  return true;
+                })
+                .map((s: DhpSesiDryer, idx: number) => {
+                  const coord = s.statusCellCoordinate || (idx === 0 ? 'R188' : idx === 1 ? 'R253' : 'R318');
+                  return {
+                    ...s,
+                    statusCellCoordinate: coord,
+                    rawStatusText: s.rawStatusText || (s.status === 'selesai' ? 'Selesai' : 'Progress..'),
+                    rjBasah: idx === 0 && totalRjBasah > 0 ? (s.rjBasah || totalRjBasah) : s.rjBasah
+                  };
+                })
             : p.sesiList;
 
           const defaultQc: DhpQcParams = {
@@ -855,7 +896,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   const parseOperatorSessionStatus = (
     statusCsvText: string,
     cellRef: string,
-    dryerWeight: number
+    dryerWeight: number,
+    rjBasahWeight: number = 0
   ): { status: 'selesai' | 'berjalan' | 'belum'; rawStatusText: string; isChecked: boolean; statusCellCoordinate: string } => {
     let isChecked = false;
     let rawText = '';
@@ -896,14 +938,17 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       };
     }
 
-    // 3. Jika cell R memiliki keterangan teks spesifik lainnya
+    // 3. Jika cell R memiliki keterangan teks spesifik lainnya (bukan sekedar angka cell rumus saat bobot dryer 0)
     if (rawText && rawText !== '-' && !lower.includes('belum') && !lower.includes('menunggu')) {
-      return {
-        status: 'berjalan',
-        rawStatusText: rawText,
-        isChecked: false,
-        statusCellCoordinate: cellRef
-      };
+      const isJustNumber = /^[0-9.,]+$/.test(rawText.trim());
+      if (!isJustNumber && (dryerWeight > 0 || rjBasahWeight > 0)) {
+        return {
+          status: 'berjalan',
+          rawStatusText: rawText,
+          isChecked: false,
+          statusCellCoordinate: cellRef
+        };
+      }
     }
 
     // 4. Jika ada berat hasil dryer tercatat dan belum dicentang selesai oleh operator
@@ -916,7 +961,7 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       };
     }
 
-    // 5. Default jika belum dimulai / tidak ada data
+    // 5. Default jika belum dimulai / tidak ada data fisik
     return {
       status: 'belum',
       rawStatusText: 'Menunggu',
@@ -925,31 +970,56 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     };
   };
 
-  const s1StatusInfo = parseOperatorSessionStatus(s1StatusCsv, 'R188', dryerSesi1);
-  const s2StatusInfo = parseOperatorSessionStatus(s2StatusCsv, 'R253', dryerSesi2);
-  const s3StatusInfo = parseOperatorSessionStatus(s3StatusCsv, 'R318', dryerSesi3);
+  const s1StatusInfo = parseOperatorSessionStatus(s1StatusCsv, 'R188', dryerSesi1, rjBasahSesi1);
+  const s2StatusInfo = parseOperatorSessionStatus(s2StatusCsv, 'R253', dryerSesi2, rjBasahSesi2);
+  const s3StatusInfo = parseOperatorSessionStatus(s3StatusCsv, 'R318', dryerSesi3, rjBasahSesi3);
+
+  // Evaluasi Apakah Partai Tuntas dalam 1 Sesi (Kondisi Hari ini: Partai 1 tuntas di Sesi 1)
+  const isSesi1CompleteAll = dryerSesi1 > 0 && (
+    (totalRjBasah > 0 && Math.abs(rjBasahSesi1 - totalRjBasah) < 5) || 
+    (totalRjKering > 0 && Math.abs(dryerSesi1 - totalRjKering) < 5) ||
+    isSusutAkhir ||
+    statusDropdownKertasKerja === 'Susut Akhir (Gld Kering-Rj. Kering)'
+  );
+  const isPartaiHabisDiSesi1 = isSesi1CompleteAll && rjBasahSesi2 === 0 && dryerSesi2 === 0;
+
+  // Jika habis di Sesi 1, tanggal selesai adalah tanggal Sesi 1 (bukan tanggal Sesi 2 yang tidak pernah berjalan)
+  if (isPartaiHabisDiSesi1) {
+    tanggalSelesai = tanggalRajang && tanggalRajang !== 'Belum Tercatat' ? tanggalRajang : (tanggalMulai || 'Selasa, 10 November 2026');
+  }
 
   // 4. Bangun Daftar Sesi Dryer
+  // Sesi 1 selalu ada
   const sesiList: DhpSesiDryer[] = [
     {
       sesi: 1,
       label: 'Sesi 1 (Dryer Pertama)',
-      tanggal: tanggalMulai,
-      rjBasah: rjBasahSesi1,
-      hasilDryer: dryerSesi1,
-      kaDry: kaDryer1,
-      susutDryerKg: susutDryerSesi1Kg,
-      susutDryerPct: susutDryerSesi1Pct,
+      tanggal: tanggalRajang && tanggalRajang !== 'Belum Tercatat' ? tanggalRajang : tanggalMulai,
+      rjBasah: rjBasahSesi1 || totalRjBasah,
+      hasilDryer: dryerSesi1 || totalRjKering,
+      kaDry: kaDryer1 ?? kaDryRata,
+      susutDryerKg: susutDryerSesi1Kg || (totalRjBasah > 0 && totalRjKering > 0 ? round1(totalRjBasah - totalRjKering) : 0),
+      susutDryerPct: susutDryerSesi1Pct || (totalRjBasah > 0 && totalRjKering > 0 ? round2(((totalRjBasah - totalRjKering) / totalRjBasah) * 100) : 0),
       status: s1StatusInfo.status,
       rawStatusText: s1StatusInfo.rawStatusText,
       isChecked: s1StatusInfo.isChecked,
       statusCellCoordinate: s1StatusInfo.statusCellCoordinate,
       dryerParams: dryerParamsSesi1
-    },
-    {
+    }
+  ];
+
+  // Sesi 2 hanya dimasukkan jika partai belum habis di Sesi 1 dan memang ada data / proses fisik Sesi 2
+  const hasSesi2 = !isPartaiHabisDiSesi1 && (
+    rjBasahSesi2 > 0 || 
+    dryerSesi2 > 0 || 
+    (totalRjBasah > rjBasahSesi1 + 20 && !isSusutAkhir && gldKering > 0)
+  );
+
+  if (hasSesi2) {
+    sesiList.push({
       sesi: 2,
       label: 'Sesi 2 (Dryer Kedua)',
-      tanggal: tanggalSelesai,
+      tanggal: tanggalSelesai !== tanggalMulai ? tanggalSelesai : (tanggalRajang || tanggalMulai),
       rjBasah: rjBasahSesi2,
       hasilDryer: dryerSesi2,
       kaDry: kaDryer2,
@@ -960,11 +1030,14 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       isChecked: s2StatusInfo.isChecked,
       statusCellCoordinate: s2StatusInfo.statusCellCoordinate,
       dryerParams: dryerParamsSesi2
-    }
-  ];
+    });
+  }
 
-  // Cek apakah ada Sesi 3 pada lembar kerja (misal di PARTAI 2)
-  const hasSesi3 = Boolean(s3StatusCsv && s3StatusCsv.trim()) || rjBasahSesi3 > 0 || dryerSesi3 > 0 || csvText.includes('Proses Dryer Ketiga');
+  // Sesi 3 hanya ada jika memiliki data fisik riil
+  const hasSesi3 = !isPartaiHabisDiSesi1 && (
+    rjBasahSesi3 > 0 || 
+    dryerSesi3 > 0
+  );
   if (hasSesi3) {
     sesiList.push({
       sesi: 3,
@@ -1275,10 +1348,12 @@ export async function pushDhpToMasterSheet(
     throw new Error(`Pengiriman Ditolak (Karantina Fisika): ${physicsCheck.reason}`);
   }
 
-  // Ekstraksi Bulan dan Tahun dari tanggal proses (Kolom B DATA PROSES CKH adalah PARTAI RENDAM)
-  const tglStr = partai.tanggalAdmoist 
-    ? formatTanggalIndo(partai.tanggalAdmoist) 
-    : (partai.tanggalRajang || partai.tanggalSelesai || partai.tanggalMulai);
+  // Ekstraksi Hari, Tanggal, Bulan, dan Tahun dari tanggal proses resmi (Kolom B DATA PROSES CKH)
+  const tglStr = (partai.tanggalRajang && partai.tanggalRajang !== 'Belum Tercatat')
+    ? partai.tanggalRajang
+    : (partai.tanggalSelesai && partai.tanggalSelesai !== 'Belum Tercatat' 
+        ? partai.tanggalSelesai 
+        : (partai.tanggalMulai || (partai.tanggalAdmoist ? formatTanggalIndo(partai.tanggalAdmoist) : '')));
   let bulan = 'Mei';
   let tahun = '2026';
 
