@@ -260,11 +260,9 @@ export function saveCachedDhpPartai(list: DhpPartaiData[]): void {
 function cleanIndoNumber(val: string | number | null | undefined): number {
   if (val === null || val === undefined) return 0;
   if (typeof val === 'number') return isNaN(val) ? 0 : val;
-  const clean = val
-    .toString()
-    .replace(/["\s%McKgSakØ]/gi, '')
-    .replace(/\./g, '')
-    .replace(/,/g, '.');
+  const match = val.toString().match(/-?\d+(?:\.\d+)*(?:,\d+)?/);
+  if (!match) return 0;
+  const clean = match[0].replace(/\./g, '').replace(/,/g, '.');
   const n = parseFloat(clean);
   return isNaN(n) ? 0 : n;
 }
@@ -289,16 +287,25 @@ export function cleanJenisCengkeh(raw: string | undefined): string {
  * Fetch dan Parse satu Tab Kertas Kerja DHP Cengkeh
  */
 export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Promise<DhpPartaiData> {
-  const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}&t=${Date.now()}`;
-  
-  const res = await fetch(gvizUrl);
-  if (!res.ok) {
-    throw new Error(`Gagal menarik tab ${tabName} (HTTP ${res.status} ${res.statusText})`);
-  }
+  const fetchCsv = async (range?: string): Promise<string> => {
+    try {
+      const rangeParam = range ? `&range=${encodeURIComponent(range)}` : '';
+      const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}${rangeParam}&t=${Date.now()}`;
+      const res = await fetch(url);
+      return res.ok ? await res.text() : '';
+    } catch {
+      return '';
+    }
+  };
 
-  const csvText = await res.text();
-  const lines = csvText.split('\n');
+  const [csvText, r22Csv, s1RangeCsv, s2RangeCsv] = await Promise.all([
+    fetchCsv(),
+    fetchCsv('Q20:R24'),
+    fetchCsv('Q154:R158'),
+    fetchCsv('Q219:R223')
+  ]);
 
+  const lines = csvText ? csvText.split('\n') : [];
   if (lines.length < 15) {
     throw new Error(`Format tab ${tabName} tidak memiliki cukup baris kertas kerja.`);
   }
@@ -529,69 +536,131 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   // Urutkan item timbangan berdasarkan nomor urut koli
   timbanganItems.sort((a, b) => a.no - b.no);
 
-  // Dari struktur sheet: Netto Rajang Basah & Dryer Sesi 1 & 2
-  const matchRjBasah1 = csvText.match(/Hasil Rajang Basah Partai \d+ - Sesi 1 :[\s\S]*?Netto :","([^"]*)"/);
-  if (matchRjBasah1) {
-    rjBasahSesi1 = cleanIndoNumber(matchRjBasah1[1]);
-  } else if (timbanganItems.length > 0) {
-    rjBasahSesi1 = round1(timbanganItems.reduce((acc, it) => acc + it.netto, 0));
+  // 3. Ekstraksi Nilai Rajang Basah & Hasil Dryer berdasarkan Struktur Resmi Sheet:
+  // A. Total Rajang basah masing-masing Tab partai adalah cell R22 (Netto Rajang Basah)
+  // B. Proses Dryer Partai sesi 1:
+  //    - Rajang basah : sumber data adalah cell Q156
+  //    - Hasil Dryer  : sumber data adalah cell R156
+  // C. Proses Dryer Partai sesi 2:
+  //    - Rajang basah : sumber data adalah cell Q221
+  //    - Hasil Dryer  : sumber data adalah cell R221
+
+  // Ekstraksi Cell R22 & Resume Timbangan Rajang Basah (Q20:R24)
+  let cellR22Netto = 0;
+  if (r22Csv) {
+    const r22Lines = r22Csv.split('\n');
+    r22Lines.forEach((l) => {
+      const cols = l.split('","');
+      const colQ = cols[0] ? cols[0].replace(/"/g, '').trim() : '';
+      const colR = cols[1] ? cols[1].replace(/"/g, '').trim() : '';
+      if (colQ.includes('Bruto')) rjBasahBruto = cleanIndoNumber(colR);
+      if (colQ.includes('Tarra')) rjBasahTarra = cleanIndoNumber(colR);
+      if (colQ.includes('Netto')) cellR22Netto = cleanIndoNumber(colR);
+      if (colQ.includes('Selisih Lebih')) sisaGldBelumRajangKg = cleanIndoNumber(colR);
+      if (colR.includes('%')) sisaGldBelumRajangPct = cleanIndoNumber(colR);
+    });
   }
 
-  const matchKoliRj1 = csvText.match(/Hasil Rajang Basah Partai \d+ - Sesi 1 :[\s\S]*?Koli :","([^"]*)"/);
-  if (matchKoliRj1) {
-    koliRjBasah = Math.round(cleanIndoNumber(matchKoliRj1[1]));
-  } else if (timbanganItems.length > 0) {
+  // Ekstraksi Proses Dryer Sesi 1: Cell Q156 (Rj Basah) & Cell R156 (Hasil Dryer)
+  let s1SusutKgExplicit = 0;
+  let s1SusutPctExplicit = 0;
+  if (s1RangeCsv) {
+    const s1Lines = s1RangeCsv.split('\n');
+    s1Lines.forEach((l) => {
+      const cols = l.split('","');
+      if (l.includes('N :')) {
+        const valQ156 = cleanIndoNumber(cols[0]);
+        const valR156 = cleanIndoNumber(cols[1]);
+        if (valQ156 > 0) rjBasahSesi1 = valQ156;
+        if (valR156 > 0) dryerSesi1 = valR156;
+      }
+      if (cols[1] && cols[1].includes('Kg') && !cols[1].includes('N :')) {
+        s1SusutKgExplicit = cleanIndoNumber(cols[1]);
+      }
+      if (cols[1] && cols[1].includes('%')) {
+        s1SusutPctExplicit = cleanIndoNumber(cols[1]);
+      }
+    });
+  }
+
+  // Ekstraksi Proses Dryer Sesi 2: Cell Q221 (Rj Basah) & Cell R221 (Hasil Dryer)
+  let s2SusutKgExplicit = 0;
+  let s2SusutPctExplicit = 0;
+  if (s2RangeCsv) {
+    const s2Lines = s2RangeCsv.split('\n');
+    s2Lines.forEach((l) => {
+      const cols = l.split('","');
+      if (l.includes('N :')) {
+        const valQ221 = cleanIndoNumber(cols[0]);
+        const valR221 = cleanIndoNumber(cols[1]);
+        if (valQ221 > 0) rjBasahSesi2 = valQ221;
+        if (valR221 > 0) dryerSesi2 = valR221;
+      }
+      if (cols[1] && cols[1].includes('Kg') && !cols[1].includes('N :')) {
+        s2SusutKgExplicit = cleanIndoNumber(cols[1]);
+      }
+      if (cols[1] && cols[1].includes('%')) {
+        s2SusutPctExplicit = cleanIndoNumber(cols[1]);
+      }
+    });
+  }
+
+  // Fallback ke full sheet match jika range query kosong
+  if (rjBasahSesi1 === 0) {
+    const matchDryer1Rj = csvText.match(/Proses Dryer Pertama :[\s\S]*?Rj\. Basah[\s\S]*?N : ([0-9.,]+) Kg/);
+    if (matchDryer1Rj) rjBasahSesi1 = cleanIndoNumber(matchDryer1Rj[1]);
+  }
+  if (dryerSesi1 === 0) {
+    const matchDryer1 = csvText.match(/Proses Dryer Pertama :[\s\S]*?Hasil Dryer 1[\s\S]*?N : ([0-9.,]+) Kg/);
+    if (matchDryer1) dryerSesi1 = cleanIndoNumber(matchDryer1[1]);
+  }
+
+  if (rjBasahSesi2 === 0) {
+    const matchDryer2Rj = csvText.match(/Proses Dryer Kedua :[\s\S]*?Rj\. Basah[\s\S]*?N : ([0-9.,]+) Kg/);
+    if (matchDryer2Rj) rjBasahSesi2 = cleanIndoNumber(matchDryer2Rj[1]);
+  }
+  if (dryerSesi2 === 0) {
+    const matchDryer2 = csvText.match(/Proses Dryer Kedua :[\s\S]*?Hasil Dryer 2[\s\S]*?N : ([0-9.,]+) Kg/);
+    if (matchDryer2) dryerSesi2 = cleanIndoNumber(matchDryer2[1]);
+  }
+
+  // Koli Rajang Basah
+  if (timbanganItems.length > 0) {
     koliRjBasah = timbanganItems.length;
+  } else if (rjBasahTarra > 0) {
+    koliRjBasah = Math.round(rjBasahTarra / 0.2);
+  } else {
+    const matchKoliRj1 = csvText.match(/Hasil Rajang Basah Partai \d+ - Sesi 1 :[\s\S]*?Koli :","([^"]*)"/);
+    if (matchKoliRj1) koliRjBasah = Math.round(cleanIndoNumber(matchKoliRj1[1]));
   }
 
-  const matchBrutoRj1 = csvText.match(/Hasil Rajang Basah Partai \d+ - Sesi 1 :[\s\S]*?Bruto :","([^"]*)"/);
-  if (matchBrutoRj1) rjBasahBruto = cleanIndoNumber(matchBrutoRj1[1]);
-
-  const matchTarraRj1 = csvText.match(/Hasil Rajang Basah Partai \d+ - Sesi 1 :[\s\S]*?Tarra :","([^"]*)"/);
-  if (matchTarraRj1) rjBasahTarra = cleanIndoNumber(matchTarraRj1[1]);
-
-  const matchSisaKg = csvText.match(/Hasil Rajang Basah Partai \d+ - Sesi 1 :[\s\S]*?Selisih Lebih :","([^"]*)"/);
-  if (matchSisaKg) {
-    sisaGldBelumRajangKg = cleanIndoNumber(matchSisaKg[1]);
-  } else if (gldKering > 0 && rjBasahSesi1 > 0) {
-    sisaGldBelumRajangKg = Math.max(0, round1(gldKering - rjBasahSesi1));
-  }
-
-  const matchSisaPct = csvText.match(/Hasil Rajang Basah Partai \d+ - Sesi 1 :[\s\S]*?Selisih Lebih :[\s\S]*?(\d+[.,]\d+)\s*%/);
-  if (matchSisaPct) {
-    sisaGldBelumRajangPct = cleanIndoNumber(matchSisaPct[1]);
-  } else if (gldKering > 0 && sisaGldBelumRajangKg > 0) {
-    sisaGldBelumRajangPct = round2((sisaGldBelumRajangKg / gldKering) * 100);
-  }
-
-  const matchDryer1 = csvText.match(/Proses Dryer Pertama :[\s\S]*?Rj\. Basah[\s\S]*?N : ([0-9.,]+) Kg/);
-  if (matchDryer1) dryerSesi1 = cleanIndoNumber(matchDryer1[1]);
-
-  const matchDryer2 = csvText.match(/Proses Dryer Kedua :[\s\S]*?Rj\. Basah[\s\S]*?N : ([0-9.,]+) Kg/);
-  if (matchDryer2) dryerSesi2 = cleanIndoNumber(matchDryer2[1]);
+  // Total Rajang Basah: Utamakan Cell R22 sesuai instruksi struktur sheet A
+  let totalRjBasah = cellR22Netto > 0 
+    ? cellR22Netto 
+    : (timbanganItems.length > 0 
+        ? round1(timbanganItems.reduce((acc, it) => acc + it.netto, 0)) 
+        : round1(rjBasahSesi1 + rjBasahSesi2));
 
   // Cek apakah ada susut akhir riil tertera
   const matchSusutAkhir = csvText.match(/Susut Akhir \(Gld Kering-Rj\. Kering\)[\s\S]*?([0-9.,]+)\s*Kg/);
   let totalSusutAkhirSheet = 0;
   if (matchSusutAkhir) totalSusutAkhirSheet = cleanIndoNumber(matchSusutAkhir[1]);
 
-  // Total Rajang Basah & Kering
-  let totalRjBasah = round1(rjBasahSesi1 + rjBasahSesi2);
+  // Total Rajang Kering
   let totalRjKering = round1(dryerSesi1 + dryerSesi2);
 
-  // Jika nilai sesi di sheet masih dalam proses kalkulasi (misal 0 karena proses belum selesai),
-  // lakukan fallback ke formula mass balance
+  // Perhitungan Selisih & Susut Dryer
   const selisihKg = round1(totalRjBasah - gldKering);
   const selisihPct = gldKering > 0 ? round2((selisihKg / gldKering) * 100) : 0;
 
-  const susutDryerSesi1Kg = round1(rjBasahSesi1 - dryerSesi1);
-  const susutDryerSesi1Pct = rjBasahSesi1 > 0 ? round2((susutDryerSesi1Kg / rjBasahSesi1) * 100) : 0;
+  const susutDryerSesi1Kg = s1SusutKgExplicit > 0 ? s1SusutKgExplicit : round1(rjBasahSesi1 - dryerSesi1);
+  const susutDryerSesi1Pct = s1SusutPctExplicit > 0 ? s1SusutPctExplicit : (rjBasahSesi1 > 0 ? round2((susutDryerSesi1Kg / rjBasahSesi1) * 100) : 0);
 
-  const susutDryerSesi2Kg = round1(rjBasahSesi2 - dryerSesi2);
-  const susutDryerSesi2Pct = rjBasahSesi2 > 0 ? round2((susutDryerSesi2Kg / rjBasahSesi2) * 100) : 0;
+  const susutDryerSesi2Kg = s2SusutKgExplicit > 0 ? s2SusutKgExplicit : round1(rjBasahSesi2 - dryerSesi2);
+  const susutDryerSesi2Pct = s2SusutPctExplicit > 0 ? s2SusutPctExplicit : (rjBasahSesi2 > 0 ? round2((susutDryerSesi2Kg / rjBasahSesi2) * 100) : 0);
 
-  const totalSusutDryerKg = round1(totalRjBasah - totalRjKering);
-  const totalSusutDryerPct = totalRjBasah > 0 ? round2((totalSusutDryerKg / totalRjBasah) * 100) : 0;
+  const totalSusutDryerKg = round1(susutDryerSesi1Kg + susutDryerSesi2Kg);
+  const totalSusutDryerPct = (rjBasahSesi1 + rjBasahSesi2) > 0 ? round2((totalSusutDryerKg / (rjBasahSesi1 + rjBasahSesi2)) * 100) : 0;
 
   const totalSusutKg = round1(gldKering - totalRjKering);
   const totalSusutPct = gldKering > 0 ? round2((totalSusutKg / gldKering) * 100) : 0;
