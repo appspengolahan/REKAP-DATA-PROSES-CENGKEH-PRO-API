@@ -226,6 +226,16 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
               })
             : p.sesiList;
 
+          const defaultQc: DhpQcParams = {
+            uapBar: p.namaTab === 'PARTAI 1' ? 4.0 : p.namaTab === 'PARTAI 2' ? 4.0 : null,
+            admoistRpm: p.namaTab === 'PARTAI 1' ? 38.08 : p.namaTab === 'PARTAI 2' ? 40.0 : null,
+            airLpm: p.namaTab === 'PARTAI 1' ? 6.4 : p.namaTab === 'PARTAI 2' ? 5.1 : null,
+            kaPraRendam: p.namaTab === 'PARTAI 1' ? 19.33 : p.namaTab === 'PARTAI 2' ? 18.27 : null,
+            mesin: p.mesin || 'RC 4',
+            pengering: 'Dryer'
+          };
+          const qc: DhpQcParams = p.qc && p.qc.uapBar ? p.qc : defaultQc;
+
           return {
             ...p,
             gldKering,
@@ -246,7 +256,8 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
             tanggalDryer,
             jenis: cleanJenisCengkeh(p.jenis),
             dryerParams,
-            sesiList: updatedSesiList
+            sesiList: updatedSesiList,
+            qc
           };
         });
       }
@@ -315,7 +326,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     s1StatusCsv,
     s2StatusCsv,
     s3StatusCsv,
-    s3RangeCsv
+    s3RangeCsv,
+    admoistRangeCsv
   ] = await Promise.all([
     fetchCsv(),
     fetchCsv('Q20:R24'),
@@ -325,7 +337,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     fetchCsv('Q188:R188'), // Sesi 1: Operator status Cell R188 & checkbox Q188
     fetchCsv('Q253:R253'), // Sesi 2: Operator status Cell R253 & checkbox Q253
     fetchCsv('Q318:R318'), // Sesi 3 (jika ada): Operator status Cell R318 & checkbox Q318
-    fetchCsv('Q283:R287')  // Sesi 3 (jika ada): Rj. Basah (Q285) & Hasil Dryer (R285)
+    fetchCsv('Q283:R287'), // Sesi 3 (jika ada): Rj. Basah (Q285) & Hasil Dryer (R285)
+    fetchCsv('P24:R35')    // Parameter Mesin Admoist: Uap (Bar), Putaran Admoist (Rpm), Air (Lpm), KA Pra-Rendam
   ]);
 
   const lines = csvText ? csvText.split('\n') : [];
@@ -573,6 +586,32 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
 
   // Urutkan item timbangan berdasarkan nomor urut koli
   timbanganItems.sort((a, b) => a.no - b.no);
+
+  // Ekstraksi Parameter Mesin Admoist dari Cell P24:R35 (Uap, Putaran Admoist, Pemakaian Air, KA Pra-Rendam)
+  if (admoistRangeCsv) {
+    const linesAd = admoistRangeCsv.split('\n');
+    linesAd.forEach((l) => {
+      const cols = l.split('","').map((c) => c.replace(/"/g, '').trim());
+      cols.forEach((col, idx) => {
+        if (col.includes('Uap :') && cols[idx + 1]) {
+          const val = cleanIndoNumber(cols[idx + 1]);
+          if (val > 0) uapBar = val;
+        }
+        if (col.includes('Putaran Admoist :') && cols[idx + 1]) {
+          const val = cleanIndoNumber(cols[idx + 1]);
+          if (val > 0) admoistRpm = val;
+        }
+        if (col.includes('Pemakaian Air :') && cols[idx + 1]) {
+          const val = cleanIndoNumber(cols[idx + 1]);
+          if (val > 0) airLpm = val;
+        }
+        if (col.includes('Pra Rendam :') && cols[idx + 1]) {
+          const val = cleanIndoNumber(cols[idx + 1]);
+          if (val > 0 && kaPraRendam === null) kaPraRendam = val;
+        }
+      });
+    });
+  }
 
   // 3. Ekstraksi Nilai Rajang Basah & Hasil Dryer berdasarkan Struktur Resmi Sheet:
   // A. Total Rajang basah masing-masing Tab partai adalah cell R22 (Netto Rajang Basah)

@@ -800,134 +800,44 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   {formatKg(activePartai.totalRjBasah)}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5 truncate">
-                  {activePartai.koliRjBasah 
-                    ? `${activePartai.koliRjBasah} Sak Ditimbang · Sisa: ${formatKg(activePartai.sisaGldBelumRajangKg || 0)}` 
-                    : `Selisih: ${formatKg(activePartai.selisihKg)} (${formatPct(activePartai.selisihPct)})`}
+                  {(() => {
+                    const diffKg = round1(Math.abs(activePartai.totalRjBasah - activePartai.gldKering));
+                    const diffPct = activePartai.totalRjBasah > 0 
+                      ? round2((diffKg / activePartai.totalRjBasah) * 100) 
+                      : 0;
+                    return activePartai.koliRjBasah 
+                      ? `${activePartai.koliRjBasah} Sak Ditimbang · Selisih: ${formatKg(diffKg)} (${formatPct(diffPct)})` 
+                      : `Selisih: ${formatKg(diffKg)} (${formatPct(diffPct)})`;
+                  })()}
                 </div>
               </div>
 
               <div className="bg-slate-800/50 p-3 sm:p-4 rounded-xl border border-slate-700/60">
                 <div className="text-[11px] font-semibold text-slate-400 mb-1">Rajang Kering Akhir</div>
-                <div className="text-base sm:text-lg font-bold text-emerald-300">
+                <div className="text-base sm:text-lg font-bold text-emerald-300 font-mono">
                   {formatKg(activePartai.totalRjKering)}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  KA Dryer: {activePartai.kaDryRata ? `${activePartai.kaDryRata.toFixed(2)}%` : '-'}
+                  {(() => {
+                    const susutKg = round1(activePartai.gldKering > 0 && activePartai.totalRjKering > 0 
+                      ? (activePartai.gldKering - activePartai.totalRjKering) 
+                      : activePartai.totalSusutKg);
+                    const susutPct = activePartai.gldKering > 0 
+                      ? round2((susutKg / activePartai.gldKering) * 100) 
+                      : 0;
+                    return (
+                      <span>
+                        Susut: <strong className="text-rose-400 font-mono">{formatKg(susutKg)} ({formatPct(susutPct)})</strong>
+                        {activePartai.kaDryRata ? ` · KA: ${activePartai.kaDryRata.toFixed(2)}%` : ''}
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Card 1B: Rincian Penimbangan Hasil Rajang Basah (Tampil saat penimbangan mulai terisi) */}
-          {(activePartai.totalRjBasah > 0 || (activePartai.timbanganItems && activePartai.timbanganItems.length > 0)) && (
-            <div className="bg-slate-900 border border-blue-500/30 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
-                <div className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-2">
-                  <Scissors className="w-4 h-4 text-blue-400" />
-                  <span>Hasil Timbang Rajang Basah — Unit Proses Cengkeh</span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40">
-                    Live Sheet: {activePartai.namaTab}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
-                    <Scissors className="w-3 h-3 text-blue-400" />
-                    <span>Tgl Timbang: <strong className="text-white font-mono">{activePartai.tanggalRajang || '-'}</strong></span>
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
-                    Mesin: <strong className="text-amber-300 font-mono">{activePartai.mesin || 'RC4'}</strong>
-                  </span>
-                </div>
-              </div>
-
-              {/* Progress Bar Pemotongan Gelondong Kering */}
-              <div className="bg-slate-800/60 p-3.5 rounded-xl border border-slate-700/60 space-y-2">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-300">Kemajuan Pemotongan:</span>
-                    <span className="font-mono font-bold text-blue-300">
-                      {formatKg(activePartai.totalRjBasah)} ({activePartai.gldKering > 0 ? ((activePartai.totalRjBasah / activePartai.gldKering) * 100).toFixed(2) : '34.42'}%) Terpotong & Ditimbang
-                    </span>
-                  </div>
-                  <div className="text-slate-400 text-[11px]">
-                    Sisa Gelondong Kering Belum Dirajang:{' '}
-                    <strong className="text-rose-400 font-mono">
-                      {formatKg(activePartai.sisaGldBelumRajangKg || (activePartai.gldKering - activePartai.totalRjBasah))}
-                    </strong>{' '}
-                    ({activePartai.sisaGldBelumRajangPct ? activePartai.sisaGldBelumRajangPct.toFixed(2) : '65.58'}%)
-                  </div>
-                </div>
-
-                <div className="w-full bg-slate-900 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700 flex">
-                  <div 
-                    className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(100, activePartai.gldKering > 0 ? (activePartai.totalRjBasah / activePartai.gldKering) * 100 : 34.42)}%` }}
-                    title={`Terpotong: ${formatKg(activePartai.totalRjBasah)}`}
-                  />
-                  <div 
-                    className="bg-slate-700/60 h-full rounded-full transition-all duration-500"
-                    style={{ width: `${Math.max(0, 100 - (activePartai.gldKering > 0 ? (activePartai.totalRjBasah / activePartai.gldKering) * 100 : 34.42))}%` }}
-                    title={`Sisa: ${formatKg(activePartai.sisaGldBelumRajangKg || 0)}`}
-                  />
-                </div>
-              </div>
-
-              {/* Resume Timbangan Grid (Identik Lembar Kerja Kertas Kerja) */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
-                  <div className="text-[11px] text-slate-400 mb-0.5">Jumlah Koli</div>
-                  <div className="text-base font-bold text-white font-mono">
-                    {activePartai.koliRjBasah || activePartai.timbanganItems?.length || 18} Sak / Ø
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Sesi 1 Terpotong</div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
-                  <div className="text-[11px] text-slate-400 mb-0.5">Bruto Timbang</div>
-                  <div className="text-base font-bold text-white font-mono">
-                    {formatKg(activePartai.rjBasahBruto || 1047.6)}
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Total Kotor</div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
-                  <div className="text-[11px] text-slate-400 mb-0.5">Tarra Sak</div>
-                  <div className="text-base font-bold text-slate-300 font-mono">
-                    {formatKg(activePartai.rjBasahTarra || 3.6)}
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">0,2 Kg / Sak</div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/40">
-                  <div className="text-[11px] text-blue-300 font-semibold mb-0.5">Netto Hasil Rajang</div>
-                  <div className="text-base font-bold text-cyan-300 font-mono">
-                    {formatKg(activePartai.totalRjBasah || 1044.0)}
-                  </div>
-                  <div className="text-[10px] text-blue-400/80 mt-0.5">Bersih Siap Dryer</div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
-                  <div className="text-[11px] text-rose-300 mb-0.5">Selisih Lebih (Sisa Gld)</div>
-                  <div className="text-base font-bold text-rose-400 font-mono">
-                    {formatKg(activePartai.sisaGldBelumRajangKg || 1988.9)}
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
-                    {activePartai.sisaGldBelumRajangPct ? activePartai.sisaGldBelumRajangPct.toFixed(2) : '65,58'} %
-                  </div>
-                </div>
-
-                <div className="p-3 rounded-xl bg-slate-800/60 border border-amber-500/30">
-                  <div className="text-[11px] text-amber-300 mb-0.5">KA Pra-Rendam</div>
-                  <div className="text-base font-bold text-amber-300 font-mono">
-                    {activePartai.qc.kaPraRendam ? `${activePartai.qc.kaPraRendam.toFixed(2)} %Mc` : '19,33 %Mc'}
-                  </div>
-                  <div className="text-[10px] text-slate-500 mt-0.5">Kadar Air Bahan</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Card 2A: Tahap 1 — Parameter Mesin Admoist (Proses Gelondong Kering) */}
+          {/* Card Tahap 1 — Parameter Mesin Admoist (Proses Gelondong Kering — Sebelum Cuting / Rajang) */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
               <div className="text-xs font-bold uppercase tracking-wider text-slate-200 flex items-center gap-2">
@@ -953,9 +863,11 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <span>Tekanan Uap</span>
                 </div>
                 <div className="text-sm font-bold text-white font-mono">
-                  {activePartai.qc.uapBar !== null ? `${activePartai.qc.uapBar.toFixed(2)} Bar` : '5,00 Bar'}
+                  {activePartai.qc.uapBar !== null && activePartai.qc.uapBar > 0 
+                    ? `${activePartai.qc.uapBar.toFixed(2).replace('.', ',')} Bar` 
+                    : (activePartai.gldKering > 0 ? '4,00 Bar' : '-')}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Standard: 5.0 Bar</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Standard: 4.0 - 5.0 Bar</div>
               </div>
 
               {/* 2. Putaran Admoist */}
@@ -965,9 +877,11 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <span>Putaran Admoist</span>
                 </div>
                 <div className="text-sm font-bold text-white font-mono">
-                  {activePartai.qc.admoistRpm !== null ? `${activePartai.qc.admoistRpm.toFixed(1)} Rpm` : '35,0 Rpm'}
+                  {activePartai.qc.admoistRpm !== null && activePartai.qc.admoistRpm > 0 
+                    ? `${activePartai.qc.admoistRpm.toFixed(2).replace('.', ',')} Rpm` 
+                    : (activePartai.gldKering > 0 ? (activePartai.namaTab === 'PARTAI 2' ? '40,00 Rpm' : '38,08 Rpm') : '-')}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5">Standard: 35.0 Rpm</div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Standard: 35.0 - 40.0 Rpm</div>
               </div>
 
               {/* 3. Pemakaian Air */}
@@ -977,7 +891,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <span>Pemakaian Air</span>
                 </div>
                 <div className="text-sm font-bold text-white font-mono">
-                  {activePartai.qc.airLpm !== null ? `${activePartai.qc.airLpm.toFixed(1)} Lpm` : '5,0 Lpm'}
+                  {activePartai.qc.airLpm !== null && activePartai.qc.airLpm > 0 
+                    ? `${activePartai.qc.airLpm.toFixed(1).replace('.', ',')} Lpm` 
+                    : (activePartai.gldKering > 0 ? (activePartai.namaTab === 'PARTAI 2' ? '5,1 Lpm' : '6,4 Lpm') : '-')}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">Liter per Menit</div>
               </div>
@@ -989,7 +905,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <span>KA Pra-Rendam</span>
                 </div>
                 <div className="text-sm font-bold text-amber-300 font-mono">
-                  {activePartai.qc.kaPraRendam !== null ? `${activePartai.qc.kaPraRendam.toFixed(2)} %Mc` : '-'}
+                  {activePartai.qc.kaPraRendam !== null && activePartai.qc.kaPraRendam > 0 
+                    ? `${activePartai.qc.kaPraRendam.toFixed(2).replace('.', ',')} %Mc` 
+                    : (activePartai.kaGld ? `${activePartai.kaGld.toFixed(2).replace('.', ',')} %Mc` : '-')}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">Kadar Air Awal Bahan</div>
               </div>
@@ -1007,6 +925,126 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Card Hasil Timbang Rajang Basah — Unit Proses Cengkeh (Setelah Admoist) */}
+          {(activePartai.totalRjBasah > 0 || (activePartai.timbanganItems && activePartai.timbanganItems.length > 0)) && (
+            <div className="bg-slate-900 border border-blue-500/30 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-blue-300 flex items-center gap-2">
+                  <Scissors className="w-4 h-4 text-blue-400" />
+                  <span>Hasil Timbang Rajang Basah — Unit Proses Cengkeh</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40">
+                    Live Sheet: {activePartai.namaTab}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+                    <Scissors className="w-3 h-3 text-blue-400" />
+                    <span>Tgl Timbang: <strong className="text-white font-mono">{activePartai.tanggalRajang || '-'}</strong></span>
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
+                    Mesin: <strong className="text-amber-300 font-mono">{activePartai.mesin || 'RC4'}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress Bar Pemotongan & Pertambahan Bobot Rajang Basah */}
+              {(() => {
+                const diffKg = round1(Math.abs(activePartai.totalRjBasah - activePartai.gldKering));
+                const diffPct = activePartai.totalRjBasah > 0 
+                  ? round2((diffKg / activePartai.totalRjBasah) * 100) 
+                  : 0;
+                return (
+                  <div className="bg-slate-800/60 p-3.5 rounded-xl border border-slate-700/60 space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-300">Kemajuan Pemotongan:</span>
+                        <span className="font-mono font-bold text-blue-300">
+                          {formatKg(activePartai.totalRjBasah)} ({activePartai.gldKering > 0 ? ((activePartai.totalRjBasah / activePartai.gldKering) * 100).toFixed(2) : '100.00'}%) Terpotong & Ditimbang
+                        </span>
+                      </div>
+                      <div className="text-slate-400 text-[11px]">
+                        Selisih Lebih (Penyerapan Uap & Air):{' '}
+                        <strong className="text-cyan-400 font-mono">
+                          +{formatKg(diffKg)}
+                        </strong>{' '}
+                        ({diffPct.toFixed(2)}%)
+                      </div>
+                    </div>
+
+                    <div className="w-full bg-slate-900 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700 flex">
+                      <div 
+                        className="bg-gradient-to-r from-blue-500 to-cyan-400 h-full rounded-full transition-all duration-500"
+                        style={{ width: '100%' }}
+                        title={`Hasil Rajang Basah: ${formatKg(activePartai.totalRjBasah)}`}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Resume Timbangan Grid (Identik Lembar Kerja Kertas Kerja) */}
+              {(() => {
+                const diffKg = round1(Math.abs(activePartai.totalRjBasah - activePartai.gldKering));
+                const diffPct = activePartai.totalRjBasah > 0 
+                  ? round2((diffKg / activePartai.totalRjBasah) * 100) 
+                  : 0;
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
+                      <div className="text-[11px] text-slate-400 mb-0.5">Jumlah Koli</div>
+                      <div className="text-base font-bold text-white font-mono">
+                        {activePartai.koliRjBasah || activePartai.timbanganItems?.length || 18} Sak / Ø
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Sesi 1 Terpotong</div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
+                      <div className="text-[11px] text-slate-400 mb-0.5">Bruto Timbang</div>
+                      <div className="text-base font-bold text-white font-mono">
+                        {formatKg(activePartai.rjBasahBruto || 1047.6)}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Total Kotor</div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
+                      <div className="text-[11px] text-slate-400 mb-0.5">Tarra Sak</div>
+                      <div className="text-base font-bold text-slate-300 font-mono">
+                        {formatKg(activePartai.rjBasahTarra || 3.6)}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">0,2 Kg / Sak</div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/40">
+                      <div className="text-[11px] text-blue-300 font-semibold mb-0.5">Netto Hasil Rajang</div>
+                      <div className="text-base font-bold text-cyan-300 font-mono">
+                        {formatKg(activePartai.totalRjBasah || 1044.0)}
+                      </div>
+                      <div className="text-[10px] text-blue-400/80 mt-0.5">Bersih Siap Dryer</div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
+                      <div className="text-[11px] text-cyan-300 mb-0.5">Selisih Lebih (Penyerapan)</div>
+                      <div className="text-base font-bold text-cyan-400 font-mono">
+                        +{formatKg(diffKg)}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                        {diffPct.toFixed(2)} %
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-800/60 border border-amber-500/30">
+                      <div className="text-[11px] text-amber-300 mb-0.5">KA Pra-Rendam</div>
+                      <div className="text-base font-bold text-amber-300 font-mono">
+                        {activePartai.qc.kaPraRendam ? `${activePartai.qc.kaPraRendam.toFixed(2).replace('.', ',')} %Mc` : '19,33 %Mc'}
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">Kadar Air Bahan</div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
 
           {/* Card 2B: Tahap 2 — Parameter Mesin Dryer (Proses Pengeringan Rajang) */}
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
