@@ -298,11 +298,12 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     }
   };
 
-  const [csvText, r22Csv, s1RangeCsv, s2RangeCsv] = await Promise.all([
+  const [csvText, r22Csv, s1RangeCsv, s2RangeCsv, totalRangeCsv] = await Promise.all([
     fetchCsv(),
     fetchCsv('Q20:R24'),
     fetchCsv('Q154:R158'),
-    fetchCsv('Q219:R223')
+    fetchCsv('Q219:R223'),
+    fetchCsv('Q295:R299')
   ]);
 
   const lines = csvText ? csvText.split('\n') : [];
@@ -634,20 +635,56 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     if (matchKoliRj1) koliRjBasah = Math.round(cleanIndoNumber(matchKoliRj1[1]));
   }
 
-  // Total Rajang Basah: Utamakan Cell R22 sesuai instruksi struktur sheet A
-  let totalRjBasah = cellR22Netto > 0 
-    ? cellR22Netto 
-    : (timbanganItems.length > 0 
-        ? round1(timbanganItems.reduce((acc, it) => acc + it.netto, 0)) 
-        : round1(rjBasahSesi1 + rjBasahSesi2));
+  // Ekstraksi Hasil Akhir (TOTAL) seluruh data masing-masing partai:
+  // - Hasil akhir Rajang basah : Cell Q297
+  // - Hasil akhir Dryer        : Cell R297
+  let totalRjBasahQ297 = 0;
+  let totalDryerR297 = 0;
+  if (totalRangeCsv) {
+    const totalLines = totalRangeCsv.split('\n');
+    totalLines.forEach((l) => {
+      const cols = l.split('","');
+      if (l.includes('N :')) {
+        const valQ = cleanIndoNumber(cols[0]);
+        const valR = cleanIndoNumber(cols[1]);
+        if (valQ > 0) totalRjBasahQ297 = valQ;
+        if (valR > 0) totalDryerR297 = valR;
+      }
+    });
+  }
+
+  // Juga scan teks tab penuh jika ada label Hasil Dryer 1+2+3
+  if (totalRjBasahQ297 === 0 || totalDryerR297 === 0) {
+    const matchGrandTotal = csvText.match(/Hasil Dryer 1\+2\+3\s*:[\s\S]*?N : ([0-9.,]+) Kg[\s\S]*?N : ([0-9.,]+) Kg/i);
+    if (matchGrandTotal) {
+      if (totalRjBasahQ297 === 0) totalRjBasahQ297 = cleanIndoNumber(matchGrandTotal[1]);
+      if (totalDryerR297 === 0) totalDryerR297 = cleanIndoNumber(matchGrandTotal[2]);
+    }
+  }
+
+  // Total Rajang Basah:
+  // 1. Utamakan Cell Q297 jika sudah terisi (Hasil akhir Rajang Basah)
+  // 2. Jika Q297 masih 0, ambil dari Cell R22 (Netto Rajang Basah fisik)
+  // 3. Fallback ke item timbangan koli / sesi
+  let totalRjBasah = totalRjBasahQ297 > 0
+    ? totalRjBasahQ297
+    : (cellR22Netto > 0 
+        ? cellR22Netto 
+        : (timbanganItems.length > 0 
+            ? round1(timbanganItems.reduce((acc, it) => acc + it.netto, 0)) 
+            : round1(rjBasahSesi1 + rjBasahSesi2)));
 
   // Cek apakah ada susut akhir riil tertera
   const matchSusutAkhir = csvText.match(/Susut Akhir \(Gld Kering-Rj\. Kering\)[\s\S]*?([0-9.,]+)\s*Kg/);
   let totalSusutAkhirSheet = 0;
   if (matchSusutAkhir) totalSusutAkhirSheet = cleanIndoNumber(matchSusutAkhir[1]);
 
-  // Total Rajang Kering
-  let totalRjKering = round1(dryerSesi1 + dryerSesi2);
+  // Total Rajang Kering:
+  // 1. Utamakan Cell R297 jika sudah terisi (Hasil akhir Dryer)
+  // 2. Fallback ke akumulasi sesi dryer (dryerSesi1 + dryerSesi2)
+  let totalRjKering = totalDryerR297 > 0
+    ? totalDryerR297
+    : round1(dryerSesi1 + dryerSesi2);
 
   // Perhitungan Selisih & Susut Dryer
   const selisihKg = round1(totalRjBasah - gldKering);
@@ -800,6 +837,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     sisaGldBelumRajangKg,
     sisaGldBelumRajangPct,
     timbanganItems,
+    hasilAkhirRajangBasahQ297: totalRjBasahQ297,
+    hasilAkhirDryerR297: totalDryerR297,
     totalRjKering,
     kaDryRata,
     selisihKg,

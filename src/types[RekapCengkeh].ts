@@ -208,6 +208,8 @@ export interface DhpPartaiData {
   sisaGldBelumRajangKg?: number;
   sisaGldBelumRajangPct?: number;
   timbanganItems?: { no: number; netto: number }[];
+  hasilAkhirRajangBasahQ297?: number; // Cell Q297: Total Hasil Akhir Rajang Basah
+  hasilAkhirDryerR297?: number;       // Cell R297: Total Hasil Akhir Dryer
   dryerParams?: DhpDryerMachineParams;
   sesiList: DhpSesiDryer[];
   qc: DhpQcParams;
