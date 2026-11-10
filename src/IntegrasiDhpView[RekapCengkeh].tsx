@@ -674,17 +674,15 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-400">
-                    <span>Tgl Proses:</span>
-                    <span className="text-slate-300 font-medium truncate max-w-[130px]">
-                      {p?.tanggalRajang && p.tanggalRajang !== 'Belum Tercatat'
-                        ? p.tanggalRajang
-                        : (p?.tanggalAdmoist ? formatTanggalIndo(p.tanggalAdmoist) : (p?.tanggalMulai && p.tanggalMulai !== 'Belum Tercatat' ? p.tanggalMulai : '-'))}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-slate-400">
                     <span className="text-[10px] text-blue-400">Admoist (R11):</span>
                     <span className="text-slate-300 font-mono text-[10.5px] truncate max-w-[130px]">
                       {p?.tanggalAdmoist ? formatTanggalIndo(p.tanggalAdmoist) : '-'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-[10px] text-cyan-400">Rajang (K7):</span>
+                    <span className="text-slate-300 font-medium text-[10.5px] truncate max-w-[130px]">
+                      {p?.tanggalRajang && p.tanggalRajang !== 'Belum Tercatat' ? p.tanggalRajang : '-'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-500 text-[10px] pt-0.5 border-t border-slate-800/60">
