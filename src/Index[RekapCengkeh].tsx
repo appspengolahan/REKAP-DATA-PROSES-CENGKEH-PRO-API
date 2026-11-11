@@ -180,10 +180,16 @@ export const IndexRekapCengkeh: React.FC = () => {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSwitchBoardOpen, setIsSwitchBoardOpen] = useState(false);
   const [isGasCenterOpen, setIsGasCenterOpen] = useState(false);
+  const [gasCenterInitialTab, setGasCenterInitialTab] = useState<'endpoint' | 'payload' | 'script'>('endpoint');
   const [isPwaModalOpen, setIsPwaModalOpen] = useState(false);
   const [dismissMobileBanner, setDismissMobileBanner] = useState(false);
   const { isInstalled, isInstallable, install } = usePWAInstall();
   const [expandedChart, setExpandedChart] = useState<{ title: string; subtitle?: string; component: React.ReactNode } | null>(null);
+
+  const handleOpenGasCenter = (tab: 'endpoint' | 'payload' | 'script' = 'endpoint') => {
+    setGasCenterInitialTab(tab);
+    setIsGasCenterOpen(true);
+  };
 
   // Filter options from raw rows
   const filterOptions = useMemo(() => computeFilterOptions(rows), [rows]);
@@ -1566,6 +1572,7 @@ export const IndexRekapCengkeh: React.FC = () => {
               masterRows={rows}
               onRefreshMaster={() => syncWithCloud(true)}
               onNavigateToTab={(tab) => setActiveTab(tab)}
+              onOpenGasCenter={(tab) => handleOpenGasCenter(tab || 'script')}
             />
           )}
         </main>
@@ -1606,6 +1613,7 @@ export const IndexRekapCengkeh: React.FC = () => {
         onManualSync={() => syncWithCloud(true)}
         isSyncing={isSyncing}
         onToggleAutoSync={handleToggleAutoSync}
+        initialTab={gasCenterInitialTab}
       />
 
       <PwaInstallModalRekapCengkeh

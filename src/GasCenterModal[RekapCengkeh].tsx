@@ -18,7 +18,8 @@ import {
   Play,
   Copy,
   Check,
-  FileCode
+  FileCode,
+  Zap
 } from 'lucide-react';
 import { GasConfig } from './types[RekapCengkeh]';
 import { saveGasConfig, DEFAULT_EXEC_URL, DEFAULT_SPREADSHEET_ID, DEFAULT_SHEET_NAME, testGasPayload } from './Code[RekapCengkeh]';
@@ -225,7 +226,171 @@ function doPost(e) {
       try { lock.releaseLock(); } catch(e) {}
     }
   }
-}`;
+}
+
+/**
+ * OTOMASI PENUH SERVER-SIDE 24/7 (UNATTENDED / TANPA KLIK TOMBOL)
+ * Memindai PARTAI 1 s/d PARTAI 4 di Kertas Kerja DHP dan membukukan ke DATA PROSES CKH saat status 'Susut Akhir'.
+ */
+function autoSyncAllPartaiToServer() {
+  var logs = [];
+  try {
+    var ssDhp = SpreadsheetApp.openById("1ZEJjMQMBkE8k3NIeHA32P2SooIpvXIfnq_f-pruCelQ");
+    var partaiTabs = ["PARTAI 1", "PARTAI 2", "PARTAI 3", "PARTAI 4"];
+    
+    for (var p = 0; p < partaiTabs.length; p++) {
+      var tabName = partaiTabs[p];
+      var sheet = ssDhp.getSheetByName(tabName);
+      if (!sheet) continue;
+      
+      var maxRows = Math.min(sheet.getLastRow(), 350);
+      if (maxRows < 20) continue;
+      
+      var headerValues = sheet.getRange(1, 1, 3, 20).getValues();
+      var noLap = "";
+      var tglMulai = "";
+      var jenis = "Manado Grade A (2024)";
+      
+      var l1Str = headerValues[0].join(" ");
+      var l2Str = headerValues[1].join(" ");
+      
+      var mNoLap = l1Str.match(/:\s*([0-9A-Za-z\/\-_]+)/);
+      if (mNoLap) noLap = mNoLap[1].trim();
+      
+      var mTgl = l2Str.match(/([A-Za-z]+,\s*\d{1,2}\s+[A-Za-z]+\s+\d{4})/);
+      if (mTgl) tglMulai = mTgl[1].trim();
+      
+      var mStock = l1Str.match(/Nama Stock[^:]*:\s*([^"]+)/i) || l1Str.match(/:\s*(Manado[^\",]+)/i);
+      if (mStock) jenis = mStock[1].trim();
+      
+      var statusDropdown = "";
+      var scanStart = Math.min(maxRows, 85);
+      var scanCount = Math.min(Math.max(maxRows - scanStart + 1, 1), 60);
+      var qValues = sheet.getRange(scanStart, 16, scanCount, 3).getValues();
+      
+      for (var r = 0; r < qValues.length; r++) {
+        var valQ = String(qValues[r][1] || "");
+        var valR = String(qValues[r][2] || "");
+        if (/susut\s*akhir/i.test(valQ) || /susut\s*akhir/i.test(valR)) {
+          statusDropdown = "Susut Akhir (Gld Kering-Rj. Kering)";
+          break;
+        }
+      }
+      
+      if (statusDropdown !== "Susut Akhir (Gld Kering-Rj. Kering)") {
+        continue;
+      }
+      
+      var gldKering = 0;
+      var rjBasah = 0;
+      var rjKering = 0;
+      var kaGldStr = "";
+      var kaDryStr = "";
+      
+      try {
+        var cellR11 = sheet.getRange("R11").getValue();
+        if (typeof cellR11 === "number" && cellR11 > 100) gldKering = cellR11;
+      } catch (e) {}
+      
+      try {
+        var cellR22 = sheet.getRange("R22").getValue();
+        if (typeof cellR22 === "number" && cellR22 > 100) rjBasah = cellR22;
+      } catch (e) {}
+      
+      try {
+        var cellQ297 = sheet.getRange("Q297").getValue();
+        var cellR297 = sheet.getRange("R297").getValue();
+        if (typeof cellQ297 === "number" && cellQ297 > 100) rjBasah = cellQ297;
+        if (typeof cellR297 === "number" && cellR297 > 100) rjKering = cellR297;
+      } catch (e) {}
+      
+      var allData = sheet.getRange(1, 1, Math.min(maxRows, 320), 18).getValues();
+      for (var i = 0; i < allData.length; i++) {
+        var rowStr = allData[i].join(" ");
+        if (rowStr.indexOf("Netto :") > -1 && (i < 15 || rowStr.indexOf("SYNC") > -1) && !gldKering) {
+          for (var c = 0; c < allData[i].length; c++) {
+            var v = allData[i][c];
+            if (typeof v === "number" && v > 100) { gldKering = v; break; }
+          }
+        }
+        if (rowStr.indexOf("Kadar Air Pra Rendam :") > -1 || rowStr.indexOf("Pra Rendam :") > -1) {
+          for (var c = 0; c < allData[i].length; c++) {
+            if (String(allData[i][c]).indexOf("%") > -1 || (typeof allData[i][c] === "number" && allData[i][c] < 40)) {
+              kaGldStr = String(allData[i][c]).trim();
+              break;
+            }
+          }
+        }
+        if (rowStr.indexOf("Susut Akhir (Gld Kering-Rj. Kering)") > -1 && !rjKering) {
+          for (var c = 0; c < allData[i].length; c++) {
+            var v = allData[i][c];
+            if (typeof v === "number" && v > 100) { rjKering = v; break; }
+          }
+        }
+      }
+      
+      if (!rjKering) {
+        for (var i = 70; i < allData.length; i++) {
+          var rowStr = allData[i].join(" ");
+          if (rowStr.indexOf("Proses Dryer") > -1 || rowStr.indexOf("Total Dryer") > -1 || rowStr.indexOf("Grand Total") > -1) {
+            for (var c = 0; c < allData[i].length; c++) {
+              var v = allData[i][c];
+              if (typeof v === "number" && v > 500) { rjKering = v; }
+            }
+          }
+        }
+      }
+      
+      if (gldKering <= 0 || rjKering <= 0) continue;
+      
+      var payload = {
+        action: "syncDhpToRekap",
+        partaiId: tabName,
+        noLaporan: noLap,
+        userRole: "Auto-Trigger (Headless Server)",
+        inputData: {
+          colB_tanggal: tglMulai,
+          colE_jenis: jenis,
+          colF_kaGld: kaGldStr,
+          colG_gldKering: gldKering,
+          colH_rjBasah: rjBasah || gldKering,
+          colK_rjKering: rjKering,
+          colL_kaDry: kaDryStr,
+          colQ_kaSimpan: ""
+        }
+      };
+      
+      var mockEvt = { postData: { contents: JSON.stringify(payload) } };
+      var res = doPost(mockEvt);
+      logs.push(tabName + ": " + res.getContent());
+    }
+    Logger.log("Auto-Sync Selesai: " + JSON.stringify(logs));
+  } catch (err) {
+    Logger.log("Auto-Sync Exception: " + err.toString());
+  }
+}
+
+function installAutoSyncTrigger() {
+  uninstallAutoSyncTrigger();
+  ScriptApp.newTrigger("autoSyncAllPartaiToServer")
+    .timeBased()
+    .everyMinutes(15)
+    .create();
+  Logger.log("SUKSES: Trigger otomatis setiap 15 menit terpasang!");
+}
+
+function uninstallAutoSyncTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === "autoSyncAllPartaiToServer") {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  Logger.log("Trigger otomatis dinonaktifkan.");
+}
+`;
+
+export { GAS_TEMPLATE_CODE };
 
 interface GasCenterModalProps {
   isOpen: boolean;
@@ -236,6 +401,7 @@ interface GasCenterModalProps {
   onManualSync: () => Promise<void>;
   isSyncing: boolean;
   onToggleAutoSync?: () => void;
+  initialTab?: 'endpoint' | 'payload' | 'script';
 }
 
 export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
@@ -246,16 +412,23 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
   onForceRebuildCache,
   onManualSync,
   isSyncing,
-  onToggleAutoSync
+  onToggleAutoSync,
+  initialTab = 'endpoint'
 }) => {
   if (!isOpen) return null;
 
-  const [activeTab, setActiveTab] = useState<'endpoint' | 'payload' | 'script'>('endpoint');
+  const [activeTab, setActiveTab] = useState<'endpoint' | 'payload' | 'script'>(initialTab);
   const [execUrl, setExecUrl] = useState(config.execUrl);
   const [spreadsheetId, setSpreadsheetId] = useState(config.spreadsheetId);
   const [sheetName, setSheetName] = useState(config.sheetName);
   const [autoSync, setAutoSync] = useState(config.autoSync ?? true);
   const [copiedScript, setCopiedScript] = useState(false);
+
+  React.useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
 
   React.useEffect(() => {
     setAutoSync(config.autoSync ?? true);
@@ -729,12 +902,18 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
         {/* Tab 3: Template Script Google Apps Script Backend (doGet / doPost) */}
         {activeTab === 'script' && (
           <div className="space-y-4 text-xs md:text-sm">
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 space-y-1.5">
+            {/* Banner Penjelasan Resmi 1 File Tunggal */}
+            <div className="p-4 rounded-xl bg-slate-900 border border-emerald-500/40 text-slate-200 space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <span className="font-semibold text-slate-900 flex items-center gap-1.5">
-                  <FileCode className="w-4 h-4 text-blue-600" />
-                  Headless Apps Script Server Code (Code.gs)
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-white text-sm flex items-center gap-2">
+                    <FileCode className="w-5 h-5 text-emerald-400" />
+                    <span>Kode GAS Resmi All-in-One: Kode.gs</span>
+                  </span>
+                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-bold uppercase tracking-wide">
+                    Satu-Satunya File Yang Berlaku
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
@@ -742,15 +921,40 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                     setCopiedScript(true);
                     setTimeout(() => setCopiedScript(false), 2500);
                   }}
-                  className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
                 >
                   {copiedScript ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-white" />}
-                  <span>{copiedScript ? 'Tersalin ke Clipboard!' : 'Salin Script'}</span>
+                  <span>{copiedScript ? 'Tersalin Utuh ke Clipboard!' : 'Salin Seluruh Kode.gs'}</span>
                 </button>
               </div>
-              <p className="text-[11px] text-slate-500 leading-relaxed">
-                Salin kode ini ke Google Apps Script (Ekstensi → Apps Script) pada spreadsheet perusahaan. Publikasikan sebagai Web App (Akses: <em>Siapa saja / Anyone</em>) untuk menghasilkan Exec URL REST endpoint.
-              </p>
+
+              {/* Panduan 3 Langkah */}
+              <div className="p-3 rounded-lg bg-slate-950/70 border border-slate-800 text-[11px] text-slate-300 space-y-2 leading-relaxed">
+                <div className="font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>3 Langkah Cepat &amp; Pasti Berhasil:</span>
+                </div>
+                <ol className="list-decimal list-inside space-y-1 pl-1 text-slate-300">
+                  <li>
+                    <strong>Buka Editor Apps Script:</strong> Buka spreadsheet Rekap <code className="text-amber-300 font-mono">1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M</code> &gt; klik menu atas <strong>Ekstensi &gt; Apps Script</strong>.
+                  </li>
+                  <li>
+                    <strong>Timpa File Kode.gs:</strong> Buka file <strong>Kode.gs</strong>, hapus seluruh isinya (<kbd className="px-1 bg-slate-800 rounded font-mono">Ctrl+A</kbd> &gt; <kbd className="px-1 bg-slate-800 rounded font-mono">Del</kbd>), lalu tempelkan (Paste) seluruh kode di bawah ini.
+                    <span className="block text-amber-300 text-[10.5px] mt-0.5">
+                      *Catatan: Jika Anda sebelumnya sempat membuat file terpisah bernama <em>IntegrasiDHP.gs</em>, hapus saja file tersebut agar tidak membingungkan atau duplikasi fungsi.
+                    </span>
+                  </li>
+                  <li>
+                    <strong>Deploy Versi Baru (Wajib!):</strong> Klik tombol biru <strong>Terapkan (Deploy)</strong> &gt; <strong>Kelola Penerapan (Manage deployments)</strong> &gt; klik ikon Pensil <strong>Edit</strong> &gt; Versi: <strong>Versi baru (New version)</strong> &gt; Siapa saja (Anyone) &gt; klik <strong>Terapkan</strong>.
+                  </li>
+                </ol>
+                <div className="pt-2 border-t border-slate-800 text-[11px] text-emerald-300 flex items-center gap-1.5">
+                  <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>
+                    <strong>Anti-Error &amp; Auto-Sync:</strong> Kode ini sudah memperbaiki error browser (tidak akan muncul <code>Cannot read properties of null</code>), menjaga rumus sheet otomatis, dan siap sinkronisasi dari Kertas Kerja DHP.
+                  </span>
+                </div>
+              </div>
             </div>
 
             <div className="relative">
