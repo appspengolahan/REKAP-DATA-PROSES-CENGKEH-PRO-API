@@ -59,7 +59,7 @@ import { ChartExpandedModalRekapCengkeh } from './ChartExpandedModal[RekapCengke
 import { PwaInstallModalRekapCengkeh } from './PwaInstallModalRekapCengkeh';
 import { IntegrasiDhpViewRekapCengkeh } from './IntegrasiDhpView[RekapCengkeh]';
 import { AnalisisDeviasiViewRekapCengkeh } from './AnalisisDeviasiView[RekapCengkeh]';
-import { getCachedDhpPartai, cleanJenisCengkeh } from './dhpService[RekapCengkeh]';
+import { getCachedDhpPartai, cleanJenisCengkeh, formatHariTanggalAdmoist } from './dhpService[RekapCengkeh]';
 import { usePWAInstall } from './usePWAInstall';
 import { INITIAL_SNAPSHOT_DATA } from './snapshotData[RekapCengkeh]';
 import { 
@@ -219,9 +219,7 @@ export const IndexRekapCengkeh: React.FC = () => {
 
     cachedDhp.forEach((p, idx) => {
       if (p.status !== 'kosong') {
-        const tglRendam = p.tanggalAdmoist 
-          ? formatTanggalIndo(p.tanggalAdmoist)
-          : (p.tanggalRajang ? formatTanggalIndo(p.tanggalRajang) : (p.tanggalMulai || p.tanggalSelesai || '9 November 2026'));
+        const tglRendam = formatHariTanggalAdmoist(p.tanggalAdmoist, p.id);
         const cleanTgl = (tglRendam && tglRendam !== 'Belum Tercatat') ? cleanDate(tglRendam) : '2026-11-09';
         let tahun = '2026';
         let bulan = 'November';

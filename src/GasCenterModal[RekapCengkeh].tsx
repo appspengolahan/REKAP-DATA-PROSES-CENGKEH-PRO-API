@@ -167,18 +167,6 @@ function doPost(e) {
         })).setMimeType(ContentService.MimeType.JSON);
       }
       
-      var targetRow = Math.max(findActualLastRow_(sheet) + 1, 11);
-      
-      // Salin formula jika baris baru belum punya formula di Kolom I
-      var existingFormulaI = sheet.getRange(targetRow, 9).getFormula();
-      if (!existingFormulaI && targetRow > 11) {
-        sheet.getRange(targetRow - 1, 1, 1, 17).copyTo(
-          sheet.getRange(targetRow, 1, 1, 17),
-          SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
-          false
-        );
-      }
-      
       // Ambil data dari payload terstruktur atau array row
       var inputData = body.inputData || {};
       var row = body.row || [];
@@ -190,6 +178,54 @@ function doPost(e) {
       var rjB = Number(inputData.colH_rjBasah || row[7] || 0);
       var rjK = Number(inputData.colK_rjKering || row[10] || 0);
       var kaDry = String(inputData.colL_kaDry || row[11] || "").trim();
+      
+      // =======================================================
+      // ANTI-DUPLIKASI (IDEMPOTENT WRITE PROTECTION):
+      // Pindai hingga 25 baris terakhir di DATA PROSES CKH.
+      // Jika data partai ini sudah pernah dicatat sebelumnya (berdasarkan Tanggal Admoist
+      // ATAU Bobot Gelondong Kering yang sama persis), sistem otomatis MEMPERBARUI
+      // baris tersebut tanpa pernah membuat baris duplikat ganda!
+      // =======================================================
+      var lastRow = findActualLastRow_(sheet);
+      var targetRow = -1;
+      var isDuplicateFound = false;
+      
+      var scanStart = Math.max(11, lastRow - 25);
+      var scanCount = Math.max(1, lastRow - scanStart + 1);
+      if (lastRow >= 11) {
+        var existingRange = sheet.getRange(scanStart, 1, scanCount, 12).getValues();
+        for (var ex = 0; ex < existingRange.length; ex++) {
+          var exRowIdx = scanStart + ex;
+          var exTgl = String(existingRange[ex][1] || "").trim(); // Col B (Tanggal Admoist)
+          var exGld = Number(existingRange[ex][6] || 0);         // Col G (Gld Kering)
+          var exRjK = Number(existingRange[ex][10] || 0);        // Col K (Rj Kering)
+          
+          var matchTgl = (tgl && exTgl && (tgl.toLowerCase() === exTgl.toLowerCase()));
+          var matchGld = (gld > 0 && exGld > 0 && Math.abs(gld - exGld) < 0.5);
+          var matchRjK = (rjK > 0 && exRjK > 0 && Math.abs(rjK - exRjK) < 1.0);
+          
+          if (matchTgl || (matchGld && matchRjK) || matchGld) {
+            targetRow = exRowIdx;
+            isDuplicateFound = true;
+            break;
+          }
+        }
+      }
+      
+      // Jika entri baru belum ada di sheet master, tambahkan di baris paling bawah
+      if (!isDuplicateFound) {
+        targetRow = Math.max(lastRow + 1, 11);
+      }
+      
+      // Salin formula jika baris target belum punya formula di Kolom I
+      var existingFormulaI = sheet.getRange(targetRow, 9).getFormula();
+      if (!existingFormulaI && targetRow > 11) {
+        sheet.getRange(targetRow - 1, 1, 1, 17).copyTo(
+          sheet.getRange(targetRow, 1, 1, 17),
+          SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
+          false
+        );
+      }
       
       // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L). Kolom C, D, I, J, M, N, O, P aman terjaga!
       if (tgl) sheet.getRange(targetRow, 2).setValue(tgl);
@@ -206,9 +242,13 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         action: action,
+        targetRow: targetRow,
         appendedRow: targetRow,
+        isUpdate: isDuplicateFound,
         partaiId: body.partaiId || "PARTAI",
-        message: "Sukses: Data " + (body.partaiId || "Partai") + " (" + tgl + ") berhasil dibukukan ke baris #" + targetRow + " Sheet Master. Kolom rumus (C, D, I, J, M, N, O, P) tetap utuh terlindungi."
+        message: isDuplicateFound
+          ? "Sukses (Anti-Duplikat): Data " + (body.partaiId || "Partai") + " sudah tercatat di baris #" + targetRow + ". Baris #" + targetRow + " berhasil DIPERBARUI (Tanggal Admoist disinkronkan ke: " + tgl + ") tanpa membuat baris duplikat ganda."
+          : "Sukses: Data " + (body.partaiId || "Partai") + " (" + tgl + ") berhasil dibukukan ke baris baru #" + targetRow + " Sheet Master. Kolom rumus (C, D, I, J, M, N, O, P) tetap utuh terlindungi."
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -343,13 +383,35 @@ function autoSyncAllPartaiToServer() {
       
       if (gldKering <= 0 || rjKering <= 0) continue;
       
+      // Tanggal Proses Admoist Resmi untuk Kolom B DATA PROSES CKH:
+      var tglAdmoistPartai = "Senin, 09 November 2026";
+      if (tabName === "PARTAI 1") tglAdmoistPartai = "Senin, 09 November 2026";
+      else if (tabName === "PARTAI 2") tglAdmoistPartai = "Selasa, 10 November 2026";
+      else if (tabName === "PARTAI 3") tglAdmoistPartai = "Rabu, 11 November 2026";
+      else if (tabName === "PARTAI 4") tglAdmoistPartai = "Kamis, 12 November 2026";
+      
+      try {
+        var valR11 = String(sheet.getRange("R11").getDisplayValue() || "").trim();
+        var slashMatch = valR11.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (slashMatch) {
+          var day = parseInt(slashMatch[1], 10);
+          var month = parseInt(slashMatch[2], 10);
+          var year = parseInt(slashMatch[3], 10);
+          var dObj = new Date(year, month - 1, day);
+          var dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+          var monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+          var dayPadded = day < 10 ? "0" + day : "" + day;
+          tglAdmoistPartai = dayNames[dObj.getDay()] + ", " + dayPadded + " " + monthNames[month - 1] + " " + year;
+        }
+      } catch(e) {}
+      
       var payload = {
         action: "syncDhpToRekap",
         partaiId: tabName,
         noLaporan: noLap,
         userRole: "Auto-Trigger (Headless Server)",
         inputData: {
-          colB_tanggal: tglMulai,
+          colB_tanggal: tglAdmoistPartai,
           colE_jenis: jenis,
           colF_kaGld: kaGldStr,
           colG_gldKering: gldKering,

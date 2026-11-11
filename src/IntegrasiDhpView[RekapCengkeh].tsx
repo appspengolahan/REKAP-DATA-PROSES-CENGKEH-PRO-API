@@ -60,7 +60,8 @@ import {
   getDhpSyncLogs, 
   clearDhpSyncLogs,
   removeDhpSyncLog,
-  getCachedDhpPartai
+  getCachedDhpPartai,
+  formatHariTanggalAdmoist
 } from './dhpService[RekapCengkeh]';
 import { formatKg, formatPct, round1, round2, exportToPdf, formatTanggalIndo } from './Code[RekapCengkeh]';
 
@@ -256,11 +257,13 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   // Cek apakah data partai ini sudah pernah ada di Master Rows (Layer 3 Idempotency Key Guard)
   const duplicateInMaster = useMemo(() => {
     if (!activePartai || activePartai.status === 'kosong') return null;
+    const admoistFull = formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id);
     const candDates = [
+      admoistFull,
+      activePartai.tanggalAdmoist ? formatTanggalIndo(activePartai.tanggalAdmoist) : null,
       activePartai.tanggalRajang,
       activePartai.tanggalSelesai,
-      activePartai.tanggalMulai,
-      activePartai.tanggalAdmoist ? formatTanggalIndo(activePartai.tanggalAdmoist) : null
+      activePartai.tanggalMulai
     ].filter((d): d is string => Boolean(d && d !== '-' && d !== 'Belum Tercatat'));
 
     return masterRows.find((r) => {
@@ -270,13 +273,15 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         const dLower = d.trim().toLowerCase();
         return rTgl.includes(dLower) || dLower.includes(rTgl);
       });
-      const rJenis = String(r.jenis || '').trim().toLowerCase();
-      const aJenis = String(activePartai.jenis || '').trim().toLowerCase();
-      const sameJenis = Boolean(rJenis && aJenis && (rJenis.includes(aJenis) || aJenis.includes(rJenis)));
       const rBaku = Number(r.gldKering || 0);
       const aBaku = Number(activePartai.gldKering || 0);
       const sameBaku = aBaku > 0 && Math.abs(rBaku - aBaku) < 0.8;
-      return (sameTanggal && sameJenis) || (sameTanggal && sameBaku);
+      
+      const rHasil = Number(r.rjKering || 0);
+      const aHasil = Number(activePartai.totalRjKering || 0);
+      const sameHasil = aHasil > 0 && Math.abs(rHasil - aHasil) < 1.5;
+
+      return (sameTanggal && sameBaku) || (sameBaku && sameHasil) || sameTanggal;
     });
   }, [activePartai, masterRows]);
 
@@ -428,9 +433,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
   const handleCopyRowForPaste = () => {
     if (!activePartai) return;
-    const tgl = (activePartai.tanggalRajang && activePartai.tanggalRajang !== 'Belum Tercatat') 
-      ? activePartai.tanggalRajang 
-      : (activePartai.tanggalSelesai || activePartai.tanggalMulai || 'Selasa, 10 November 2026');
+    const tgl = formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id);
     const kaGld = activePartai.kaGld ? `${activePartai.kaGld.toFixed(2).replace('.', ',')} Mc` : '19,33 Mc';
     const gld = activePartai.gldKering ? activePartai.gldKering.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '3.032,9';
     const rjB = activePartai.totalRjBasah ? activePartai.totalRjBasah.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '3.949,3';
@@ -799,7 +802,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-800 text-[11px]">
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-300 border border-blue-500/20">
                       <Droplet className="w-3 h-3 text-blue-400" />
-                      <span>Admoist: <strong>{activePartai.tanggalAdmoist ? formatTanggalIndo(activePartai.tanggalAdmoist) : '-'}</strong> (Cell R11)</span>
+                      <span>Admoist (Kolom B): <strong>{formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id)}</strong> (Cell R11)</span>
                     </span>
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
                       <Layers className="w-3 h-3 text-cyan-400" />
@@ -914,7 +917,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
                   <Droplet className="w-3 h-3 text-blue-400" />
-                  <span>Tanggal Admoist: <strong className="text-white font-mono">{activePartai.tanggalAdmoist ? formatTanggalIndo(activePartai.tanggalAdmoist) : '-'}</strong> (Cell R11)</span>
+                  <span>Tanggal Admoist: <strong className="text-white font-mono">{formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id)}</strong> (Cell R11)</span>
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
                   Bahan: Gelondong Kering (Sebelum Cuting / Rajang)
@@ -2072,8 +2075,8 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <span className="font-bold text-white">{activePartai.namaTab} ({activePartai.noLaporan})</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Tanggal Selesai:</span>
-                  <span className="font-bold text-slate-200">{activePartai.tanggalSelesai || activePartai.tanggalMulai}</span>
+                  <span className="text-slate-400">Tanggal Admoist (Kolom B):</span>
+                  <span className="font-bold text-cyan-300">{formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Jenis Cengkeh:</span>
@@ -2102,16 +2105,16 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-900 text-blue-300 font-mono">Formula-Safe</span>
                   </div>
                   <div className="text-slate-300 mt-1">
-                    Input otomatis <strong>hanya mengisi Kolom Mentah: B, E, F, G, H, K, L</strong>. Kolom yang berisi rumus (<strong>C, D, I, J, M, N, O, P</strong>) tidak disentuh dan dihitung otomatis oleh Google Sheet.
+                    Input otomatis <strong>hanya mengisi Kolom Mentah: B (Tanggal Admoist), E, F, G, H, K, L</strong>. Kolom rumus (<strong>C, D, I, J, M, N, O, P</strong>) tidak disentuh dan dihitung otomatis oleh Google Sheet.
                   </div>
                 </div>
               </div>
 
               {duplicateInMaster && (
                 <div className="p-3 rounded-xl bg-amber-950/80 border border-amber-600/80 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Peringatan Duplikasi:</strong> Tanggal/varian ini sudah ada di sheet master. Pastikan Anda tidak menduplikasi entri.
+                    <strong>Anti-Duplikasi Aktif:</strong> Partai ini terdeteksi sudah tercatat di Master Sheet (Baris #{duplicateInMaster.srcRow || '248'}). Mengirim ulang akan <strong>memperbarui baris tersebut</strong> (menyinkronkan Tanggal Admoist ke: {formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id)}) tanpa membuat baris ganda.
                   </span>
                 </div>
               )}

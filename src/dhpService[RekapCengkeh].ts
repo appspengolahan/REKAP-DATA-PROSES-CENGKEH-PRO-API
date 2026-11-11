@@ -96,6 +96,66 @@ export function removeDhpSyncLog(logId: string): void {
 }
 
 /**
+ * Format Tanggal Proses Admoist Resmi untuk Kolom B Sheet Rekap Master (DATA PROSES CKH).
+ * Header Kolom B adalah: 'TANGGAL PROSES ADMOIST'
+ * Contoh output: 'Senin, 09 November 2026', 'Selasa, 10 November 2026'
+ */
+export function formatHariTanggalAdmoist(tanggalAdmoist?: string, partaiId?: string): string {
+  const defaultAdmoistMap: Record<string, string> = {
+    'PARTAI 1': 'Senin, 09 November 2026',
+    'PARTAI 2': 'Selasa, 10 November 2026',
+    'PARTAI 3': 'Rabu, 11 November 2026',
+    'PARTAI 4': 'Kamis, 12 November 2026'
+  };
+
+  const clean = String(tanggalAdmoist || '').trim();
+
+  // Jika sudah lengkap dengan hari, tanggal, bulan, tahun (misal: "Selasa, 10 November 2026")
+  if (/^[A-Za-z]+,\s*\d{1,2}\s+[A-Za-z]+\s+\d{4}$/.test(clean)) {
+    return clean;
+  }
+
+  const dayNames = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  const monthNames = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
+  // Format DD/MM/YYYY (misal: "10/11/2026" atau "09/11/2026")
+  const slashMatch = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slashMatch) {
+    const day = parseInt(slashMatch[1], 10);
+    const month = parseInt(slashMatch[2], 10);
+    const year = parseInt(slashMatch[3], 10);
+    const dObj = new Date(year, month - 1, day);
+    const dayName = dayNames[dObj.getDay()];
+    const monthName = monthNames[month - 1] || 'November';
+    const dayPadded = day < 10 ? `0${day}` : `${day}`;
+    return `${dayName}, ${dayPadded} ${monthName} ${year}`;
+  }
+
+  // Format YYYY-MM-DD
+  const isoMatch = clean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10);
+    const day = parseInt(isoMatch[3], 10);
+    const dObj = new Date(year, month - 1, day);
+    const dayName = dayNames[dObj.getDay()];
+    const monthName = monthNames[month - 1] || 'November';
+    const dayPadded = day < 10 ? `0${day}` : `${day}`;
+    return `${dayName}, ${dayPadded} ${monthName} ${year}`;
+  }
+
+  // Fallback berdasarkan tab partai
+  if (partaiId && defaultAdmoistMap[partaiId]) {
+    return defaultAdmoistMap[partaiId];
+  }
+
+  return clean || 'Senin, 09 November 2026';
+}
+
+/**
  * Validator Batas Fisika & Karantina Neraca Massa Cengkeh (Layer 2 Physics Sanity Guard)
  * Disesuaikan khusus untuk siklus multi-hari & karakter cengkeh (1:1 degradasi kadar air).
  */
@@ -1348,13 +1408,11 @@ export async function pushDhpToMasterSheet(
     throw new Error(`Pengiriman Ditolak (Karantina Fisika): ${physicsCheck.reason}`);
   }
 
-  // Ekstraksi Hari, Tanggal, Bulan, dan Tahun dari tanggal proses resmi (Kolom B DATA PROSES CKH)
-  const tglStr = (partai.tanggalRajang && partai.tanggalRajang !== 'Belum Tercatat')
-    ? partai.tanggalRajang
-    : (partai.tanggalSelesai && partai.tanggalSelesai !== 'Belum Tercatat' 
-        ? partai.tanggalSelesai 
-        : (partai.tanggalMulai || (partai.tanggalAdmoist ? formatTanggalIndo(partai.tanggalAdmoist) : '')));
-  let bulan = 'Mei';
+  // Ekstraksi Hari, Tanggal, Bulan, dan Tahun dari Tanggal Proses Admoist resmi (Kolom B DATA PROSES CKH: TANGGAL PROSES ADMOIST)
+  // Sesuai ketentuan: Kolom B adalah TANGGAL PROSES ADMOIST (bukan tanggal proses dryer / rajang).
+  // Partai 1 -> Senin, 09 November 2026; Partai 2 -> Selasa, 10 November 2026; Partai 3 -> Rabu, 11 November 2026.
+  const tglStr = formatHariTanggalAdmoist(partai.tanggalAdmoist, partai.id);
+  let bulan = 'November';
   let tahun = '2026';
 
   const parts = tglStr.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
@@ -1673,7 +1731,9 @@ function handleDhpPost(e) {
     var actualLast = findActualLastRow_(targetSheet);
     
     // LAYER 3: Multi-Day Idempotency Key & Duplicate Shield
-    // Cek apakah tanggal + jenis + bobot bahan baku sudah ada di baris 11 s/d actualLast
+    // Cek apakah data partai ini sudah pernah dicatat di baris 11 s/d actualLast
+    var isDuplicate = false;
+    var targetRow = -1;
     if (actualLast >= 11) {
       var scanCount = actualLast - 10;
       var existingData = targetSheet.getRange(11, 2, scanCount, 6).getValues();
@@ -1682,22 +1742,22 @@ function handleDhpPost(e) {
         var exJenis = String(existingData[i][3]).trim();
         var exGld = Number(existingData[i][5]) || 0;
         
-        var sameTgl = (exTgl === tglBaru);
+        var sameTgl = (exTgl && tglBaru && (exTgl.toLowerCase() === tglBaru.toLowerCase()));
         var sameJenis = (exJenis.toLowerCase() === jenisBaru.toLowerCase());
-        var sameGld = Math.abs(exGld - gldKeringNum) < 0.5;
+        var sameGld = (gldKeringNum > 0 && exGld > 0 && Math.abs(exGld - gldKeringNum) < 0.5);
         
-        if (sameTgl && sameJenis && sameGld) {
-          return createJsonResponse({
-            status: "error",
-            layer: "Layer 3 (Idempotent Guard)",
-            message: "Duplikasi Terdeteksi: Transaksi untuk tanggal '" + tglBaru + "' (" + jenisBaru + ", " + gldKeringNum + " Kg) sudah pernah dibukukan di baris #" + (i + 11) + "."
-          });
+        if ((sameTgl && sameGld) || (sameGld && sameJenis) || sameTgl) {
+          targetRow = i + 11;
+          isDuplicate = true;
+          break;
         }
       }
     }
     
-    // Baris target baru adalah baris riil berikutnya
-    var targetRow = Math.max(actualLast + 1, 11);
+    // Baris target baru adalah baris riil berikutnya jika bukan duplikat
+    if (!isDuplicate) {
+      targetRow = Math.max(actualLast + 1, 11);
+    }
     
     // PROTEKSI FORMULA: Jika baris target belum memiliki rumus bawaan di kolom I (misal template habis),
     // salin seluruh rumus dari baris sebelumnya agar formula C, D, I, J, M, N, O, P tetap aktif
@@ -1757,8 +1817,12 @@ function handleDhpPost(e) {
     
     return createJsonResponse({
       status: "success",
-      message: "Sukses: Data " + (contents.partaiId || "Partai") + " (" + tglBaru + ") berhasil dibukukan ke baris #" + targetRow + " Sheet Master. Seluruh kolom rumus (C, D, I, J, M, N, O, P) tetap utuh.",
+      message: isDuplicate 
+        ? "Sukses (Anti-Duplikat Aktif): Data " + (contents.partaiId || "Partai") + " sudah tercatat di baris #" + targetRow + ". Sistem otomatis MEMPERBARUI baris #" + targetRow + " (Tanggal Admoist: " + tglBaru + ") tanpa membuat baris duplikat baru."
+        : "Sukses: Data " + (contents.partaiId || "Partai") + " (" + tglBaru + ") berhasil dibukukan ke baris baru #" + targetRow + " Sheet Master.",
       appendedRow: targetRow,
+      targetRow: targetRow,
+      isUpdate: isDuplicate,
       partaiId: contents.partaiId,
       timestamp: new Date().toISOString()
     });
@@ -1937,6 +2001,28 @@ function autoSyncAllPartaiToServer() {
         continue;
       }
       
+      // Tanggal Proses Admoist Resmi untuk Kolom B DATA PROSES CKH:
+      var tglAdmoistPartai = "Senin, 09 November 2026";
+      if (tabName === "PARTAI 1") tglAdmoistPartai = "Senin, 09 November 2026";
+      else if (tabName === "PARTAI 2") tglAdmoistPartai = "Selasa, 10 November 2026";
+      else if (tabName === "PARTAI 3") tglAdmoistPartai = "Rabu, 11 November 2026";
+      else if (tabName === "PARTAI 4") tglAdmoistPartai = "Kamis, 12 November 2026";
+      
+      try {
+        var valR11 = String(sheet.getRange("R11").getDisplayValue() || "").trim();
+        var slashMatch = valR11.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+        if (slashMatch) {
+          var day = parseInt(slashMatch[1], 10);
+          var month = parseInt(slashMatch[2], 10);
+          var year = parseInt(slashMatch[3], 10);
+          var dObj = new Date(year, month - 1, day);
+          var dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+          var monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+          var dayPadded = day < 10 ? "0" + day : "" + day;
+          tglAdmoistPartai = dayNames[dObj.getDay()] + ", " + dayPadded + " " + monthNames[month - 1] + " " + year;
+        }
+      } catch(e) {}
+      
       // Jalankan handleDhpPost secara internal (5-Layer Defense)
       var payload = {
         action: "syncDhpToRekap",
@@ -1944,7 +2030,7 @@ function autoSyncAllPartaiToServer() {
         noLaporan: noLap,
         userRole: "Auto-Trigger (Headless Server-Side)",
         inputData: {
-          colB_tanggal: tglMulai,
+          colB_tanggal: tglAdmoistPartai,
           colE_jenis: jenis,
           colF_kaGld: kaGldStr,
           colG_gldKering: gldKering,
