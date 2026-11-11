@@ -1436,7 +1436,21 @@ export async function pushDhpToMasterSheet(
     try {
       resJson = JSON.parse(resText);
     } catch {
-      // response text
+      // response is not JSON
+    }
+
+    if (!res.ok) {
+      throw new Error(`HTTP Error (${res.status} ${res.statusText}): Gagal menghubungi endpoint GAS.`);
+    }
+
+    if (!resJson || typeof resJson !== 'object') {
+      throw new Error(
+        `Endpoint GAS tidak mengembalikan JSON yang valid. Respons yang diterima adalah halaman HTML/Teks (kemungkinan URL deployment belum disetel hak akses 'Siapa saja / Anyone', atau script belum dipasang sebagai Web App di Ekstensi > Apps Script).`
+      );
+    }
+
+    if (resJson.status === 'error') {
+      throw new Error(resJson.message || 'Server Google Apps Script menolak pembukuan data.');
     }
 
     const logEntry: DhpSyncLog = {
@@ -1453,14 +1467,14 @@ export async function pushDhpToMasterSheet(
       waktuKirim: new Date().toLocaleString('id-ID'),
       pengirim: userRole,
       status: 'sukses',
-      pesan: resJson?.message || 'Data partai berhasil terkirim dan tercatat di Rekap Master.'
+      pesan: resJson?.message || 'Data partai berhasil dibukukan ke Rekap Master.'
     };
     saveDhpSyncLog(logEntry);
 
     return {
       success: true,
       message: logEntry.pesan,
-      responseData: resJson || resText
+      responseData: resJson
     };
   } catch (err: any) {
     const logEntry: DhpSyncLog = {
@@ -1611,9 +1625,49 @@ function handleDhpPost(e) {
       }
     }
     
-    // Buka Spreadsheet Master
-    var ssMaster = SpreadsheetApp.openById(contents.spreadsheetId || MASTER_TARGET_SPREADSHEET_ID);
-    var targetSheet = ssMaster.getSheetByName(contents.sheet || MASTER_TARGET_SHEET_NAME) || ssMaster.getActiveSheet();
+    // Buka Spreadsheet Master (Prioritas: openById lalu getActiveSpreadsheet)
+    var ssMaster = null;
+    var targetSpreadsheetId = contents.spreadsheetId || MASTER_TARGET_SPREADSHEET_ID;
+    if (targetSpreadsheetId) {
+      try {
+        ssMaster = SpreadsheetApp.openById(targetSpreadsheetId);
+      } catch (e) {}
+    }
+    if (!ssMaster) {
+      try {
+        ssMaster = SpreadsheetApp.getActiveSpreadsheet();
+      } catch (e) {}
+    }
+    
+    if (!ssMaster) {
+      return createJsonResponse({
+        status: "error",
+        message: "Spreadsheet Master (" + targetSpreadsheetId + ") tidak dapat dibuka. Pastikan ID valid dan akun pemilik script memiliki izin akses."
+      });
+    }
+    
+    var sheetNameTarget = contents.sheet || MASTER_TARGET_SHEET_NAME;
+    var targetSheet = ssMaster.getSheetByName(sheetNameTarget);
+    if (!targetSheet) {
+      var allSheets = ssMaster.getSheets();
+      for (var s = 0; s < allSheets.length; s++) {
+        var sName = allSheets[s].getName();
+        if (sName.indexOf("DATA PROSES CKH") > -1 || sName.indexOf("PROSES CKH") > -1) {
+          targetSheet = allSheets[s];
+          break;
+        }
+      }
+    }
+    if (!targetSheet && ssMaster.getSheets().length > 0) {
+      targetSheet = ssMaster.getSheets()[0];
+    }
+    
+    if (!targetSheet) {
+      return createJsonResponse({
+        status: "error",
+        message: "Sheet target '" + sheetNameTarget + "' tidak ditemukan di spreadsheet Rekap!"
+      });
+    }
     
     // TEMPLATE FINDER: Temukan baris riil terakhir (mengabaikan 823 baris formula template kosong)
     var actualLast = findActualLastRow_(targetSheet);
@@ -1675,6 +1729,9 @@ function handleDhpPost(e) {
     targetSheet.getRange(targetRow, 12).setValue(kaDryStr);
     targetSheet.getRange(targetRow, 17).setValue("");
     
+    // FLUSH SEGERA: Pastikan perubahan ditulis permanen ke server Google Sheets
+    SpreadsheetApp.flush();
+    
     // LAYER 4: Audit Logging ke Sheet AUDIT_LOG_INTEGRASI
     try {
       var auditSheet = ssMaster.getSheetByName("AUDIT_LOG_INTEGRASI");
@@ -1693,6 +1750,7 @@ function handleDhpPost(e) {
         "Kolom C, D, I, J, M, N, O, P Terlindungi",
         contents.userRole || "Admin"
       ]);
+      SpreadsheetApp.flush();
     } catch(auditErr) {
       Logger.log("Gagal mencatat audit log: " + auditErr.toString());
     }
@@ -1771,7 +1829,7 @@ function autoSyncAllPartaiToServer() {
       var sheet = ssDhp.getSheetByName(tabName);
       if (!sheet) continue;
       
-      var maxRows = Math.min(sheet.getLastRow(), 150);
+      var maxRows = Math.min(sheet.getLastRow(), 350);
       if (maxRows < 20) continue;
       
       // 1. Ekstraksi Header
@@ -1792,10 +1850,10 @@ function autoSyncAllPartaiToServer() {
       var mStock = l1Str.match(/Nama Stock[^:]*:\s*([^"]+)/i) || l1Str.match(/:\s*(Manado[^\",]+)/i);
       if (mStock) jenis = mStock[1].trim();
       
-      // 2. Scan Status Dropdown Kolom Q/R (baris 90 - 130)
+      // 2. Scan Status Dropdown Kolom Q/R (baris 85 - 145)
       var statusDropdown = "";
       var scanStart = Math.min(maxRows, 85);
-      var scanCount = Math.max(maxRows - scanStart + 1, 1);
+      var scanCount = Math.min(Math.max(maxRows - scanStart + 1, 1), 60);
       var qValues = sheet.getRange(scanStart, 16, scanCount, 3).getValues();
       
       for (var r = 0; r < qValues.length; r++) {
@@ -1813,16 +1871,35 @@ function autoSyncAllPartaiToServer() {
       }
       
       // 3. Scan Timbangan Netto (Gld Kering, Rj Basah, Rj Kering)
-      var allData = sheet.getRange(1, 1, maxRows, 15).getValues();
       var gldKering = 0;
       var rjBasah = 0;
       var rjKering = 0;
       var kaGldStr = "";
       var kaDryStr = "";
       
+      // Coba pembacaan langsung di koordinat baku
+      try {
+        var cellR11 = sheet.getRange("R11").getValue();
+        if (typeof cellR11 === "number" && cellR11 > 100) gldKering = cellR11;
+      } catch (e) {}
+      
+      try {
+        var cellR22 = sheet.getRange("R22").getValue();
+        if (typeof cellR22 === "number" && cellR22 > 100) rjBasah = cellR22;
+      } catch (e) {}
+      
+      try {
+        var cellQ297 = sheet.getRange("Q297").getValue();
+        var cellR297 = sheet.getRange("R297").getValue();
+        if (typeof cellQ297 === "number" && cellQ297 > 100) rjBasah = cellQ297;
+        if (typeof cellR297 === "number" && cellR297 > 100) rjKering = cellR297;
+      } catch (e) {}
+      
+      var allData = sheet.getRange(1, 1, Math.min(maxRows, 320), 18).getValues();
+      
       for (var i = 0; i < allData.length; i++) {
         var rowStr = allData[i].join(" ");
-        if (rowStr.indexOf("Netto :") > -1 && (i < 12 || rowStr.indexOf("SYNC") > -1) && !gldKering) {
+        if (rowStr.indexOf("Netto :") > -1 && (i < 15 || rowStr.indexOf("SYNC") > -1) && !gldKering) {
           for (var c = 0; c < allData[i].length; c++) {
             var v = allData[i][c];
             if (typeof v === "number" && v > 100) { gldKering = v; break; }
@@ -1847,7 +1924,7 @@ function autoSyncAllPartaiToServer() {
       if (!rjKering) {
         for (var i = 70; i < allData.length; i++) {
           var rowStr = allData[i].join(" ");
-          if (rowStr.indexOf("Proses Dryer") > -1 || rowStr.indexOf("Total Dryer") > -1) {
+          if (rowStr.indexOf("Proses Dryer") > -1 || rowStr.indexOf("Total Dryer") > -1 || rowStr.indexOf("Grand Total") > -1) {
             for (var c = 0; c < allData[i].length; c++) {
               var v = allData[i][c];
               if (typeof v === "number" && v > 500) { rjKering = v; }
@@ -1938,6 +2015,43 @@ export const KODE_GS_FULL_TEMPLATE = `/**
 var SPREADSHEET_ID = "${DEFAULT_MASTER_SPREADSHEET_ID}";
 var DEFAULT_SHEET = "${DEFAULT_MASTER_SHEET_NAME}";
 
+function getSpreadsheetSafe_(id) {
+  var targetId = id || SPREADSHEET_ID;
+  var ss = null;
+  if (targetId) {
+    try { ss = SpreadsheetApp.openById(targetId); if (ss) return ss; } catch(e) {}
+  }
+  try { ss = SpreadsheetApp.getActiveSpreadsheet(); if (ss) return ss; } catch(e) {}
+  return null;
+}
+
+function getSheetSafe_(ss, preferredName) {
+  if (!ss) return null;
+  var targetName = preferredName || DEFAULT_SHEET;
+  var sheet = ss.getSheetByName(targetName);
+  if (sheet) return sheet;
+  var all = ss.getSheets();
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].getName().indexOf("PROSES CKH") > -1) return all[i];
+  }
+  return all.length > 0 ? all[0] : null;
+}
+
+function findActualLastRow_(sheet) {
+  var maxRows = Math.min(sheet.getLastRow(), 950);
+  if (maxRows < 11) return 10;
+  var bValues = sheet.getRange(11, 2, maxRows - 10, 1).getValues();
+  var lastFilled = 10;
+  for (var r = bValues.length - 1; r >= 0; r--) {
+    var val = bValues[r][0];
+    if (val !== "" && val !== null && val !== undefined && String(val).trim() !== "") {
+      lastFilled = r + 11;
+      break;
+    }
+  }
+  return lastFilled;
+}
+
 function doGet(e) {
   try {
     // 1. Delegasi ke IntegrasiDHP jika fungsi ada
@@ -1946,30 +2060,68 @@ function doGet(e) {
       if (dhpGetRes) return dhpGetRes;
     }
 
-    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
-    var sheetName = (e && e.parameter && e.parameter.sheet) || DEFAULT_SHEET;
-    var sheet = ss.getSheetByName(sheetName) || ss.getActiveSheet();
-    var values = sheet.getDataRange().getDisplayValues();
+    var action = (e && e.parameter && e.parameter.action) || "ping";
+    var reqSheet = (e && e.parameter && e.parameter.sheet) || DEFAULT_SHEET;
+    var reqId = (e && e.parameter && e.parameter.spreadsheetId) || SPREADSHEET_ID;
+
+    // Jika dibuka langsung di browser (Health-check)
+    if (action === "ping" || action === "pingDhp" || !action) {
+      var ssTest = getSpreadsheetSafe_(reqId);
+      var sheetTest = getSheetSafe_(ssTest, reqSheet);
+      var lastRow = sheetTest ? findActualLastRow_(sheetTest) : 0;
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        action: "ping",
+        service: "Web App Integrasi Rekap Cengkeh (Divisi Produksi I)",
+        connectedSpreadsheetId: reqId,
+        connectedSheetName: sheetTest ? sheetTest.getName() : "Tidak Ditemukan",
+        actualDataRows: lastRow,
+        timestamp: new Date().toISOString(),
+        message: "Google Apps Script Online & Terhubung Sempurna ke Spreadsheet!"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === "getData") {
+      var ss = getSpreadsheetSafe_(reqId);
+      if (!ss) {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "error",
+          message: "Spreadsheet ID '" + reqId + "' tidak dapat dibuka. Pastikan ID valid dan izin akun sesuai."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var sheet = getSheetSafe_(ss, reqSheet);
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "error",
+          message: "Sheet '" + reqSheet + "' tidak ditemukan di spreadsheet."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var values = sheet.getDataRange().getDisplayValues();
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        count: values.length,
+        sheet: sheet.getName(),
+        data: values
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
 
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
-      count: values.length,
-      sheet: sheetName,
-      data: values
+      action: action,
+      timestamp: new Date().toISOString()
     })).setMimeType(ContentService.MimeType.JSON);
+
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",
-      message: err.toString()
+      message: "Server GAS Exception: " + err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }
 
 function doPost(e) {
   try {
-    // =====================================================================
-    // 1. HOOK INTEGRASI DHP CENGKEH (Memanggil file IntegrasiDHP.gs)
-    // =====================================================================
+    // 1. Hook Integrasi DHP Cengkeh jika fungsi ada
     if (typeof handleDhpPost === "function") {
       var dhpResponse = handleDhpPost(e);
       if (dhpResponse) return dhpResponse;
@@ -1988,15 +2140,65 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
-    if (action === "appendRow" && body.row) {
+    if (action === "appendRow" || action === "syncDhpToRekap") {
       var targetId = body.spreadsheetId || SPREADSHEET_ID;
-      var ss = SpreadsheetApp.openById(targetId);
-      var targetSheet = ss.getSheetByName(body.sheet || DEFAULT_SHEET) || ss.getActiveSheet();
-      targetSheet.appendRow(body.row);
+      var ss = getSpreadsheetSafe_(targetId);
+      if (!ss) {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "error",
+          message: "Spreadsheet Master (" + targetId + ") tidak dapat dibuka. Pastikan ID valid."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var targetSheet = getSheetSafe_(ss, body.sheet || DEFAULT_SHEET);
+      if (!targetSheet) {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "error",
+          message: "Sheet '" + (body.sheet || DEFAULT_SHEET) + "' tidak ditemukan."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      var targetRow = Math.max(findActualLastRow_(targetSheet) + 1, 11);
+      
+      // Salin formula jika baris baru belum punya formula di Kolom I
+      var existingFormulaI = targetSheet.getRange(targetRow, 9).getFormula();
+      if (!existingFormulaI && targetRow > 11) {
+        targetSheet.getRange(targetRow - 1, 1, 1, 17).copyTo(
+          targetSheet.getRange(targetRow, 1, 1, 17),
+          SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
+          false
+        );
+      }
+      
+      // Ambil data dari payload terstruktur atau array row
+      var inputData = body.inputData || {};
+      var row = body.row || [];
+      
+      var tgl = String(inputData.colB_tanggal || row[1] || "").trim();
+      var jenis = String(inputData.colE_jenis || row[4] || "").trim();
+      var kaGld = String(inputData.colF_kaGld || row[5] || "").trim();
+      var gld = Number(inputData.colG_gldKering || row[6] || 0);
+      var rjB = Number(inputData.colH_rjBasah || row[7] || 0);
+      var rjK = Number(inputData.colK_rjKering || row[10] || 0);
+      var kaDry = String(inputData.colL_kaDry || row[11] || "").trim();
+      
+      // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L). Kolom C, D, I, J, M, N, O, P aman terjaga!
+      if (tgl) targetSheet.getRange(targetRow, 2).setValue(tgl);
+      if (jenis) targetSheet.getRange(targetRow, 5).setValue(jenis);
+      if (kaGld) targetSheet.getRange(targetRow, 6).setValue(kaGld);
+      if (gld > 0) targetSheet.getRange(targetRow, 7).setValue(gld);
+      if (rjB > 0) targetSheet.getRange(targetRow, 8).setValue(rjB);
+      if (rjK > 0) targetSheet.getRange(targetRow, 11).setValue(rjK);
+      if (kaDry) targetSheet.getRange(targetRow, 12).setValue(kaDry);
+      targetSheet.getRange(targetRow, 17).setValue("");
+      
+      SpreadsheetApp.flush(); // Commit fisik ke Google Sheets
+      
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
-        action: "appendRow",
-        message: "Baris baru berhasil ditulis ke Google Sheets"
+        action: action,
+        appendedRow: targetRow,
+        partaiId: body.partaiId || "PARTAI",
+        message: "Sukses: Data " + (body.partaiId || "Partai") + " (" + tgl + ") berhasil dibukukan ke baris #" + targetRow + " Sheet Master. Kolom rumus (C, D, I, J, M, N, O, P) tetap utuh terlindungi."
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -2008,7 +2210,7 @@ function doPost(e) {
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",
-      message: err.toString()
+      message: "Server GAS Exception: " + err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }

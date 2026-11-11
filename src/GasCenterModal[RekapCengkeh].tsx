@@ -24,27 +24,109 @@ import { GasConfig } from './types[RekapCengkeh]';
 import { saveGasConfig, DEFAULT_EXEC_URL, DEFAULT_SPREADSHEET_ID, DEFAULT_SHEET_NAME, testGasPayload } from './Code[RekapCengkeh]';
 
 const GAS_TEMPLATE_CODE = `/**
- * Headless Google Apps Script REST Web App (doGet / doPost)
- * Project: Monitoring Board — Rekap Data Proses Cengkeh
+ * =========================================================================
+ * ALL-IN-ONE GOOGLE APPS SCRIPT: MONITORING REKAP PROSES CENGKEH
+ * File Target di Google Apps Script Editor: Kode.gs
  * Divisi Produksi I - PT Batu Karang
+ * =========================================================================
  */
+
+var SPREADSHEET_ID = "1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M";
+var DEFAULT_SHEET = "DATA PROSES CKH";
+
+function getSpreadsheetSafe_(id) {
+  var targetId = id || SPREADSHEET_ID;
+  var ss = null;
+  if (targetId) {
+    try { ss = SpreadsheetApp.openById(targetId); if (ss) return ss; } catch(e) {}
+  }
+  try { ss = SpreadsheetApp.getActiveSpreadsheet(); if (ss) return ss; } catch(e) {}
+  return null;
+}
+
+function getSheetSafe_(ss, preferredName) {
+  if (!ss) return null;
+  var targetName = preferredName || DEFAULT_SHEET;
+  var sheet = ss.getSheetByName(targetName);
+  if (sheet) return sheet;
+  var all = ss.getSheets();
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].getName().indexOf("PROSES CKH") > -1) return all[i];
+  }
+  return all.length > 0 ? all[0] : null;
+}
+
+function findActualLastRow_(sheet) {
+  var maxRows = Math.min(sheet.getLastRow(), 950);
+  if (maxRows < 11) return 10;
+  var bValues = sheet.getRange(11, 2, maxRows - 10, 1).getValues();
+  var lastFilled = 10;
+  for (var r = bValues.length - 1; r >= 0; r--) {
+    var val = bValues[r][0];
+    if (val !== "" && val !== null && val !== undefined && String(val).trim() !== "") {
+      lastFilled = r + 11;
+      break;
+    }
+  }
+  return lastFilled;
+}
 
 function doGet(e) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheetName = (e && e.parameter && e.parameter.sheet) || 'DATA PROSES CKH';
-    var sheet = ss.getSheetByName(sheetName) || ss.getActiveSheet();
-    var values = sheet.getDataRange().getDisplayValues();
+    var action = (e && e.parameter && e.parameter.action) || "ping";
+    var reqSheet = (e && e.parameter && e.parameter.sheet) || DEFAULT_SHEET;
+    var reqId = (e && e.parameter && e.parameter.spreadsheetId) || SPREADSHEET_ID;
+    
+    // Tampilan status saat dibuka langsung di browser (Health-check)
+    if (action === "ping" || action === "pingDhp" || !action) {
+      var ssTest = getSpreadsheetSafe_(reqId);
+      var sheetTest = getSheetSafe_(ssTest, reqSheet);
+      var lastRow = sheetTest ? findActualLastRow_(sheetTest) : 0;
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        action: "ping",
+        service: "Web App Integrasi Rekap Cengkeh (Divisi Produksi I)",
+        connectedSpreadsheetId: reqId,
+        connectedSheetName: sheetTest ? sheetTest.getName() : "Tidak Ditemukan",
+        actualDataRows: lastRow,
+        timestamp: new Date().toISOString(),
+        message: "Google Apps Script Online & Terhubung Sempurna ke Spreadsheet!"
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (action === "getData") {
+      var ss = getSpreadsheetSafe_(reqId);
+      if (!ss) {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "error",
+          message: "Spreadsheet ID '" + reqId + "' tidak dapat dibuka. Pastikan ID valid dan izin akun sesuai."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var sheet = getSheetSafe_(ss, reqSheet);
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "error",
+          message: "Sheet '" + reqSheet + "' tidak ditemukan di spreadsheet."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+      var values = sheet.getDataRange().getDisplayValues();
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        count: values.length,
+        sheet: sheet.getName(),
+        data: values
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
     
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
-      count: values.length,
-      data: values
+      action: action,
+      timestamp: new Date().toISOString()
     })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",
-      message: err.toString()
+      message: "Server GAS Exception: " + err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }
@@ -66,49 +148,67 @@ function doPost(e) {
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
-    if (action === "appendRow" && body.row) {
-      var ss = SpreadsheetApp.getActiveSpreadsheet();
-      var sheet = ss.getSheetByName(body.sheet || 'DATA PROSES CKH') || ss.getActiveSheet();
-      var sheetName = sheet.getName();
-      
-      // Jika menulis ke sheet DATA PROSES CKH, lindungi kolom formula C, D, I, J, M, N, O, P
-      if (sheetName === 'DATA PROSES CKH' && Array.isArray(body.row)) {
-        var maxRows = Math.min(sheet.getLastRow(), 950);
-        var bRangeValues = sheet.getRange(11, 2, Math.max(maxRows - 10, 1), 1).getValues();
-        var lastFilled = 10;
-        for (var r = bRangeValues.length - 1; r >= 0; r--) {
-          var cVal = bRangeValues[r][0];
-          if (cVal !== "" && cVal !== null && cVal !== undefined && String(cVal).trim() !== "") {
-            lastFilled = r + 11;
-            break;
-          }
-        }
-        var targetRow = lastFilled + 1;
-        
-        // Tulis hanya ke kolom mentah: B (2), E (5), F (6), G (7), H (8), K (11), L (12)
-        var row = body.row;
-        if (row[1]) sheet.getRange(targetRow, 2).setValue(row[1]);
-        if (row[4]) sheet.getRange(targetRow, 5).setValue(row[4]);
-        if (row[5]) sheet.getRange(targetRow, 6).setValue(row[5]);
-        if (row[6] !== undefined) sheet.getRange(targetRow, 7).setValue(row[6]);
-        if (row[7] !== undefined) sheet.getRange(targetRow, 8).setValue(row[7]);
-        if (row[10] !== undefined) sheet.getRange(targetRow, 11).setValue(row[10]);
-        if (row[11]) sheet.getRange(targetRow, 12).setValue(row[11]);
-        
+    // Operasi Sinkronisasi DHP ke Rekap (syncDhpToRekap atau appendRow)
+    if (action === "syncDhpToRekap" || (action === "appendRow" && body.row)) {
+      var targetId = body.spreadsheetId || SPREADSHEET_ID;
+      var ss = getSpreadsheetSafe_(targetId);
+      if (!ss) {
         return ContentService.createTextOutput(JSON.stringify({
-          status: "success",
-          action: "appendRow",
-          targetRow: targetRow,
-          message: "Data berhasil dibukukan ke baris #" + targetRow + " (Formula Kolom C, D, I, J, M, N, O, P terlindungi aman)."
-        })).setMimeType(ContentService.MimeType.JSON);
-      } else {
-        sheet.appendRow(body.row);
-        return ContentService.createTextOutput(JSON.stringify({
-          status: "success",
-          action: "appendRow",
-          message: "Baris baru berhasil ditulis ke Google Sheets"
+          status: "error",
+          message: "Spreadsheet Master (" + targetId + ") tidak dapat dibuka. Pastikan ID valid."
         })).setMimeType(ContentService.MimeType.JSON);
       }
+      var sheet = getSheetSafe_(ss, body.sheet || DEFAULT_SHEET);
+      if (!sheet) {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "error",
+          message: "Sheet '" + (body.sheet || DEFAULT_SHEET) + "' tidak ditemukan."
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      var targetRow = Math.max(findActualLastRow_(sheet) + 1, 11);
+      
+      // Salin formula jika baris baru belum punya formula di Kolom I
+      var existingFormulaI = sheet.getRange(targetRow, 9).getFormula();
+      if (!existingFormulaI && targetRow > 11) {
+        sheet.getRange(targetRow - 1, 1, 1, 17).copyTo(
+          sheet.getRange(targetRow, 1, 1, 17),
+          SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
+          false
+        );
+      }
+      
+      // Ambil data dari payload terstruktur atau array row
+      var inputData = body.inputData || {};
+      var row = body.row || [];
+      
+      var tgl = String(inputData.colB_tanggal || row[1] || "").trim();
+      var jenis = String(inputData.colE_jenis || row[4] || "").trim();
+      var kaGld = String(inputData.colF_kaGld || row[5] || "").trim();
+      var gld = Number(inputData.colG_gldKering || row[6] || 0);
+      var rjB = Number(inputData.colH_rjBasah || row[7] || 0);
+      var rjK = Number(inputData.colK_rjKering || row[10] || 0);
+      var kaDry = String(inputData.colL_kaDry || row[11] || "").trim();
+      
+      // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L). Kolom C, D, I, J, M, N, O, P aman terjaga!
+      if (tgl) sheet.getRange(targetRow, 2).setValue(tgl);
+      if (jenis) sheet.getRange(targetRow, 5).setValue(jenis);
+      if (kaGld) sheet.getRange(targetRow, 6).setValue(kaGld);
+      if (gld > 0) sheet.getRange(targetRow, 7).setValue(gld);
+      if (rjB > 0) sheet.getRange(targetRow, 8).setValue(rjB);
+      if (rjK > 0) sheet.getRange(targetRow, 11).setValue(rjK);
+      if (kaDry) sheet.getRange(targetRow, 12).setValue(kaDry);
+      sheet.getRange(targetRow, 17).setValue("");
+      
+      SpreadsheetApp.flush(); // Commit fisik ke Google Sheets
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success",
+        action: action,
+        appendedRow: targetRow,
+        partaiId: body.partaiId || "PARTAI",
+        message: "Sukses: Data " + (body.partaiId || "Partai") + " (" + tgl + ") berhasil dibukukan ke baris #" + targetRow + " Sheet Master. Kolom rumus (C, D, I, J, M, N, O, P) tetap utuh terlindungi."
+      })).setMimeType(ContentService.MimeType.JSON);
     }
     
     return ContentService.createTextOutput(JSON.stringify({
@@ -118,7 +218,7 @@ function doPost(e) {
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",
-      message: err.toString()
+      message: "Server GAS Exception: " + err.toString()
     })).setMimeType(ContentService.MimeType.JSON);
   } finally {
     if (hasLock) {

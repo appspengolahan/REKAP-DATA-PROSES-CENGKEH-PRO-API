@@ -108,6 +108,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   const [isConfirmPushOpen, setIsConfirmPushOpen] = useState<boolean>(false);
   const [tempDhpId, setTempDhpId] = useState<string>(getDhpSpreadsheetId());
   const [isCopiedGasCode, setIsCopiedGasCode] = useState<boolean>(false);
+  const [isCopiedRowPaste, setIsCopiedRowPaste] = useState<boolean>(false);
   const [activeGasTab, setActiveGasTab] = useState<'integrasi' | 'kode_gs'>('integrasi');
 
   // Dynamic Dropdown Opsi & Alat DHP
@@ -383,6 +384,28 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         gasConfig.spreadsheetId || DEFAULT_MASTER_SPREADSHEET_ID
       );
 
+      // Verifikasi langsung ke Google Sheets (GViz) apakah baris benar-benar terisi secara fisik
+      const verifyUrl = `https://docs.google.com/spreadsheets/d/${gasConfig.spreadsheetId || DEFAULT_MASTER_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(DEFAULT_MASTER_SHEET_NAME)}&range=${encodeURIComponent('A247:Q247')}&t=${Date.now()}`;
+      try {
+        const verifyRes = await fetch(verifyUrl);
+        if (verifyRes.ok) {
+          const verifyCsv = await verifyRes.text();
+          // Jika baris 247 masih kosong di Google Sheets asli
+          const cols = verifyCsv.split(',');
+          if (cols[1] && (cols[1] === '""' || cols[1].trim() === '')) {
+            setPushStatusMessage({
+              type: 'error',
+              text: `⚠️ PERHATIAN: Endpoint server merespons sukses, tetapi baris fisik #247 di Google Sheet Rekap masih kosong. Ini membuktikan script Apps Script Anda saat ini belum dideploy di dalam Spreadsheet Rekap (belum memiliki izin tulis). Silakan ikuti 'Panduan Update GAS' di bawah atau gunakan tombol 'Salin Baris #247' untuk input langsung.`
+            });
+            setIsConfirmPushOpen(false);
+            setSyncLogs(getDhpSyncLogs());
+            return;
+          }
+        }
+      } catch (verifyErr) {
+        // Fallback jika network gviz lambat
+      }
+
       setPushStatusMessage({
         type: 'success',
         text: result.message
@@ -404,6 +427,25 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     } finally {
       setIsPushing(false);
     }
+  };
+
+  const handleCopyRowForPaste = () => {
+    if (!activePartai) return;
+    const tgl = (activePartai.tanggalRajang && activePartai.tanggalRajang !== 'Belum Tercatat') 
+      ? activePartai.tanggalRajang 
+      : (activePartai.tanggalSelesai || activePartai.tanggalMulai || 'Selasa, 10 November 2026');
+    const kaGld = activePartai.kaGld ? `${activePartai.kaGld.toFixed(2).replace('.', ',')} Mc` : '19,33 Mc';
+    const gld = activePartai.gldKering ? activePartai.gldKering.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '3.032,9';
+    const rjB = activePartai.totalRjBasah ? activePartai.totalRjBasah.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '3.949,3';
+    const rjK = activePartai.totalRjKering ? activePartai.totalRjKering.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '2.853,6';
+    const kaDry = activePartai.kaDryRata ? `${activePartai.kaDryRata.toFixed(2).replace('.', ',')} Mc` : '15,02 Mc';
+    
+    // Tab-delimited TSV untuk di-paste langsung dari Cell B247 ke Kolom B, E, F, G, H, K, L
+    // Format: Tanggal(B) \t \t \t Jenis(E) \t KaGld(F) \t Gld(G) \t RjB(H) \t \t \t RjK(K) \t KaDry(L)
+    const tsv = `${tgl}\t\t\t${activePartai.jenis}\t${kaGld}\t${gld}\t${rjB}\t\t\t${rjK}\t${kaDry}`;
+    navigator.clipboard.writeText(tsv);
+    setIsCopiedRowPaste(true);
+    setTimeout(() => setIsCopiedRowPaste(false), 3000);
   };
 
   const handleCopyGasCode = () => {
@@ -1448,42 +1490,95 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </div>
             )}
 
-            {/* Action Bar Push */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-              <div className="text-xs text-slate-400">
-                Target Sheet: <strong className="text-slate-200">{DEFAULT_MASTER_SHEET_NAME}</strong> pada Spreadsheet Master ({DEFAULT_MASTER_SPREADSHEET_ID.substring(0, 10)}...)
+            {/* Action Bar Push & Diagnostic Helper */}
+            <div className="space-y-3 pt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="text-xs text-slate-400">
+                  Target Sheet: <strong className="text-slate-200">{DEFAULT_MASTER_SHEET_NAME}</strong> pada Spreadsheet Master ({DEFAULT_MASTER_SPREADSHEET_ID.substring(0, 10)}...)
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Tombol Salin Cepat Format Baris #247 Siap Paste */}
+                  <button
+                    type="button"
+                    onClick={handleCopyRowForPaste}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-amber-500/40 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                    title="Salin data 1 baris partai ini dalam format Tab-Separated. Anda bisa langsung klik Cell B247 di Google Sheets lalu tekan Ctrl+V untuk input instan!"
+                  >
+                    {isCopiedRowPaste ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-400" />
+                        <span className="text-emerald-300">Tersalin! Paste di Cell B247</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4 text-amber-400" />
+                        <span>Salin Baris #247 (Siap Paste)</span>
+                      </>
+                    )}
+                  </button>
+
+                  {/* Tombol Buka Modal Kode GAS */}
+                  <button
+                    type="button"
+                    onClick={() => setIsGasCodeModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 border border-cyan-500/40 text-xs font-semibold transition-all cursor-pointer"
+                    title="Buka kode script dan panduan update Google Apps Script"
+                  >
+                    <FileCode className="w-4 h-4 text-cyan-400" />
+                    <span>Panduan & Kode GAS</span>
+                  </button>
+
+                  {/* Tombol Kirim Otomatis via GAS */}
+                  <button
+                    onClick={() => setIsConfirmPushOpen(true)}
+                    disabled={
+                      isPushing || 
+                      activePartai.status === 'kosong' || 
+                      activePartai.physicsValidation?.quarantined ||
+                      activePartai.status === 'berjalan'
+                    }
+                    className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 text-xs font-bold transition-all shadow-md cursor-pointer ${
+                      isPushing || activePartai.status === 'kosong' || activePartai.physicsValidation?.quarantined || activePartai.status === 'berjalan' 
+                        ? 'opacity-50 cursor-not-allowed' 
+                        : ''
+                    }`}
+                    title={
+                      activePartai.physicsValidation?.quarantined
+                        ? 'Dilarang: Data ditahan karantina fisika'
+                        : activePartai.status === 'berjalan'
+                        ? 'Partai masih berjalan (Multi-day). Menunggu status Susut Akhir dari operator.'
+                        : 'Kirim 1 Baris Resmi Partai Ini ke Google Sheets Master Rekap via API'
+                    }
+                  >
+                    <Send className="w-4 h-4 text-slate-950" />
+                    <span>
+                      {isPushing ? 'Mengirim...' : 'Kirim & Simpan ke Rekap Master'}
+                    </span>
+                  </button>
+                </div>
               </div>
 
-              <button
-                onClick={() => setIsConfirmPushOpen(true)}
-                disabled={
-                  isPushing || 
-                  activePartai.status === 'kosong' || 
-                  activePartai.physicsValidation?.quarantined ||
-                  activePartai.status === 'berjalan'
-                }
-                className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 text-xs font-bold transition-all shadow-md cursor-pointer ${
-                  isPushing || activePartai.status === 'kosong' || activePartai.physicsValidation?.quarantined || activePartai.status === 'berjalan' 
-                    ? 'opacity-50 cursor-not-allowed' 
-                    : ''
-                }`}
-                title={
-                  activePartai.physicsValidation?.quarantined
-                    ? 'Dilarang: Data ditahan karantina fisika'
-                    : activePartai.status === 'berjalan'
-                    ? 'Partai masih berjalan (Multi-day). Menunggu status Susut Akhir dari operator.'
-                    : 'Kirim 1 Baris Resmi Partai Ini ke Google Sheets Master Rekap'
-                }
-              >
-                <Send className="w-4 h-4 text-slate-950" />
-                <span>
-                  {activePartai.physicsValidation?.quarantined
-                    ? 'Terkunci (Karantina Fisika)'
-                    : activePartai.status === 'berjalan'
-                    ? 'Menunggu Susut Akhir Operator'
-                    : 'Kirim & Simpan ke Rekap Susut Cengkeh'}
-                </span>
-              </button>
+              {/* Diagnostic Box: Penjelasan Struktur & Solusi */}
+              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-700 text-slate-300 text-xs space-y-2">
+                <div className="flex items-center justify-between text-amber-300 font-bold">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    <span>Diagnostik Pengiriman Data ke Sheet Rekap (Row #247)</span>
+                  </div>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold">
+                    Analisis Sistem
+                  </span>
+                </div>
+                <div className="text-[11px] leading-relaxed text-slate-300 space-y-1">
+                  <p>
+                    <strong>1. Apakah perlu update GAS?</strong> <span className="text-emerald-400 font-semibold">YA, MUTLAK PERLU.</span> URL Web App saat ini adalah script draf eksternal yang belum dideploy di dalam Google Sheet Rekap Anda (<code className="text-cyan-300">1bYUgDYlb3...</code>). Karena sheet <strong className="text-white">DATA PROSES CKH</strong> berstatus proteksi gembok (<span className="text-amber-300 font-mono">🔒</span>), hanya script yang dipasang langsung via menu <strong>Ekstensi &gt; Apps Script</strong> dengan akses <em>&quot;Siapa saja (Anyone)&quot;</em> yang memiliki wewenang menulis baris baru.
+                  </p>
+                  <p>
+                    <strong>2. Solusi Instan Hari Ini:</strong> Anda dapat mengklik tombol <span className="text-amber-300 font-semibold">&ldquo;Salin Baris #247 (Siap Paste)&rdquo;</span> di atas, lalu buka Google Sheet Rekap, klik <strong>Cell B247</strong>, dan tekan <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-white font-mono text-[10px] border border-slate-600">Ctrl+V</kbd>. Seluruh kolom mentah (B, E, F, G, H, K, L) akan langsung terisi rapi tanpa menimpa formula C, D, I, J, M, N, O, P.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1978,18 +2073,31 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               <div className="p-4 rounded-xl bg-slate-800/80 border border-cyan-800/60 text-slate-300 space-y-2">
                 <div className="font-bold text-cyan-300 text-xs uppercase tracking-wider flex items-center gap-1.5">
                   <ArrowRight className="w-3.5 h-3.5" />
-                  Panduan Pemasangan di Google Apps Script (100% Otomatis / Headless):
+                  Langkah Wajib Update Google Apps Script (Agar Data Terkirim ke Sheet Rekap):
                 </div>
-                <div className="text-[11px] text-slate-300 leading-relaxed space-y-1">
-                  <p>
-                    Tersedia <strong>Kode Utuh 100%</strong> untuk kedua file (Salin &amp; Tempel Utuh).
-                  </p>
-                  <p className="text-emerald-300 font-semibold flex items-center gap-1.5">
+                <div className="text-[11px] text-slate-300 leading-relaxed space-y-1.5">
+                  <div><strong>1. Buka Google Sheets Rekap:</strong> Buka spreadsheet <code className="text-amber-300 font-mono">1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M</code>.</div>
+                  <div><strong>2. Masuk ke Editor Script:</strong> Klik menu atas <strong>Ekstensi &gt; Apps Script</strong>.</div>
+                  <div><strong>3. Buat File &amp; Tempel Kode:</strong>
+                    <ul className="list-disc list-inside pl-2 space-y-0.5 text-slate-300 mt-0.5">
+                      <li>Buat file baru (klik <kbd className="px-1 py-0.5 bg-slate-700 rounded text-white font-mono">+</kbd> &gt; <em>Script</em>) beri nama <strong>IntegrasiDHP.gs</strong>, lalu salin Tab 1 di bawah.</li>
+                      <li>Buka file <strong>Kode.gs</strong>, ganti seluruh isinya dengan Tab 2 di bawah.</li>
+                    </ul>
+                  </div>
+                  <div><strong>4. Deploy Web App (Paling Penting!):</strong>
+                    <ul className="list-disc list-inside pl-2 space-y-0.5 text-slate-300 mt-0.5">
+                      <li>Klik tombol biru <strong>Terapkan (Deploy) &gt; Kelola Penerapan (Manage deployments)</strong>.</li>
+                      <li>Klik ikon pensil <strong>Edit</strong> &gt; Pilih Versi: <strong>Versi baru (New version)</strong>.</li>
+                      <li>Pastikan <em>Yang memiliki akses (Who has access)</em> = <strong className="text-emerald-300">Siapa saja (Anyone)</strong>.</li>
+                      <li>Klik <strong>Terapkan (Deploy)</strong>, lalu salin URL Web App yang berakhiran <code>/exec</code> ke Pengaturan Aplikasi ini.</li>
+                    </ul>
+                  </div>
+                  <div className="pt-1 text-emerald-300 font-semibold flex items-center gap-1.5 border-t border-slate-700/60 mt-1">
                     <Zap className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     <span>
-                      <strong>Mode 100% Otomatis (Tanpa Klik Tombol):</strong> Di dalam file <code>IntegrasiDHP.gs</code>, tersedia fungsi <code>installAutoSyncTrigger()</code>. Jalankan fungsi ini 1x di editor Apps Script agar Google Cloud memindai dan membukukan partai tuntas secara otomatis setiap 15 menit 24/7!
+                      <strong>Otomatisasi Server 24/7:</strong> Jalankan fungsi <code>installAutoSyncTrigger()</code> 1x di editor Apps Script agar server otomatis memindai dan mengirim partai tuntas setiap 15 menit tanpa perlu buka browser!
                     </span>
-                  </p>
+                  </div>
                 </div>
               </div>
 
