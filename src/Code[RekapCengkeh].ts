@@ -840,7 +840,7 @@ export function cleanDate(d: string, fallbackYear = '2026'): string {
   return d;
 }
 
-function parseCsvLine(line: string): string[] {
+export function parseCsvLine(line: string): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;

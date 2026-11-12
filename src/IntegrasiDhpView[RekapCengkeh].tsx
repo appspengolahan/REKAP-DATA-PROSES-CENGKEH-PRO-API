@@ -871,13 +871,15 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5 truncate">
                   {(() => {
-                    const diffKg = round1(Math.abs(activePartai.totalRjBasah - activePartai.gldKering));
-                    const diffPct = activePartai.totalRjBasah > 0 
-                      ? round2((diffKg / activePartai.totalRjBasah) * 100) 
+                    const diffKg = round1(activePartai.totalRjBasah - activePartai.gldKering);
+                    // Persentase kenaikan selalu dihitung terhadap Bobot Awal (Gelondong Kering) sebagai acuan dasar 100%
+                    const diffPct = activePartai.gldKering > 0 
+                      ? round2((diffKg / activePartai.gldKering) * 100) 
                       : 0;
+                    const sign = diffKg >= 0 ? '+' : '-';
                     return activePartai.koliRjBasah 
-                      ? `${activePartai.koliRjBasah} Sak Ditimbang · Selisih: ${formatKg(diffKg)} (${formatPct(diffPct)})` 
-                      : `Selisih: ${formatKg(diffKg)} (${formatPct(diffPct)})`;
+                      ? `${activePartai.koliRjBasah} Sak Ditimbang · Selisih: ${sign}${formatKg(Math.abs(diffKg))} (${sign}${formatPct(Math.abs(diffPct))})` 
+                      : `Selisih: ${sign}${formatKg(Math.abs(diffKg))} (${sign}${formatPct(Math.abs(diffPct))})`;
                   })()}
                 </div>
               </div>
@@ -1020,10 +1022,12 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
               {/* Progress Bar Pemotongan & Pertambahan Bobot Rajang Basah */}
               {(() => {
-                const diffKg = round1(Math.abs(activePartai.totalRjBasah - activePartai.gldKering));
-                const diffPct = activePartai.totalRjBasah > 0 
-                  ? round2((diffKg / activePartai.totalRjBasah) * 100) 
+                const diffKg = round1(activePartai.totalRjBasah - activePartai.gldKering);
+                // Persentase kenaikan dihitung terhadap Bobot Awal (Gelondong Kering) sebagai acuan dasar 100%
+                const diffPct = activePartai.gldKering > 0 
+                  ? round2((diffKg / activePartai.gldKering) * 100) 
                   : 0;
+                const sign = diffKg >= 0 ? '+' : '-';
                 return (
                   <div className="bg-slate-800/60 p-3.5 rounded-xl border border-slate-700/60 space-y-2">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs gap-1">
@@ -1036,9 +1040,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       <div className="text-slate-400 text-[11px]">
                         Selisih Lebih (Penyerapan Uap & Air):{' '}
                         <strong className="text-cyan-400 font-mono">
-                          +{formatKg(diffKg)}
+                          {sign}{formatKg(Math.abs(diffKg))}
                         </strong>{' '}
-                        ({diffPct.toFixed(2)}%)
+                        ({sign}{Math.abs(diffPct).toFixed(2)}%)
                       </div>
                     </div>
 
@@ -1055,16 +1059,20 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
               {/* Resume Timbangan Grid (Identik Lembar Kerja Kertas Kerja) */}
               {(() => {
-                const diffKg = round1(Math.abs(activePartai.totalRjBasah - activePartai.gldKering));
-                const diffPct = activePartai.totalRjBasah > 0 
-                  ? round2((diffKg / activePartai.totalRjBasah) * 100) 
+                const diffKg = round1(activePartai.totalRjBasah - activePartai.gldKering);
+                const diffPct = activePartai.gldKering > 0 
+                  ? round2((diffKg / activePartai.gldKering) * 100) 
                   : 0;
+                const sign = diffKg >= 0 ? '+' : '-';
+                const koliCount = activePartai.koliRjBasah || activePartai.timbanganItems?.length || 0;
+                const tarraWeight = activePartai.rjBasahTarra || round1(koliCount * 0.2);
+                const brutoWeight = activePartai.rjBasahBruto || round1(activePartai.totalRjBasah + tarraWeight);
                 return (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
                       <div className="text-[11px] text-slate-400 mb-0.5">Jumlah Koli</div>
                       <div className="text-base font-bold text-white font-mono">
-                        {activePartai.koliRjBasah || activePartai.timbanganItems?.length || 18} Sak / Ø
+                        {koliCount > 0 ? `${koliCount} Sak / Ø` : '-'}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">Sesi 1 Terpotong</div>
                     </div>
@@ -1072,7 +1080,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
                       <div className="text-[11px] text-slate-400 mb-0.5">Bruto Timbang</div>
                       <div className="text-base font-bold text-white font-mono">
-                        {formatKg(activePartai.rjBasahBruto || 1047.6)}
+                        {formatKg(brutoWeight)}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">Total Kotor</div>
                     </div>
@@ -1080,7 +1088,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
                       <div className="text-[11px] text-slate-400 mb-0.5">Tarra Sak</div>
                       <div className="text-base font-bold text-slate-300 font-mono">
-                        {formatKg(activePartai.rjBasahTarra || 3.6)}
+                        {formatKg(tarraWeight)}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">0,2 Kg / Sak</div>
                     </div>
@@ -1088,7 +1096,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/40">
                       <div className="text-[11px] text-blue-300 font-semibold mb-0.5">Netto Hasil Rajang</div>
                       <div className="text-base font-bold text-cyan-300 font-mono">
-                        {formatKg(activePartai.totalRjBasah || 1044.0)}
+                        {formatKg(activePartai.totalRjBasah)}
                       </div>
                       <div className="text-[10px] text-blue-400/80 mt-0.5">Bersih Siap Dryer</div>
                     </div>
@@ -1096,10 +1104,10 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
                       <div className="text-[11px] text-cyan-300 mb-0.5">Selisih Lebih (Penyerapan)</div>
                       <div className="text-base font-bold text-cyan-400 font-mono">
-                        +{formatKg(diffKg)}
+                        {sign}{formatKg(Math.abs(diffKg))}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
-                        {diffPct.toFixed(2)} %
+                        {sign}{Math.abs(diffPct).toFixed(2)} %
                       </div>
                     </div>
 
