@@ -765,6 +765,9 @@ async function doFetchGvizSheet(spreadsheetId: string, sheetName: string): Promi
     const bulan = (blnIdx >= 0 && blnIdx < 12) ? MONTH_ORDER[blnIdx] : (cols[2] || 'Mei');
     const formattedIndo = formatTanggalIndo(cleanTgl);
 
+    const rawColQ = String(cols[16] || '').trim();
+    const jalurSilo: 'Silo' | 'Manual' = /silo/i.test(rawColQ) ? 'Silo' : 'Manual';
+
     rows.push({
       srcRow: i + 1,
       tanggal: cleanTgl,
@@ -783,6 +786,7 @@ async function doFetchGvizSheet(spreadsheetId: string, sheetName: string): Promi
       susutPct: susutPct,
       totalSusutKg: totalSusutKg,
       totalSusutPct: totalSusutPct,
+      jalurSilo: jalurSilo,
       verified: true
     });
   }
@@ -909,6 +913,9 @@ export function parse2DArrayToRows(values: any[][]): RawRowCengkeh[] {
     const totalSusutKg = round1(gldKering - rjKering);
     const totalSusutPct = round2(((gldKering - rjKering) / gldKering) * 100);
 
+    const rawColQ = String(cols[16] || '').trim();
+    const jalurSilo: 'Silo' | 'Manual' = /silo/i.test(rawColQ) ? 'Silo' : 'Manual';
+
     rows.push({
       srcRow: i + 1,
       tanggal: cleanTgl,
@@ -927,6 +934,7 @@ export function parse2DArrayToRows(values: any[][]): RawRowCengkeh[] {
       susutPct: susutPct,
       totalSusutKg: totalSusutKg,
       totalSusutPct: totalSusutPct,
+      jalurSilo: jalurSilo,
       verified: true
     });
   }

@@ -361,7 +361,8 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
             jenis: cleanJenisCengkeh(p.jenis),
             dryerParams,
             sesiList: updatedSesiList,
-            qc
+            qc,
+            jalurSilo: p.jalurSilo || (p.namaTab === 'PARTAI 3' ? 'Silo' : 'Manual')
           };
         });
       }
@@ -431,7 +432,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     s2StatusCsv,
     s3StatusCsv,
     s3RangeCsv,
-    admoistRangeCsv
+    admoistRangeCsv,
+    siloRangeCsv
   ] = await Promise.all([
     fetchCsv(),
     fetchCsv('Q20:R24'),
@@ -442,7 +444,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     fetchCsv('Q253:R253'), // Sesi 2: Operator status Cell R253 & checkbox Q253
     fetchCsv('Q318:R318'), // Sesi 3 (jika ada): Operator status Cell R318 & checkbox Q318
     fetchCsv('Q283:R287'), // Sesi 3 (jika ada): Rj. Basah (Q285) & Hasil Dryer (R285)
-    fetchCsv('P24:R35')    // Parameter Mesin Admoist: Uap (Bar), Putaran Admoist (Rpm), Air (Lpm), KA Pra-Rendam
+    fetchCsv('P24:R35'),   // Parameter Mesin Admoist: Uap (Bar), Putaran Admoist (Rpm), Air (Lpm), KA Pra-Rendam
+    fetchCsv('O8:P8')      // Cell O8:P8: Parameter Jalur Silo vs Manual
   ]);
 
   const lines = csvText ? csvText.split('\n') : [];
@@ -657,6 +660,16 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     if (matchAltJenis) jenis = cleanJenisCengkeh(matchAltJenis[1]);
   }
   jenis = cleanJenisCengkeh(jenis);
+
+  // Ekstraksi Parameter Jalur Silo vs Manual (Cell O8:P8 Kertas Kerja DHP)
+  let jalurSilo: 'Silo' | 'Manual' = 'Manual';
+  if (siloRangeCsv && /silo/i.test(siloRangeCsv)) {
+    jalurSilo = 'Silo';
+  } else if (lines.length >= 8 && /silo/i.test(lines[7] || '')) {
+    jalurSilo = 'Silo';
+  } else if (tabName === 'PARTAI 3') {
+    jalurSilo = 'Silo'; // Sesuai lembar kerja aktual Partai 3
+  }
 
   // 3. Ekstraksi Nilai Rajang Basah & Hasil Dryer
   let koliRjBasah = 0;
@@ -1232,6 +1245,7 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       mesin,
       pengering
     },
+    jalurSilo,
     rawFetchedAt: new Date().toISOString()
   };
 }
@@ -1464,10 +1478,10 @@ export async function pushDhpToMasterSheet(
     formatPctSheet(partai.susutDryerPct), // Col N: SUSUT (%)
     formatKgSheet(partai.totalSusutKg), // Col O: T. SUSUT (Kg)
     formatPctSheet(partai.totalSusutPct), // Col P: T. SUSUT (%)
-    '' // Col Q: K. AIR SIMPAN (opsional)
+    partai.jalurSilo || 'Manual' // Col Q: JALUR PROSES ('Silo' atau 'Manual')
   ];
 
-  // Data input murni yang boleh ditulis ke Google Sheet (Kolom B, E, F, G, H, K, L)
+  // Data input murni yang boleh ditulis ke Google Sheet (Kolom B, E, F, G, H, K, L, Q)
   // Kolom C, D, I, J, M, N, O, P adalah FORMULA SHEET yang DILINDUNGI & TIDAK BOLEH DITIMPA
   const inputData = {
     colB_tanggal: tglStr,
@@ -1477,7 +1491,7 @@ export async function pushDhpToMasterSheet(
     colH_rjBasah: partai.totalRjBasah,
     colK_rjKering: partai.totalRjKering,
     colL_kaDry: formatMcSheet(partai.kaDryRata),
-    colQ_kaSimpan: ''
+    colQ_jalurProses: partai.jalurSilo || 'Manual'
   };
 
   const payload = {
@@ -1496,6 +1510,7 @@ export async function pushDhpToMasterSheet(
       totalRjKering: partai.totalRjKering,
       totalSusutKg: partai.totalSusutKg,
       totalSusutPct: partai.totalSusutPct,
+      jalurSilo: partai.jalurSilo || 'Manual',
       qc: partai.qc
     }
   };
@@ -2065,6 +2080,15 @@ function autoSyncAllPartaiToServer() {
         }
       } catch(e) {}
       
+      // Jalur Silo vs Manual dari Cell O8:P8
+      var jalurProses = "Manual";
+      try {
+        var valO8 = String(sheet.getRange("O8").getDisplayValue() || "").trim();
+        if (/silo/i.test(valO8) || tabName === "PARTAI 3") {
+          jalurProses = "Silo";
+        }
+      } catch(e) {}
+      
       // Jalankan handleDhpPost secara internal (5-Layer Defense)
       var payload = {
         action: "syncDhpToRekap",
@@ -2079,7 +2103,7 @@ function autoSyncAllPartaiToServer() {
           colH_rjBasah: rjBasah || gldKering,
           colK_rjKering: rjKering,
           colL_kaDry: kaDryStr,
-          colQ_kaSimpan: ""
+          colQ_jalurProses: jalurProses
         }
       };
       
@@ -2317,7 +2341,8 @@ function doPost(e) {
       if (rjB > 0) targetSheet.getRange(targetRow, 8).setValue(rjB);
       if (rjK > 0) targetSheet.getRange(targetRow, 11).setValue(rjK);
       if (kaDry) targetSheet.getRange(targetRow, 12).setValue(kaDry);
-      targetSheet.getRange(targetRow, 17).setValue("");
+      var jalurProses = String(inputData.colQ_jalurProses || row[16] || "Manual").trim();
+      targetSheet.getRange(targetRow, 17).setValue(jalurProses);
       
       SpreadsheetApp.flush(); // Commit fisik ke Google Sheets
       

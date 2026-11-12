@@ -26,6 +26,7 @@ export interface RawRowCengkeh {
   verified?: boolean;  // Local check status for audit
   sumber?: 'DHP' | 'REKAP_MASTER'; // Sumber data transaksi
   dhpPartaiId?: string; // ID partai jika berasal dari DHP
+  jalurSilo?: 'Silo' | 'Manual'; // Klasifikasi alur proses Admoist: 'Silo' vs 'Manual' (Kolom Q Sheet Master)
 }
 
 export interface SummaryKpiCengkeh {
@@ -216,6 +217,7 @@ export interface DhpPartaiData {
   dryerParams?: DhpDryerMachineParams;
   sesiList: DhpSesiDryer[];
   qc: DhpQcParams;
+  jalurSilo?: 'Silo' | 'Manual'; // Parameter Alur Proses Admoist -> RC4 (Cell O8:P8: "Silo" atau "Manual")
   rawFetchedAt: string;
 }
 

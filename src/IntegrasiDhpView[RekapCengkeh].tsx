@@ -313,21 +313,24 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           status = 'waspada';
         }
 
-        // Jalur
+        // Jalur SKT vs SKM
         const jenisLower = String(p.jenis || '').toLowerCase();
         const isSkm = jenisLower.includes('skm') || jenisLower.includes('filter');
         const jalur: 'SKT' | 'SKM' = isSkm ? 'SKM' : 'SKT';
 
-        // Auto-diagnosa 2 tahap ilmiah
+        // Jalur Silo vs Manual (Cell O8:P8)
+        const jalurSilo: 'Silo' | 'Manual' = p.jalurSilo || (p.namaTab === 'PARTAI 3' ? 'Silo' : 'Manual');
+
+        // Auto-diagnosa 2 tahap ilmiah dengan konteks Silo vs Manual
         let faktorDominan = 'Terkendali Sesuai Acuan';
-        let autoDiagnosa = `Susut riil ${formatPct(susutRiilPct)} terkendali dalam batas wajar terhadap acuan degradasi KA ${formatPct(acuanPct)}%. Uap ${p.qc.uapBar ?? 5.0} Bar, admoist ${p.qc.admoistRpm ?? 35} Rpm, air ${p.qc.airLpm ?? 5.0} Lpm stabil.`;
+        let autoDiagnosa = `Susut riil ${formatPct(susutRiilPct)} terkendali dalam batas wajar terhadap acuan degradasi KA ${formatPct(acuanPct)}%. Alur: ${jalurSilo === 'Silo' ? 'Melewati Silo (Resting)' : 'Manual Tanpa Silo'}. Uap ${p.qc.uapBar ?? 5.0} Bar, admoist ${p.qc.admoistRpm ?? 35} Rpm.`;
 
         if (deviasiPct > 0.30) {
           faktorDominan = 'Pengeringan Berlebih (Over-drying) / Evaporasi Sesi Panas';
-          autoDiagnosa = `Susut lebih tinggi +${formatPct(deviasiPct)} dari acuan degradasi KA (${kaPra}% → ${kaDry}% = ${formatPct(acuanPct)}). Indikasi evaporasi uap berlebih atau over-dryer pada sesi pengeringan.`;
+          autoDiagnosa = `Susut lebih tinggi +${formatPct(deviasiPct)} dari acuan degradasi KA (${kaPra}% → ${kaDry}% = ${formatPct(acuanPct)}). Indikasi evaporasi uap berlebih pada sesi dryer. (Alur: ${jalurSilo}).`;
         } else if (deviasiPct < -0.30) {
           faktorDominan = 'Serapan Kelembaban Udara / Retensi Air Rendam (Higroskopis)';
-          autoDiagnosa = `Susut lebih rendah -${formatPct(Math.abs(deviasiPct))} dari acuan seiring kelembaban udara atau retensi admoist air rendam (selisih rajang basah +${formatPct(p.selisihPct)}%).`;
+          autoDiagnosa = `Susut lebih rendah -${formatPct(Math.abs(deviasiPct))} dari acuan seiring kelembaban udara atau retensi admoist air rendam (selisih rajang basah +${formatPct(p.selisihPct)}%). (Alur: ${jalurSilo}).`;
         }
 
         const customNote = fieldNotes[p.id];
@@ -338,6 +341,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           jenis: p.jenis,
           tanggal: p.tanggalSelesai || p.tanggalMulai,
           jalur,
+          jalurSilo,
           bakuKg: round1(bakuKg),
           hasilKg: round1(hasilKg),
           susutRiilKg: round1(susutRiilKg),
@@ -354,6 +358,47 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         };
       });
   }, [partaiList, fieldNotes]);
+
+  // Ringkasan Komparasi Pola: Melewati Silo vs Tanpa Silo (Manual)
+  const siloComparisonSummary = useMemo(() => {
+    const activeBatches = partaiList.filter((p) => p.status !== 'kosong' && p.gldKering > 0);
+    const siloBatches = activeBatches.filter((p) => (p.jalurSilo || (p.namaTab === 'PARTAI 3' ? 'Silo' : 'Manual')) === 'Silo');
+    const manualBatches = activeBatches.filter((p) => (p.jalurSilo || (p.namaTab === 'PARTAI 3' ? 'Silo' : 'Manual')) !== 'Silo');
+
+    const calcGroup = (list: typeof activeBatches) => {
+      const count = list.length;
+      const totalBaku = list.reduce((acc, p) => acc + (p.gldKering || 0), 0);
+      const totalRjBasah = list.reduce((acc, p) => acc + (p.totalRjBasah || 0), 0);
+      const totalRjKering = list.reduce((acc, p) => acc + (p.totalRjKering || 0), 0);
+
+      const diffKg = totalRjBasah - totalBaku;
+      const diffPct = totalBaku > 0 ? (diffKg / totalBaku) * 100 : 0;
+
+      const susutDryerKg = totalRjBasah - totalRjKering;
+      const susutDryerPct = totalRjBasah > 0 ? (susutDryerKg / totalRjBasah) * 100 : 0;
+
+      const totalSusutKg = totalBaku - totalRjKering;
+      const totalSusutPct = totalBaku > 0 ? (totalSusutKg / totalBaku) * 100 : 0;
+
+      return {
+        count,
+        totalBaku: round1(totalBaku),
+        totalRjBasah: round1(totalRjBasah),
+        totalRjKering: round1(totalRjKering),
+        diffKg: round1(diffKg),
+        diffPct: round2(diffPct),
+        susutDryerKg: round1(susutDryerKg),
+        susutDryerPct: round2(susutDryerPct),
+        totalSusutKg: round1(totalSusutKg),
+        totalSusutPct: round2(totalSusutPct)
+      };
+    };
+
+    return {
+      silo: calcGroup(siloBatches),
+      manual: calcGroup(manualBatches)
+    };
+  }, [partaiList]);
 
   const dhpSummary = useMemo(() => {
     let normalCount = 0;
@@ -440,9 +485,10 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     const rjK = activePartai.totalRjKering ? activePartai.totalRjKering.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '2.853,6';
     const kaDry = activePartai.kaDryRata ? `${activePartai.kaDryRata.toFixed(2).replace('.', ',')} Mc` : '15,02 Mc';
     
-    // Tab-delimited TSV untuk di-paste langsung dari Cell B247 ke Kolom B, E, F, G, H, K, L
-    // Format: Tanggal(B) \t \t \t Jenis(E) \t KaGld(F) \t Gld(G) \t RjB(H) \t \t \t RjK(K) \t KaDry(L)
-    const tsv = `${tgl}\t\t\t${activePartai.jenis}\t${kaGld}\t${gld}\t${rjB}\t\t\t${rjK}\t${kaDry}`;
+    const jalur = activePartai.jalurSilo || (activePartai.id === 'PARTAI 3' ? 'Silo' : 'Manual');
+    // Tab-delimited TSV untuk di-paste langsung dari Cell B247 ke Kolom B s/d Q
+    // Format: Tanggal(B) \t \t \t Jenis(E) \t KaGld(F) \t Gld(G) \t RjB(H) \t \t \t RjK(K) \t KaDry(L) \t \t \t \t JalurProses(Q)
+    const tsv = `${tgl}\t\t\t${activePartai.jenis}\t${kaGld}\t${gld}\t${rjB}\t\t\t${rjK}\t${kaDry}\t\t\t\t${jalur}`;
     navigator.clipboard.writeText(tsv);
     setIsCopiedRowPaste(true);
     setTimeout(() => setIsCopiedRowPaste(false), 3000);
@@ -761,6 +807,20 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       {p?.sourceDryerStatus === 'Proses' ? '● PROSES' : '○ OFF'}
                     </span>
                   </div>
+                  <div className="flex items-center justify-between text-[10px] text-slate-400">
+                    <span>Jalur (O8:P8):</span>
+                    {p?.jalurSilo === 'Silo' || p?.namaTab === 'PARTAI 3' ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950/90 text-emerald-300 border border-emerald-700/80">
+                        <span>🌿</span>
+                        <span>Silo</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                        <span>⚡</span>
+                        <span>Manual</span>
+                      </span>
+                    )}
+                  </div>
                   {p?.statusDropdownKertasKerja && p?.status !== 'kosong' && (
                     <div className="flex items-center justify-between text-[10px] text-slate-400">
                       <span>Status Akhir:</span>
@@ -924,6 +984,85 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-slate-800 text-slate-400 border border-slate-700">
                   Bahan: Gelondong Kering (Sebelum Cuting / Rajang)
                 </span>
+              </div>
+            </div>
+
+            {/* Visualisasi Alur Proses Cengkeh: Admoist -> Silo (Kondisional O8:P8) -> Mesin RC4 -> Mesin Dryer */}
+            <div className="p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 space-y-2.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-[11px]">
+                <div className="text-slate-300 font-semibold flex items-center gap-1.5">
+                  <span className="text-amber-400 font-bold">❖</span>
+                  <span>Alur Aliran Bahan Cengkeh:</span>
+                  <span className="text-slate-400 text-[10.5px]">Admoist → Silo (Kondisional) → RC4 → Dryer</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10.5px] text-slate-400">Parameter Kertas Kerja (Cell O8:P8):</span>
+                  {activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3' ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/80 shadow-2xs">
+                      <span>🌿</span>
+                      <span>Silo (Kondisioning Serat Aktif)</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-amber-950/90 text-amber-300 border border-amber-700/80 shadow-2xs">
+                      <span>⚡</span>
+                      <span>Manual (Tanpa Silo / Langsung RC4)</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Step Flow Nodes */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 pt-0.5 text-xs">
+                {/* Node 1: Admoist */}
+                <div className="p-2.5 rounded-lg bg-blue-950/40 border border-blue-800/60 flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-blue-600/30 text-blue-300 font-bold flex items-center justify-center text-[11px] shrink-0 border border-blue-500/40">1</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-blue-200 text-[11px]">Mesin Admoist</div>
+                    <div className="text-[10px] text-blue-300/80 truncate">Penambahan Uap & Air</div>
+                  </div>
+                </div>
+
+                {/* Node 2: Silo vs Manual */}
+                <div className={`p-2.5 rounded-lg border flex items-center gap-2.5 transition-all ${
+                  activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3'
+                    ? 'bg-emerald-950/80 border-emerald-500/80 shadow-sm shadow-emerald-950/40 ring-1 ring-emerald-500/50'
+                    : 'bg-amber-950/80 border-amber-500/80 shadow-sm shadow-amber-950/40 ring-1 ring-amber-500/50'
+                }`}>
+                  <div className={`w-6 h-6 rounded-full font-bold flex items-center justify-center text-[11px] shrink-0 border ${
+                    activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3'
+                      ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/40'
+                      : 'bg-amber-600/30 text-amber-300 border-amber-500/40'
+                  }`}>2</div>
+                  <div className="min-w-0">
+                    <div className={`font-bold text-[11px] flex items-center gap-1 ${
+                      activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3' ? 'text-emerald-200' : 'text-amber-200'
+                    }`}>
+                      <span>{activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3' ? '🌿 Mesin Silo' : '⚡ Jalur Manual'}</span>
+                      <span className="text-[9.5px] px-1 py-0.2 rounded bg-slate-800 text-slate-300 font-normal">Cell O8:P8</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3' ? 'Resting & Serapan Merata' : 'Langsung Tanpa Silo'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Node 3: RC4 */}
+                <div className="p-2.5 rounded-lg bg-indigo-950/40 border border-indigo-800/60 flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-indigo-600/30 text-indigo-300 font-bold flex items-center justify-center text-[11px] shrink-0 border border-indigo-500/40">3</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-indigo-200 text-[11px]">Mesin Cuting RC4</div>
+                    <div className="text-[10px] text-indigo-300/80 truncate">Perajangan Basah (Koli)</div>
+                  </div>
+                </div>
+
+                {/* Node 4: Dryer */}
+                <div className="p-2.5 rounded-lg bg-orange-950/40 border border-orange-800/60 flex items-center gap-2.5">
+                  <div className="w-6 h-6 rounded-full bg-orange-600/30 text-orange-300 font-bold flex items-center justify-center text-[11px] shrink-0 border border-orange-500/40">4</div>
+                  <div className="min-w-0">
+                    <div className="font-bold text-orange-200 text-[11px]">Mesin Dryer</div>
+                    <div className="text-[10px] text-orange-300/80 truncate">Pengeringan Rajang Kering</div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1716,6 +1855,121 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
       ) : (
         /* ================= TAB 2: ANALISIS HARIAN CENGKEH ================= */
         <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Card Komparasi Pola: Melewati Silo vs Tanpa Silo (Manual) */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-5 text-white space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-sm font-bold text-white tracking-tight">
+                  Komparasi Pola Hasil &amp; Susut Proses: Melewati Silo vs. Tanpa Silo (Manual)
+                </h3>
+              </div>
+              <span className="text-[11px] text-slate-400">
+                Klasifikasi Parameter Cell O8:P8 Kertas Kerja DHP
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Kolom A: Jalur Silo */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-emerald-900/60 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🌿</span>
+                    <span className="font-bold text-emerald-300 text-sm">Melewati Silo (Resting Box)</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700">
+                    {siloComparisonSummary.silo.count} Partai
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400">Kenaikan Rj. Basah</div>
+                    <div className="text-xs sm:text-sm font-bold text-blue-300 font-mono mt-0.5">
+                      +{formatPct(siloComparisonSummary.silo.diffPct)}
+                    </div>
+                    <div className="text-[9.5px] text-slate-500 mt-0.5 font-mono">
+                      +{formatKg(siloComparisonSummary.silo.diffKg)} Kg
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400">Susut Dryer</div>
+                    <div className="text-xs sm:text-sm font-bold text-amber-300 font-mono mt-0.5">
+                      {formatPct(siloComparisonSummary.silo.susutDryerPct)}
+                    </div>
+                    <div className="text-[9.5px] text-slate-500 mt-0.5 font-mono">
+                      -{formatKg(siloComparisonSummary.silo.susutDryerKg)} Kg
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400">Total Susut Akhir</div>
+                    <div className="text-xs sm:text-sm font-bold text-emerald-300 font-mono mt-0.5">
+                      {formatPct(siloComparisonSummary.silo.totalSusutPct)}
+                    </div>
+                    <div className="text-[9.5px] text-slate-500 mt-0.5 font-mono">
+                      -{formatKg(siloComparisonSummary.silo.totalSusutKg)} Kg
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-400 bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/80 leading-relaxed">
+                  <strong className="text-emerald-300">Pola Fisik Silo:</strong> Cengkeh mengalami perataan kelembaban uap air merata hingga ke inti serat saat resting, menghasilkan pemotongan RC4 lebih lentur/elastis dan susut dryer teratur.
+                </div>
+              </div>
+
+              {/* Kolom B: Jalur Manual (Non-Silo) */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">⚡</span>
+                    <span className="font-bold text-slate-200 text-sm">Tanpa Silo (Manual Langsung)</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10.5px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                    {siloComparisonSummary.manual.count} Partai
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400">Kenaikan Rj. Basah</div>
+                    <div className="text-xs sm:text-sm font-bold text-blue-300 font-mono mt-0.5">
+                      +{formatPct(siloComparisonSummary.manual.diffPct)}
+                    </div>
+                    <div className="text-[9.5px] text-slate-500 mt-0.5 font-mono">
+                      +{formatKg(siloComparisonSummary.manual.diffKg)} Kg
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400">Susut Dryer</div>
+                    <div className="text-xs sm:text-sm font-bold text-amber-300 font-mono mt-0.5">
+                      {formatPct(siloComparisonSummary.manual.susutDryerPct)}
+                    </div>
+                    <div className="text-[9.5px] text-slate-500 mt-0.5 font-mono">
+                      -{formatKg(siloComparisonSummary.manual.susutDryerKg)} Kg
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-slate-900/80 border border-slate-800">
+                    <div className="text-[10px] text-slate-400">Total Susut Akhir</div>
+                    <div className="text-xs sm:text-sm font-bold text-rose-300 font-mono mt-0.5">
+                      {formatPct(siloComparisonSummary.manual.totalSusutPct)}
+                    </div>
+                    <div className="text-[9.5px] text-slate-500 mt-0.5 font-mono">
+                      -{formatKg(siloComparisonSummary.manual.totalSusutKg)} Kg
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-slate-400 bg-slate-900/50 p-2.5 rounded-lg border border-slate-800/80 leading-relaxed">
+                  <strong className="text-slate-300">Pola Fisik Manual:</strong> Cengkeh tanpa resting box langsung masuk ke RC4 dengan uap dominan di lapisan luar, berpotensi menghasilkan selisih timbangan awal lebih tinggi namun susut dryer lebih cepat.
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
             {/* Header Card Persis Gambar 1 & 2 */}
             <div className="p-4 sm:p-5 bg-slate-900 border-b border-slate-800 text-white">
@@ -1783,9 +2037,22 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                           </div>
                         </td>
                         <td className="py-3 px-2 text-center">
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                            {item.jalur}
-                          </span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                              {item.jalur}
+                            </span>
+                            {item.jalurSilo === 'Silo' ? (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                <span>🌿</span>
+                                <span>Silo</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+                                <span>⚡</span>
+                                <span>Manual</span>
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-3 text-right font-mono font-medium text-slate-800">
                           {formatKg(item.bakuKg)}

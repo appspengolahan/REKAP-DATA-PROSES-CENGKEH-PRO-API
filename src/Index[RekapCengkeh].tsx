@@ -254,6 +254,7 @@ export const IndexRekapCengkeh: React.FC = () => {
           totalSusutPct: p.totalSusutPct,
           sumber: 'DHP',
           dhpPartaiId: p.namaTab,
+          jalurSilo: p.jalurSilo || (p.namaTab === 'PARTAI 3' ? 'Silo' : 'Manual'),
           verified: p.status === 'selesai'
         });
       }

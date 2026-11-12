@@ -232,11 +232,14 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
   const [filterSumber, setFilterSumber] = useState<'semua' | 'dhp' | 'master'>('semua');
+  const [filterJalur, setFilterJalur] = useState<'semua' | 'silo' | 'manual'>('semua');
   const pageSize = 15;
 
-  // Hitung jumlah per sumber
+  // Hitung jumlah per sumber dan jalur
   const countDhp = useMemo(() => rows.filter((r) => r.sumber === 'DHP').length, [rows]);
   const countMaster = useMemo(() => rows.filter((r) => r.sumber !== 'DHP').length, [rows]);
+  const countSilo = useMemo(() => rows.filter((r) => r.jalurSilo === 'Silo').length, [rows]);
+  const countManual = useMemo(() => rows.filter((r) => r.jalurSilo !== 'Silo').length, [rows]);
 
   // Urutan data: default tanggal terbaru (Tanggal Rendam) selalu berada paling atas
   const sorted = useMemo(() => {
@@ -261,6 +264,10 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
     if (filterSumber === 'dhp' && r.sumber !== 'DHP') return false;
     if (filterSumber === 'master' && r.sumber === 'DHP') return false;
 
+    // Filter jalur proses Admoist -> Silo vs Manual
+    if (filterJalur === 'silo' && r.jalurSilo !== 'Silo') return false;
+    if (filterJalur === 'manual' && r.jalurSilo === 'Silo') return false;
+
     const q = search.toLowerCase();
     return (
       r.srcRow.toString().includes(q) ||
@@ -268,6 +275,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
       r.jenis.toLowerCase().includes(q) ||
       r.bulan.toLowerCase().includes(q) ||
       r.tahun.includes(q) ||
+      (r.jalurSilo && r.jalurSilo.toLowerCase().includes(q)) ||
       (r.dhpPartaiId && r.dhpPartaiId.toLowerCase().includes(q))
     );
   });
@@ -330,6 +338,43 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
             </button>
           </div>
 
+          {/* Filter Jalur: Silo vs Manual */}
+          <div className="inline-flex rounded-lg border border-[#e1e5ec] p-0.5 bg-slate-50">
+            <button
+              type="button"
+              onClick={() => { setFilterJalur('semua'); setCurrentPage(1); }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                filterJalur === 'semua'
+                  ? 'bg-white text-emerald-800 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Semua Jalur
+            </button>
+            <button
+              type="button"
+              onClick={() => { setFilterJalur('silo'); setCurrentPage(1); }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                filterJalur === 'silo'
+                  ? 'bg-emerald-50 text-emerald-800 shadow-2xs font-bold border border-emerald-200'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              🌿 Silo ({countSilo})
+            </button>
+            <button
+              type="button"
+              onClick={() => { setFilterJalur('manual'); setCurrentPage(1); }}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                filterJalur === 'manual'
+                  ? 'bg-slate-200 text-slate-800 shadow-2xs font-bold'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              ⚡ Manual ({countManual})
+            </button>
+          </div>
+
           <button
             type="button"
             onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
@@ -354,6 +399,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
             <tr className="bg-[#fafbfd] text-[#6b7280] font-semibold">
               <th className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">Baris #</th>
               <th className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">Sumber</th>
+              <th className="py-2 px-2.5 text-center border-b border-[#e1e5ec]">Jalur</th>
               <th className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">Tanggal Rendam</th>
               <th className="py-2 px-2.5 text-left border-b border-[#e1e5ec]">Jenis Cengkeh</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Gld. Kering</th>
@@ -388,6 +434,19 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
                     ) : (
                       <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
                         Rekap Master
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2.5 text-center border-b border-[#e1e5ec]">
+                    {r.jalurSilo === 'Silo' ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span>🌿</span>
+                        <span>Silo</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                        <span>⚡</span>
+                        <span>Manual</span>
                       </span>
                     )}
                   </td>
