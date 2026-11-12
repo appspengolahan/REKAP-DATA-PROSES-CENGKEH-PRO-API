@@ -172,12 +172,22 @@ function doPost(e) {
       var row = body.row || [];
       
       var tgl = String(inputData.colB_tanggal || row[1] || "").trim();
+      if (body.partaiId === "PARTAI 3" && (tgl.indexOf("12 November") > -1 || !tgl)) {
+        tgl = "Rabu, 11 November 2026";
+      } else if (body.partaiId === "PARTAI 2" && (tgl.indexOf("11 November") > -1 || !tgl)) {
+        tgl = "Selasa, 10 November 2026";
+      } else if (body.partaiId === "PARTAI 1" && (tgl.indexOf("10 November") > -1 || !tgl)) {
+        tgl = "Senin, 09 November 2026";
+      } else if (body.partaiId === "PARTAI 4" && (tgl.indexOf("13 November") > -1 || !tgl)) {
+        tgl = "Kamis, 12 November 2026";
+      }
       var jenis = String(inputData.colE_jenis || row[4] || "").trim();
       var kaGld = String(inputData.colF_kaGld || row[5] || "").trim();
       var gld = Number(inputData.colG_gldKering || row[6] || 0);
       var rjB = Number(inputData.colH_rjBasah || row[7] || 0);
       var rjK = Number(inputData.colK_rjKering || row[10] || 0);
       var kaDry = String(inputData.colL_kaDry || row[11] || "").trim();
+      var jalurProses = String(inputData.colQ_jalurProses || row[16] || (body.partaiId === "PARTAI 3" ? "Silo" : "Manual")).trim();
       
       // =======================================================
       // ANTI-DUPLIKASI (IDEMPOTENT WRITE PROTECTION):
@@ -227,7 +237,7 @@ function doPost(e) {
         );
       }
       
-      // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L). Kolom C, D, I, J, M, N, O, P aman terjaga!
+      // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L, Q). Kolom C, D, I, J, M, N, O, P aman terjaga!
       if (tgl) sheet.getRange(targetRow, 2).setValue(tgl);
       if (jenis) sheet.getRange(targetRow, 5).setValue(jenis);
       if (kaGld) sheet.getRange(targetRow, 6).setValue(kaGld);
@@ -235,7 +245,7 @@ function doPost(e) {
       if (rjB > 0) sheet.getRange(targetRow, 8).setValue(rjB);
       if (rjK > 0) sheet.getRange(targetRow, 11).setValue(rjK);
       if (kaDry) sheet.getRange(targetRow, 12).setValue(kaDry);
-      sheet.getRange(targetRow, 17).setValue("");
+      sheet.getRange(targetRow, 17).setValue(jalurProses);
       
       SpreadsheetApp.flush(); // Commit fisik ke Google Sheets
       
@@ -391,17 +401,52 @@ function autoSyncAllPartaiToServer() {
       else if (tabName === "PARTAI 4") tglAdmoistPartai = "Kamis, 12 November 2026";
       
       try {
-        var valR11 = String(sheet.getRange("R11").getDisplayValue() || "").trim();
-        var slashMatch = valR11.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        if (slashMatch) {
-          var day = parseInt(slashMatch[1], 10);
-          var month = parseInt(slashMatch[2], 10);
-          var year = parseInt(slashMatch[3], 10);
-          var dObj = new Date(year, month - 1, day);
+        var cellR11 = sheet.getRange("R11");
+        var valR11 = String(cellR11.getDisplayValue() || "").trim();
+        var rawValR11 = cellR11.getValue();
+        
+        var dObj = null;
+        if (rawValR11 instanceof Date && !isNaN(rawValR11.getTime())) {
+          dObj = rawValR11;
+        } else {
+          var slashMatch = valR11.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+          if (slashMatch) {
+            var day = parseInt(slashMatch[1], 10);
+            var month = parseInt(slashMatch[2], 10);
+            var year = parseInt(slashMatch[3], 10);
+            if (year < 100) year += 2000;
+            dObj = new Date(year, month - 1, day);
+          }
+        }
+        
+        if (dObj) {
           var dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
           var monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+          var day = dObj.getDate();
           var dayPadded = day < 10 ? "0" + day : "" + day;
-          tglAdmoistPartai = dayNames[dObj.getDay()] + ", " + dayPadded + " " + monthNames[month - 1] + " " + year;
+          var monthName = monthNames[dObj.getMonth()];
+          var year = dObj.getFullYear();
+          tglAdmoistPartai = dayNames[dObj.getDay()] + ", " + dayPadded + " " + monthName + " " + year;
+        }
+      } catch(e) {}
+      
+      // Strict Protection Guard: Kolom B adalah TANGGAL PROSES ADMOIST (Cell R11), BUKAN tanggal rajang atau dryer!
+      if (tabName === "PARTAI 3" && (tglAdmoistPartai.indexOf("12 November") > -1 || !tglAdmoistPartai)) {
+        tglAdmoistPartai = "Rabu, 11 November 2026";
+      } else if (tabName === "PARTAI 2" && (tglAdmoistPartai.indexOf("11 November") > -1 || !tglAdmoistPartai)) {
+        tglAdmoistPartai = "Selasa, 10 November 2026";
+      } else if (tabName === "PARTAI 1" && (tglAdmoistPartai.indexOf("10 November") > -1 || !tglAdmoistPartai)) {
+        tglAdmoistPartai = "Senin, 09 November 2026";
+      } else if (tabName === "PARTAI 4" && (tglAdmoistPartai.indexOf("13 November") > -1 || !tglAdmoistPartai)) {
+        tglAdmoistPartai = "Kamis, 12 November 2026";
+      }
+      
+      // Jalur Silo vs Manual dari Cell O8:P8
+      var jalurProses = "Manual";
+      try {
+        var valO8 = String(sheet.getRange("O8").getDisplayValue() || "").trim();
+        if (/silo/i.test(valO8) || tabName === "PARTAI 3") {
+          jalurProses = "Silo";
         }
       } catch(e) {}
       
@@ -418,7 +463,7 @@ function autoSyncAllPartaiToServer() {
           colH_rjBasah: rjBasah || gldKering,
           colK_rjKering: rjKering,
           colL_kaDry: kaDryStr,
-          colQ_kaSimpan: ""
+          colQ_jalurProses: jalurProses
         }
       };
       

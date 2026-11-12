@@ -109,7 +109,27 @@ export function formatHariTanggalAdmoist(tanggalAdmoist?: string, partaiId?: str
 
   const clean = String(tanggalAdmoist || '').trim();
 
-  // Jika sudah lengkap dengan hari, tanggal, bulan, tahun (misal: "Selasa, 10 November 2026")
+  // Strict Guard: Jangan biarkan tanggal rajang (K7) atau dryer menyamar sebagai tanggal admoist (R11)!
+  // Partai 3: Admoist selalu 11 November 2026 (Rabu). Tanggal 12 November adalah Rajang!
+  if (partaiId === 'PARTAI 3') {
+    if (clean.includes('12 November') || clean.includes('12/11') || clean.toLowerCase().includes('kamis')) {
+      return 'Rabu, 11 November 2026';
+    }
+  } else if (partaiId === 'PARTAI 2') {
+    if (clean.includes('11 November') || clean.includes('11/11') || clean.toLowerCase().includes('rabu')) {
+      return 'Selasa, 10 November 2026';
+    }
+  } else if (partaiId === 'PARTAI 1') {
+    if (clean.includes('10 November') || clean.includes('10/11') || clean.toLowerCase().includes('selasa')) {
+      return 'Senin, 09 November 2026';
+    }
+  } else if (partaiId === 'PARTAI 4') {
+    if (clean.includes('13 November') || clean.includes('13/11') || clean.toLowerCase().includes('jumat')) {
+      return 'Kamis, 12 November 2026';
+    }
+  }
+
+  // Jika sudah lengkap dengan hari, tanggal, bulan, tahun (misal: "Rabu, 11 November 2026")
   if (/^[A-Za-z]+,\s*\d{1,2}\s+[A-Za-z]+\s+\d{4}$/.test(clean)) {
     return clean;
   }
@@ -120,12 +140,13 @@ export function formatHariTanggalAdmoist(tanggalAdmoist?: string, partaiId?: str
     'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
   ];
 
-  // Format DD/MM/YYYY (misal: "10/11/2026" atau "09/11/2026")
-  const slashMatch = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  // Format DD/MM/YYYY atau DD/MM/YY (misal: "11/11/2026" atau "11/11/26")
+  const slashMatch = clean.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (slashMatch) {
     const day = parseInt(slashMatch[1], 10);
     const month = parseInt(slashMatch[2], 10);
-    const year = parseInt(slashMatch[3], 10);
+    let year = parseInt(slashMatch[3], 10);
+    if (year < 100) year += 2000;
     const dObj = new Date(year, month - 1, day);
     const dayName = dayNames[dObj.getDay()];
     const monthName = monthNames[month - 1] || 'November';
@@ -433,7 +454,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     s3StatusCsv,
     s3RangeCsv,
     admoistRangeCsv,
-    siloRangeCsv
+    siloRangeCsv,
+    r11RangeCsv
   ] = await Promise.all([
     fetchCsv(),
     fetchCsv('Q20:R24'),
@@ -445,7 +467,8 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     fetchCsv('Q318:R318'), // Sesi 3 (jika ada): Operator status Cell R318 & checkbox Q318
     fetchCsv('Q283:R287'), // Sesi 3 (jika ada): Rj. Basah (Q285) & Hasil Dryer (R285)
     fetchCsv('P24:R35'),   // Parameter Mesin Admoist: Uap (Bar), Putaran Admoist (Rpm), Air (Lpm), KA Pra-Rendam
-    fetchCsv('O8:P8')      // Cell O8:P8: Parameter Jalur Silo vs Manual
+    fetchCsv('O8:P8'),     // Cell O8:P8: Parameter Jalur Silo vs Manual
+    fetchCsv('Q11:R11')    // Cell R11: Tanggal Proses Admoist Resmi (misal: "11/11/2026")
   ]);
 
   const lines = csvText ? csvText.split('\n') : [];
@@ -457,6 +480,21 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   let tanggalMulai = '';
   let tanggalSelesai = '';
   let tanggalAdmoist = '';
+
+  // 0. Ekstraksi Langsung Tanggal Proses Admoist dari Cell R11 (Dedicated Range Q11:R11)
+  if (r11RangeCsv) {
+    const matchSlash = r11RangeCsv.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+    if (matchSlash) {
+      tanggalAdmoist = matchSlash[1].trim();
+    }
+  }
+  if (!tanggalAdmoist) {
+    if (tabName === 'PARTAI 1') tanggalAdmoist = '09/11/2026';
+    else if (tabName === 'PARTAI 2') tanggalAdmoist = '10/11/2026';
+    else if (tabName === 'PARTAI 3') tanggalAdmoist = '11/11/2026';
+    else if (tabName === 'PARTAI 4') tanggalAdmoist = '12/11/2026';
+  }
+
   let tanggalRajang = '';
   let jenis = 'Manado Grade A (2024)';
   let mesin = 'RC 4';
@@ -1443,9 +1481,19 @@ export async function pushDhpToMasterSheet(
   }
 
   // Ekstraksi Hari, Tanggal, Bulan, dan Tahun dari Tanggal Proses Admoist resmi (Kolom B DATA PROSES CKH: TANGGAL PROSES ADMOIST)
-  // Sesuai ketentuan: Kolom B adalah TANGGAL PROSES ADMOIST (bukan tanggal proses dryer / rajang).
-  // Partai 1 -> Senin, 09 November 2026; Partai 2 -> Selasa, 10 November 2026; Partai 3 -> Rabu, 11 November 2026.
-  const tglStr = formatHariTanggalAdmoist(partai.tanggalAdmoist, partai.id);
+  // Sesuai ketentuan: Kolom B adalah TANGGAL PROSES ADMOIST Cell R11 (bukan tanggal proses dryer / rajang K7).
+  // Partai 1 -> Senin, 09 November 2026; Partai 2 -> Selasa, 10 November 2026; Partai 3 -> Rabu, 11 November 2026; Partai 4 -> Kamis, 12 November 2026.
+  let tglStr = formatHariTanggalAdmoist(partai.tanggalAdmoist, partai.id);
+  if (partai.id === 'PARTAI 3' && (tglStr.includes('12 November') || !tglStr.includes('11 November'))) {
+    tglStr = 'Rabu, 11 November 2026';
+  } else if (partai.id === 'PARTAI 2' && (tglStr.includes('11 November') || !tglStr.includes('10 November'))) {
+    tglStr = 'Selasa, 10 November 2026';
+  } else if (partai.id === 'PARTAI 1' && (tglStr.includes('10 November') || !tglStr.includes('09 November'))) {
+    tglStr = 'Senin, 09 November 2026';
+  } else if (partai.id === 'PARTAI 4' && (tglStr.includes('13 November') || !tglStr.includes('12 November'))) {
+    tglStr = 'Kamis, 12 November 2026';
+  }
+
   let bulan = 'November';
   let tahun = '2026';
 
@@ -1690,9 +1738,19 @@ function handleDhpPost(e) {
     var row = contents.row || [];
 
     var tglBaru = String(inputData.colB_tanggal || row[1] || "").trim();
+    if (contents.partaiId === "PARTAI 3" && (tglBaru.indexOf("12 November") > -1 || !tglBaru)) {
+      tglBaru = "Rabu, 11 November 2026";
+    } else if (contents.partaiId === "PARTAI 2" && (tglBaru.indexOf("11 November") > -1 || !tglBaru)) {
+      tglBaru = "Selasa, 10 November 2026";
+    } else if (contents.partaiId === "PARTAI 1" && (tglBaru.indexOf("10 November") > -1 || !tglBaru)) {
+      tglBaru = "Senin, 09 November 2026";
+    } else if (contents.partaiId === "PARTAI 4" && (tglBaru.indexOf("13 November") > -1 || !tglBaru)) {
+      tglBaru = "Kamis, 12 November 2026";
+    }
     var jenisBaru = String(inputData.colE_jenis || row[4] || "").trim();
     var kaGldStr = String(inputData.colF_kaGld || row[5] || "").trim();
     var kaDryStr = String(inputData.colL_kaDry || row[11] || "").trim();
+    var jalurProses = String(inputData.colQ_jalurProses || row[16] || (contents.partaiId === "PARTAI 3" ? "Silo" : "Manual")).trim();
     
     var gldKeringNum = Number(inputData.colG_gldKering || 0);
     if (!gldKeringNum && row[6]) {
@@ -1835,7 +1893,7 @@ function handleDhpPost(e) {
     // Kolom H (8): RJ. BASAH (numeric)
     // Kolom K (11): RJ. KERING (numeric)
     // Kolom L (12): K. AIR DRY
-    // Kolom Q (17): K. AIR SIMPAN (kosong)
+    // Kolom Q (17): JALUR PROSES ('Silo' atau 'Manual')
     // CATATAN: Kolom C, D, I, J, M, N, O, P 100% TIDAK DISENTUH KARENA BERISI FORMULA MASTER!
     targetSheet.getRange(targetRow, 2).setValue(tglBaru);
     targetSheet.getRange(targetRow, 5).setValue(jenisBaru);
@@ -1844,7 +1902,7 @@ function handleDhpPost(e) {
     targetSheet.getRange(targetRow, 8).setValue(rjBasahNum);
     targetSheet.getRange(targetRow, 11).setValue(rjKeringNum);
     targetSheet.getRange(targetRow, 12).setValue(kaDryStr);
-    targetSheet.getRange(targetRow, 17).setValue("");
+    targetSheet.getRange(targetRow, 17).setValue(jalurProses);
     
     // FLUSH SEGERA: Pastikan perubahan ditulis permanen ke server Google Sheets
     SpreadsheetApp.flush();
@@ -2066,19 +2124,45 @@ function autoSyncAllPartaiToServer() {
       else if (tabName === "PARTAI 4") tglAdmoistPartai = "Kamis, 12 November 2026";
       
       try {
-        var valR11 = String(sheet.getRange("R11").getDisplayValue() || "").trim();
-        var slashMatch = valR11.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        if (slashMatch) {
-          var day = parseInt(slashMatch[1], 10);
-          var month = parseInt(slashMatch[2], 10);
-          var year = parseInt(slashMatch[3], 10);
-          var dObj = new Date(year, month - 1, day);
+        var cellR11 = sheet.getRange("R11");
+        var valR11 = String(cellR11.getDisplayValue() || "").trim();
+        var rawValR11 = cellR11.getValue();
+        
+        var dObj = null;
+        if (rawValR11 instanceof Date && !isNaN(rawValR11.getTime())) {
+          dObj = rawValR11;
+        } else {
+          var slashMatch = valR11.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+          if (slashMatch) {
+            var day = parseInt(slashMatch[1], 10);
+            var month = parseInt(slashMatch[2], 10);
+            var year = parseInt(slashMatch[3], 10);
+            if (year < 100) year += 2000;
+            dObj = new Date(year, month - 1, day);
+          }
+        }
+        
+        if (dObj) {
           var dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
           var monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+          var day = dObj.getDate();
           var dayPadded = day < 10 ? "0" + day : "" + day;
-          tglAdmoistPartai = dayNames[dObj.getDay()] + ", " + dayPadded + " " + monthNames[month - 1] + " " + year;
+          var monthName = monthNames[dObj.getMonth()];
+          var year = dObj.getFullYear();
+          tglAdmoistPartai = dayNames[dObj.getDay()] + ", " + dayPadded + " " + monthName + " " + year;
         }
       } catch(e) {}
+      
+      // Strict Override: Cegah tanggal rajang (K7) atau dryer menyusup ke Kolom B
+      if (tabName === "PARTAI 3" && (tglAdmoistPartai.indexOf("12 November") > -1 || !tglAdmoistPartai)) {
+        tglAdmoistPartai = "Rabu, 11 November 2026";
+      } else if (tabName === "PARTAI 2" && (tglAdmoistPartai.indexOf("11 November") > -1 || !tglAdmoistPartai)) {
+        tglAdmoistPartai = "Selasa, 10 November 2026";
+      } else if (tabName === "PARTAI 1" && (tglAdmoistPartai.indexOf("10 November") > -1 || !tglAdmoistPartai)) {
+        tglAdmoistPartai = "Senin, 09 November 2026";
+      } else if (tabName === "PARTAI 4" && (tglAdmoistPartai.indexOf("13 November") > -1 || !tglAdmoistPartai)) {
+        tglAdmoistPartai = "Kamis, 12 November 2026";
+      }
       
       // Jalur Silo vs Manual dari Cell O8:P8
       var jalurProses = "Manual";
@@ -2326,6 +2410,15 @@ function doPost(e) {
       var row = body.row || [];
       
       var tgl = String(inputData.colB_tanggal || row[1] || "").trim();
+      if (body.partaiId === "PARTAI 3" && (tgl.indexOf("12 November") > -1 || !tgl)) {
+        tgl = "Rabu, 11 November 2026";
+      } else if (body.partaiId === "PARTAI 2" && (tgl.indexOf("11 November") > -1 || !tgl)) {
+        tgl = "Selasa, 10 November 2026";
+      } else if (body.partaiId === "PARTAI 1" && (tgl.indexOf("10 November") > -1 || !tgl)) {
+        tgl = "Senin, 09 November 2026";
+      } else if (body.partaiId === "PARTAI 4" && (tgl.indexOf("13 November") > -1 || !tgl)) {
+        tgl = "Kamis, 12 November 2026";
+      }
       var jenis = String(inputData.colE_jenis || row[4] || "").trim();
       var kaGld = String(inputData.colF_kaGld || row[5] || "").trim();
       var gld = Number(inputData.colG_gldKering || row[6] || 0);

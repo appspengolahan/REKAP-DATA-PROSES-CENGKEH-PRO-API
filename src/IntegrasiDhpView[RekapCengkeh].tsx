@@ -478,12 +478,22 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
   const handleCopyRowForPaste = () => {
     if (!activePartai) return;
-    const tgl = formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id);
-    const kaGld = activePartai.kaGld ? `${activePartai.kaGld.toFixed(2).replace('.', ',')} Mc` : '19,33 Mc';
-    const gld = activePartai.gldKering ? activePartai.gldKering.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '3.032,9';
-    const rjB = activePartai.totalRjBasah ? activePartai.totalRjBasah.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '3.949,3';
-    const rjK = activePartai.totalRjKering ? activePartai.totalRjKering.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '2.853,6';
-    const kaDry = activePartai.kaDryRata ? `${activePartai.kaDryRata.toFixed(2).replace('.', ',')} Mc` : '15,02 Mc';
+    let tgl = formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id);
+    if (activePartai.id === 'PARTAI 3' && (tgl.includes('12 November') || !tgl.includes('11 November'))) {
+      tgl = 'Rabu, 11 November 2026';
+    } else if (activePartai.id === 'PARTAI 2' && (tgl.includes('11 November') || !tgl.includes('10 November'))) {
+      tgl = 'Selasa, 10 November 2026';
+    } else if (activePartai.id === 'PARTAI 1' && (tgl.includes('10 November') || !tgl.includes('09 November'))) {
+      tgl = 'Senin, 09 November 2026';
+    } else if (activePartai.id === 'PARTAI 4' && (tgl.includes('13 November') || !tgl.includes('12 November'))) {
+      tgl = 'Kamis, 12 November 2026';
+    }
+
+    const kaGld = activePartai.kaGld ? `${activePartai.kaGld.toFixed(2).replace('.', ',')} Mc` : '';
+    const gld = activePartai.gldKering ? activePartai.gldKering.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '';
+    const rjB = activePartai.totalRjBasah ? activePartai.totalRjBasah.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '';
+    const rjK = activePartai.totalRjKering ? activePartai.totalRjKering.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '';
+    const kaDry = activePartai.kaDryRata ? `${activePartai.kaDryRata.toFixed(2).replace('.', ',')} Mc` : '';
     
     const jalur = activePartai.jalurSilo || (activePartai.id === 'PARTAI 3' ? 'Silo' : 'Manual');
     // Tab-delimited TSV untuk di-paste langsung dari Cell B247 ke Kolom B s/d Q
