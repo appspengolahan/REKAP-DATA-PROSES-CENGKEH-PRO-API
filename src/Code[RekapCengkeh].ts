@@ -18,9 +18,7 @@ export const BUILD_VERSION = 'v2.0-Baseline-2026-11-09';
 export const PROJECT_NAME = 'Monitoring Board — Rekap Data Proses Cengkeh';
 export const DEFAULT_SPREADSHEET_ID = '1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M';
 export const DEFAULT_SHEET_NAME = 'DATA PROSES CKH';
-export const FALLBACK_SHEET_NAME = 'DATA PROSES CKH';
-export const DEFAULT_EXEC_URL = 'https://script.google.com/macros/s/AKfycbwafqhT23MJK9NsSIQmpeq0XMbTlRqZXvNN1LpGB36XS4gNEBpCE9hsdp4Jh_oUD54v4A/exec';
-
+export const DEFAULT_EXEC_URL = 'https://script.google.com/macros/s/AKfycbyc974EOWnzrg_InMUuk5BROcv5lcPejKGfk435lt0aCm5WvSRr1o36kfYyM_D9bA7jFA/exec';
 export const MONTH_ORDER = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
@@ -938,14 +936,50 @@ export function parse2DArrayToRows(values: any[][]): RawRowCengkeh[] {
 /**
  * Sinkronisasi Tier 1: Panggil Apps Script REST Web App endpoint (doGet)
  * Mendukung format respon Objek Terstruktur maupun 2D Array mentah (getValues)
+ * Dilengkapi proteksi Cloudflare SPA: Jika endpoint /api mengembalikan HTML, otomatis fallback direct fetch ke GAS.
  */
 export async function fetchFromGasRest(execUrl: string): Promise<RawRowCengkeh[]> {
-  const targetUrl = `${execUrl}${execUrl.includes('?') ? '&' : '?'}action=getData&t=${Date.now()}`;
-  const res = await fetch(targetUrl, { mode: 'cors' });
+  let targetUrl = execUrl;
+  
+  // Deteksi jika rute berupa endpoint proxy internal /api atau rute relatif tanpa protokol http(s)
+  const isInternalApi = !targetUrl.startsWith('http://') && !targetUrl.startsWith('https://');
+  if (isInternalApi) {
+    console.warn(`[Cloudflare Fallback] Endpoint internal terdeteksi (${targetUrl}). Di Cloudflare Pages SPA, rute internal tanpa server proxy akan merender HTML. Mengalihkan ke DEFAULT_EXEC_URL.`);
+    targetUrl = DEFAULT_EXEC_URL;
+  }
+
+  const separator = targetUrl.includes('?') ? '&' : '?';
+  const fullUrl = `${targetUrl}${separator}action=getData&t=${Date.now()}`;
+
+  let res = await fetch(fullUrl, { mode: 'cors' });
+  let resText = await res.text();
+
+  // Deteksi apakah response mengembalikan dokumen HTML (misal SPA router Cloudflare Pages / 404 fallback)
+  const isHtml = resText.trim().startsWith('<!DOCTYPE') || resText.includes('<html') || (res.headers.get('content-type') || '').includes('text/html');
+
+  if (isHtml) {
+    console.warn('[Cloudflare Fallback] Endpoint merespons dengan HTML (kemungkinan proxy internal /api pada Cloudflare SPA). Melakukan direct fetch langsung ke GAS Web App...');
+    const directUrl = `${DEFAULT_EXEC_URL}${DEFAULT_EXEC_URL.includes('?') ? '&' : '?'}action=getData&t=${Date.now()}`;
+    res = await fetch(directUrl, { mode: 'cors' });
+    resText = await res.text();
+    
+    // Cek ulang apakah direct fetch masih mengembalikan HTML
+    if (resText.trim().startsWith('<!DOCTYPE') || resText.includes('<html') || (res.headers.get('content-type') || '').includes('text/html')) {
+      throw new Error('Endpoint GAS mengembalikan halaman HTML. Pastikan deployment Web App disetel hak akses: "Siapa saja (Anyone)".');
+    }
+  }
+
   if (!res.ok) {
     throw new Error(`GAS REST endpoint error: ${res.status} ${res.statusText}`);
   }
-  const json = await res.json();
+
+  let json: any;
+  try {
+    json = JSON.parse(resText);
+  } catch (e: any) {
+    throw new Error(`Gagal mem-parse respon JSON dari endpoint GAS: ${e.message}`);
+  }
+
   let candidateList: any[] = [];
   if (Array.isArray(json)) {
     candidateList = json;
@@ -979,6 +1013,7 @@ export async function fetchFromGasRest(execUrl: string): Promise<RawRowCengkeh[]
 
 /**
  * Uji Endpoint & Payload GAS REST Web App (doGet / doPost)
+ * Dilengkapi proteksi pendeteksian Cloudflare SPA HTML fallback
  */
 export async function testGasPayload(
   execUrl: string, 
@@ -987,6 +1022,12 @@ export async function testGasPayload(
 ): Promise<{ status: number; statusText: string; latencyMs: number; data: any; rawText: string }> {
   const startTime = Date.now();
   let targetUrl = execUrl;
+
+  const isInternalApi = !targetUrl.startsWith('http://') && !targetUrl.startsWith('https://');
+  if (isInternalApi) {
+    console.warn(`[Cloudflare Fallback] Pengujian endpoint internal (${targetUrl}) dialihkan ke DEFAULT_EXEC_URL.`);
+    targetUrl = DEFAULT_EXEC_URL;
+  }
 
   let requestInit: RequestInit = {
     mode: 'cors'
@@ -1013,9 +1054,22 @@ export async function testGasPayload(
     requestInit.body = payloadString;
   }
 
-  const res = await fetch(targetUrl, requestInit);
+  let res = await fetch(targetUrl, requestInit);
+  let rawText = await res.text();
+
+  // Jika mengembalikan HTML (misal proxy /api di Cloudflare Pages SPA mengembalikan index.html)
+  const isHtml = rawText.trim().startsWith('<!DOCTYPE') || rawText.includes('<html') || (res.headers.get('content-type') || '').includes('text/html');
+  if (isHtml && targetUrl !== DEFAULT_EXEC_URL) {
+    console.warn('[Cloudflare Fallback] Pengujian mengembalikan HTML. Mencoba direct fetch ke DEFAULT_EXEC_URL...');
+    let directUrl = DEFAULT_EXEC_URL;
+    if (method === 'GET') {
+      directUrl += (directUrl.includes('?') ? '&' : '?') + `action=getData&t=${Date.now()}`;
+    }
+    res = await fetch(directUrl, requestInit);
+    rawText = await res.text();
+  }
+
   const latencyMs = Date.now() - startTime;
-  const rawText = await res.text();
   let data: any = null;
   try {
     data = JSON.parse(rawText);

@@ -5,8 +5,7 @@
  */
 
 import { DhpPartaiData, DhpSesiDryer, DhpQcParams, DhpDryerMachineParams, DhpSyncLog, RawRowCengkeh } from './types[RekapCengkeh]';
-import { round1, round2, formatTanggalIndo, cleanDate } from './Code[RekapCengkeh]';
-
+import { round1, round2, formatTanggalIndo, cleanDate, DEFAULT_EXEC_URL } from './Code[RekapCengkeh]';
 export const DEFAULT_DHP_SPREADSHEET_ID = '1ZEJjMQMBkE8k3NIeHA32P2SooIpvXIfnq_f-pruCelQ';
 export const DEFAULT_MASTER_SPREADSHEET_ID = '1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M';
 export const DEFAULT_MASTER_SHEET_NAME = 'DATA PROSES CKH';
@@ -1481,7 +1480,14 @@ export async function pushDhpToMasterSheet(
   };
 
   try {
-    const res = await fetch(execUrl, {
+    let targetUrl = execUrl;
+    const isInternalApi = !targetUrl.startsWith('http://') && !targetUrl.startsWith('https://');
+    if (isInternalApi) {
+      console.warn(`[Cloudflare Fallback] Endpoint internal (${targetUrl}) terdeteksi pada pushDhpToMasterSheet. Dialihkan ke direct DEFAULT_EXEC_URL.`);
+      targetUrl = DEFAULT_EXEC_URL;
+    }
+
+    let res = await fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'text/plain;charset=utf-8' // Hindari CORS preflight gagal pada Google Apps Script
@@ -1489,7 +1495,22 @@ export async function pushDhpToMasterSheet(
       body: JSON.stringify(payload)
     });
 
-    const resText = await res.text();
+    let resText = await res.text();
+
+    // Deteksi jika respon berupa HTML (misal proxy /api pada Cloudflare Pages SPA merender index.html)
+    const isHtml = resText.trim().startsWith('<!DOCTYPE') || resText.includes('<html') || (res.headers.get('content-type') || '').includes('text/html');
+    if (isHtml && targetUrl !== DEFAULT_EXEC_URL) {
+      console.warn('[Cloudflare Fallback] pushDhpToMasterSheet menerima respon HTML dari endpoint proxy. Melakukan direct fallback POST ke DEFAULT_EXEC_URL...');
+      res = await fetch(DEFAULT_EXEC_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8'
+        },
+        body: JSON.stringify(payload)
+      });
+      resText = await res.text();
+    }
+
     let resJson: any = null;
     try {
       resJson = JSON.parse(resText);
