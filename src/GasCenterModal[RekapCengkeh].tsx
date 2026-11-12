@@ -24,7 +24,7 @@ import {
 import { GasConfig } from './types[RekapCengkeh]';
 import { saveGasConfig, DEFAULT_EXEC_URL, DEFAULT_SPREADSHEET_ID, DEFAULT_SHEET_NAME, testGasPayload } from './Code[RekapCengkeh]';
 
-const GAS_TEMPLATE_CODE = `/**
+const GAS_TEMPLATE_CODE = String.raw`/**
  * =========================================================================
  * ALL-IN-ONE GOOGLE APPS SCRIPT: MONITORING REKAP PROSES CENGKEH
  * File Target di Google Apps Script Editor: Kode.gs

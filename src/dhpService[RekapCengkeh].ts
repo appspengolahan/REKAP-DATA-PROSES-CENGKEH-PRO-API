@@ -1665,7 +1665,7 @@ export async function pushDhpToMasterSheet(
  * Script Lengkap Google Apps Script: IntegrasiDHP.gs
  * Standar Arsitektur 5-Layer Defense sesuai referensi ekosistem PP1
  */
-export const INTEGRASI_DHP_GAS_CODE = `/**
+export const INTEGRASI_DHP_GAS_CODE = String.raw`/**
  * =========================================================================
  * GOOGLE APPS SCRIPT: INTEGRASI DHP CENGKEH (2 ARAH, 5-LAYER DEFENSE)
  * File Target di Google Apps Script Editor: IntegrasiDHP.gs
@@ -2239,7 +2239,7 @@ function uninstallAutoSyncTrigger() {
  * Script Lengkap Google Apps Script: Kode.gs (Utuh 100%)
  * Kompatibel untuk Standalone Script maupun Container-Bound Script
  */
-export const KODE_GS_FULL_TEMPLATE = `/**
+export const KODE_GS_FULL_TEMPLATE = String.raw`/**
  * =========================================================================
  * GOOGLE APPS SCRIPT: KODE UTAMA (STANDALONE & BOUND COMPATIBLE)
  * File Target di Google Apps Script Editor: Kode.gs
