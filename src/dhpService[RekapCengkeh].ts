@@ -34,7 +34,27 @@ const LOCAL_STORAGE_DHP_CACHE_KEY = '_REKAP_CKH_DHP_PARTAI_CACHE_V1';
 let cachedDhpSyncLogsMem: DhpSyncLog[] | null = null;
 let cachedDhpSyncLogsRaw: string | null = null;
 let cachedDhpPartaiMem: DhpPartaiData[] | null = null;
-let cachedDhpPartaiRawLen = -1;
+let cachedDhpPartaiRaw: string | null = null;
+
+export interface DhpFetchReport {
+  fetchedAt: string;
+  failedTabs: string[];
+  sourceDryerFailed: boolean;
+  usedCacheFallback: boolean;
+}
+
+let lastDhpFetchReport: DhpFetchReport = {
+  fetchedAt: '',
+  failedTabs: [],
+  sourceDryerFailed: false,
+  usedCacheFallback: false
+};
+
+export function getLastDhpFetchReport(): DhpFetchReport {
+  return lastDhpFetchReport;
+}
+
+const inFlightFetchAllMap = new Map<string, Promise<DhpPartaiData[]>>();
 
 export function getDhpSpreadsheetId(): string {
   try {
@@ -277,7 +297,7 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_DHP_CACHE_KEY);
     if (raw) {
-      if (cachedDhpPartaiMem && raw.length === cachedDhpPartaiRawLen) {
+      if (cachedDhpPartaiMem && raw === cachedDhpPartaiRaw) {
         return cachedDhpPartaiMem;
       }
       const parsed = JSON.parse(raw);
@@ -425,7 +445,7 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
           };
         });
         cachedDhpPartaiMem = enriched;
-        cachedDhpPartaiRawLen = raw.length;
+        cachedDhpPartaiRaw = raw;
         return enriched;
       }
     }
@@ -437,10 +457,11 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
 
 export function saveCachedDhpPartai(list: DhpPartaiData[]): void {
   try {
-    const serialized = JSON.stringify(list);
+    const cleanList = list.map(({ isStaleFallback: _stale, ...rest }) => rest);
+    const serialized = JSON.stringify(cleanList);
     localStorage.setItem(LOCAL_STORAGE_DHP_CACHE_KEY, serialized);
-    cachedDhpPartaiMem = list;
-    cachedDhpPartaiRawLen = serialized.length;
+    cachedDhpPartaiMem = cleanList;
+    cachedDhpPartaiRaw = serialized;
   } catch (e) {
     console.error('Gagal menyimpan cache partai DHP:', e);
   }
@@ -472,72 +493,102 @@ export function cleanJenisCengkeh(raw: string | undefined): string {
   return s;
 }
 
+interface FetchCsvOptions {
+  required?: boolean;
+  isFullSheet?: boolean;
+  retries?: number;
+  timeoutMs?: number;
+}
+
+async function fetchCsvWithRetry(url: string, opts: FetchCsvOptions = {}): Promise<string> {
+  const {
+    required = false,
+    isFullSheet = false,
+    retries = required ? 2 : 1,
+    timeoutMs = required ? 12000 : 8000
+  } = opts;
+
+  let lastErr: Error | null = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      const res = await fetch(url, controller ? { signal: controller.signal } : undefined);
+      if (timer) clearTimeout(timer);
+
+      if (!res.ok) {
+        lastErr = new Error(`HTTP ${res.status} (${res.statusText || 'Error'})`);
+      } else {
+        const text = await res.text();
+        if (isHtmlResponse(res, text)) {
+          lastErr = new Error('Respon HTML/rate-limit dari Google Sheets');
+        } else if (isFullSheet && text.split('\n').length < 15) {
+          lastErr = new Error('Jumlah baris kertas kerja CSV belum lengkap');
+        } else {
+          return text;
+        }
+      }
+    } catch (err: any) {
+      if (timer) clearTimeout(timer);
+      lastErr = err instanceof Error ? err : new Error(String(err || 'Network error'));
+    }
+
+    if (attempt < retries) {
+      const jitter = Math.floor(Math.random() * 250);
+      await new Promise((resolve) => setTimeout(resolve, 350 * (attempt + 1) + jitter));
+    }
+  }
+
+  if (required) {
+    throw lastErr || new Error('Gagal menarik CSV Google Sheets');
+  }
+  return '';
+}
+
 /**
  * Fetch dan Parse satu Tab Kertas Kerja DHP Cengkeh
  */
-export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Promise<DhpPartaiData> {
-  const fetchCsv = async (range?: string): Promise<string> => {
-    try {
-      const rangeParam = range ? `&range=${encodeURIComponent(range)}` : '';
-      const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}${rangeParam}&t=${Date.now()}`;
-      const res = await fetch(url);
-      if (!res.ok) return '';
-      const text = await res.text();
-      if (isHtmlResponse(res, text)) return '';
-      return text;
-    } catch {
-      return '';
-    }
+export async function fetchDhpPartai(
+  spreadsheetId: string,
+  tabName: string,
+  prevTab?: DhpPartaiData
+): Promise<DhpPartaiData> {
+  const buildGvizUrl = (range?: string): string => {
+    const rangeParam = range ? `&range=${encodeURIComponent(range)}` : '';
+    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}${rangeParam}&t=${Date.now()}`;
   };
 
-  // Bagi 12 permintaan range menjadi 2 gelombang (6 + 6) agar browser HP tidak tersedak batas koneksi per host
-  const [
-    csvText,
-    r22Csv,
-    s1RangeCsv,
-    s2RangeCsv,
-    totalRangeCsv,
-    s1StatusCsv
-  ] = await Promise.all([
-    fetchCsv(),
-    fetchCsv('Q20:R24'),
-    fetchCsv('Q154:R158'),
-    fetchCsv('Q219:R223'),
-    fetchCsv('Q295:R299'),
-    fetchCsv('Q188:R188') // Sesi 1: Operator status Cell R188 & checkbox Q188
-  ]);
-
-  const [
-    s2StatusCsv,
-    s3StatusCsv,
-    s3RangeCsv,
-    admoistRangeCsv,
-    siloRangeCsv,
-    r11RangeCsv
-  ] = await Promise.all([
-    fetchCsv('Q253:R253'), // Sesi 2: Operator status Cell R253 & checkbox Q253
-    fetchCsv('Q318:R318'), // Sesi 3 (jika ada): Operator status Cell R318 & checkbox Q318
-    fetchCsv('Q283:R287'), // Sesi 3 (jika ada): Rj. Basah (Q285) & Hasil Dryer (R285)
-    fetchCsv('P24:R35'),   // Parameter Mesin Admoist: Uap (Bar), Putaran Admoist (Rpm), Air (Lpm), KA Pra-Rendam
-    fetchCsv('O8:P8'),     // Cell O8:P8: Parameter Jalur Silo vs Manual
-    fetchCsv('Q11:R11')    // Cell R11: Tanggal Proses Admoist Resmi (misal: "11/11/2026")
+  // Hemat kuota socket & rate-limit Google Sheets:
+  // Hanya 3 permintaan default per tab (Full CSV + Cell O8:P8 + Status Sesi 1 Q188:R188)
+  // Data R11, Q20:R24, P24:R35, Sesi 1/2/3, & Total Dryer dibaca langsung dari Full CSV.
+  const [csvText, siloRangeCsv, s1StatusCsv] = await Promise.all([
+    fetchCsvWithRetry(buildGvizUrl(), { required: true, isFullSheet: true, retries: 2, timeoutMs: 12000 }),
+    fetchCsvWithRetry(buildGvizUrl('O8:P8'), { required: false, retries: 1, timeoutMs: 8000 }),
+    fetchCsvWithRetry(buildGvizUrl('Q188:R188'), { required: false, retries: 1, timeoutMs: 8000 })
   ]);
 
   const lines = csvText ? csvText.split('\n') : [];
   if (lines.length < 15) {
     throw new Error(`Format tab ${tabName} tidak memiliki cukup baris kertas kerja.`);
   }
+  const parsedLines = lines.map((line) => parseCsvLine(line));
 
   let noLaporan = '';
   let tanggalMulai = '';
   let tanggalSelesai = '';
   let tanggalAdmoist = '';
 
-  // 0. Ekstraksi Langsung Tanggal Proses Admoist dari Cell R11 (Dedicated Range Q11:R11)
-  if (r11RangeCsv) {
-    const matchSlash = r11RangeCsv.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
-    if (matchSlash) {
-      tanggalAdmoist = matchSlash[1].trim();
+  // 0. Ekstraksi Langsung Tanggal Proses Admoist dari Cell R11 (terdapat pada baris 'Gelondong Kering :' di Full CSV)
+  for (let i = 0; i < Math.min(parsedLines.length, 20); i++) {
+    const cols = parsedLines[i];
+    const colQ = (cols[16] || '').trim();
+    const colR = (cols[17] || '').trim();
+    if (colQ.includes('Gelondong Kering') || (lines[i] && lines[i].includes('Gelondong Kering :'))) {
+      const matchSlash = colR.match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/) || lines[i].match(/(\d{1,2}\/\d{1,2}\/\d{2,4})/);
+      if (matchSlash) {
+        tanggalAdmoist = matchSlash[1].trim();
+        break;
+      }
     }
   }
   if (!tanggalAdmoist) {
@@ -670,26 +721,54 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     }
 
     // Kadar Air Pra-Rendam
-    if (l.includes('Kadar Air Pra Rendam :') || l.includes('K. Air Pra Rendam :')) {
-      const matchKa = l.match(/Pra Rendam :","([^"]*)"/);
-      if (matchKa && kaPraRendam === null) {
-        const parsed = cleanIndoNumber(matchKa[1]);
-        if (parsed > 0) kaPraRendam = parsed;
+    const pCols = parsedLines[idx] || [];
+    const colQClean = (pCols[16] || '').trim();
+    const colRClean = (pCols[17] || '').trim();
+    if (colQClean.includes('Kadar Air Pra Rendam') || colQClean.includes('K. Air Pra Rendam') || l.includes('Pra Rendam :')) {
+      const val = cleanIndoNumber(colRClean);
+      if (val > 0 && kaPraRendam === null) {
+        kaPraRendam = val;
+      } else if (kaPraRendam === null) {
+        const matchKa = l.match(/Pra Rendam :","([^"]*)"/);
+        if (matchKa) {
+          const parsed = cleanIndoNumber(matchKa[1]);
+          if (parsed > 0) kaPraRendam = parsed;
+        }
       }
     }
 
-    // Parameter Fisik Mesin
-    if (l.includes('Uap :')) {
+    // Parameter Fisik Mesin Admoist
+    if (colQClean.includes('Uap :') && !colQClean.includes('Tekanan')) {
+      const val = cleanIndoNumber(colRClean);
+      if (val > 0 && uapBar === null) uapBar = val;
+    } else if (l.includes('Uap :') && !l.includes('Tekanan Uap :')) {
       const m = l.match(/Uap :","([^"]*)"/);
-      if (m && uapBar === null) uapBar = cleanIndoNumber(m[1]);
+      if (m && uapBar === null) {
+        const val = cleanIndoNumber(m[1]);
+        if (val > 0) uapBar = val;
+      }
     }
-    if (l.includes('Putaran Admoist :')) {
-      const m = l.match(/Putaran Admoist :","([^"]*)"/);
-      if (m && admoistRpm === null) admoistRpm = cleanIndoNumber(m[1]);
+    if (colQClean.includes('Putaran Admoist :') || l.includes('Putaran Admoist :')) {
+      const val = cleanIndoNumber(colRClean);
+      if (val > 0 && admoistRpm === null) admoistRpm = val;
+      else if (admoistRpm === null) {
+        const m = l.match(/Putaran Admoist :","([^"]*)"/);
+        if (m) {
+          const mVal = cleanIndoNumber(m[1]);
+          if (mVal > 0) admoistRpm = mVal;
+        }
+      }
     }
-    if (l.includes('Pemakaian Air :')) {
-      const m = l.match(/Pemakaian Air :","([^"]*)"/);
-      if (m && airLpm === null) airLpm = cleanIndoNumber(m[1]);
+    if (colQClean.includes('Pemakaian Air :') || l.includes('Pemakaian Air :')) {
+      const val = cleanIndoNumber(colRClean);
+      if (val > 0 && airLpm === null) airLpm = val;
+      else if (airLpm === null) {
+        const m = l.match(/Pemakaian Air :","([^"]*)"/);
+        if (m) {
+          const mVal = cleanIndoNumber(m[1]);
+          if (mVal > 0) airLpm = mVal;
+        }
+      }
     }
 
     // Kadar Air Dryer Sesi 1, 2, & 3
@@ -714,7 +793,7 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       }
     }
 
-    // Parameter Mesin Dryer (Sesi 1: baris ~90-135, Sesi 2: baris ~145-185, Sesi 3: baris ~270-315)
+    // Parameter Mesin Dryer (Sesi 1: baris ~85-135, Sesi 2: baris ~145-185, Sesi 3: baris ~270-315)
     const rowNum = idx + 1;
     const isSesi1 = rowNum >= 85 && rowNum <= 135;
     const isSesi2 = (rowNum >= 145 && rowNum <= 185) || (rowNum >= 235 && rowNum <= 255);
@@ -752,11 +831,14 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   jenis = cleanJenisCengkeh(jenis);
 
   // Ekstraksi Parameter Jalur Silo vs Manual (Cell O8:P8 Kertas Kerja DHP)
+  // Jika range O8:P8 berhasil ditarik, gunakan hasilnya langsung; jika gagal sementara, pertahankan nilai prevTab.
   let jalurSilo: 'Silo' | 'Manual' = 'Manual';
-  if (siloRangeCsv && /silo/i.test(siloRangeCsv)) {
-    jalurSilo = 'Silo';
+  if (siloRangeCsv && siloRangeCsv.trim().length > 0) {
+    jalurSilo = /silo/i.test(siloRangeCsv) ? 'Silo' : 'Manual';
   } else if (lines.length >= 8 && /silo/i.test(lines[7] || '')) {
     jalurSilo = 'Silo';
+  } else if (prevTab?.jalurSilo) {
+    jalurSilo = prevTab.jalurSilo;
   } else if (tabName === 'PARTAI 3') {
     jalurSilo = 'Silo'; // Sesuai lembar kerja aktual Partai 3
   }
@@ -792,124 +874,75 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   // Urutkan item timbangan berdasarkan nomor urut koli
   timbanganItems.sort((a, b) => a.no - b.no);
 
-  // Ekstraksi Parameter Mesin Admoist dari Cell P24:R35 (Uap, Putaran Admoist, Pemakaian Air, KA Pra-Rendam)
-  if (admoistRangeCsv) {
-    const linesAd = admoistRangeCsv.split('\n');
-    linesAd.forEach((l) => {
-      const cols = l.split('","').map((c) => c.replace(/"/g, '').trim());
-      cols.forEach((col, idx) => {
-        if (col.includes('Uap :') && cols[idx + 1]) {
-          const val = cleanIndoNumber(cols[idx + 1]);
-          if (val > 0) uapBar = val;
-        }
-        if (col.includes('Putaran Admoist :') && cols[idx + 1]) {
-          const val = cleanIndoNumber(cols[idx + 1]);
-          if (val > 0) admoistRpm = val;
-        }
-        if (col.includes('Pemakaian Air :') && cols[idx + 1]) {
-          const val = cleanIndoNumber(cols[idx + 1]);
-          if (val > 0) airLpm = val;
-        }
-        if (col.includes('Pra Rendam :') && cols[idx + 1]) {
-          const val = cleanIndoNumber(cols[idx + 1]);
-          if (val > 0 && kaPraRendam === null) kaPraRendam = val;
-        }
-      });
-    });
-  }
-
-  // 3. Ekstraksi Nilai Rajang Basah & Hasil Dryer berdasarkan Struktur Resmi Sheet:
-  // A. Total Rajang basah masing-masing Tab partai adalah cell R22 (Netto Rajang Basah)
-  // B. Proses Dryer Partai sesi 1:
-  //    - Rajang basah : sumber data adalah cell Q156
-  //    - Hasil Dryer  : sumber data adalah cell R156
-  // C. Proses Dryer Partai sesi 2:
-  //    - Rajang basah : sumber data adalah cell Q221
-  //    - Hasil Dryer  : sumber data adalah cell R221
-
-  // Ekstraksi Cell R22 & Resume Timbangan Rajang Basah (Q20:R24)
+  // 3. Ekstraksi Nilai Rajang Basah & Hasil Dryer langsung dari Full CSV (tanpa extra range fetch)
+  // A. Total Rajang basah masing-masing Tab partai berada di blok 'Hasil Rajang Basah Partai ...' (cell R22)
   let cellR22Netto = 0;
-  if (r22Csv) {
-    const r22Lines = r22Csv.split('\n');
-    r22Lines.forEach((l) => {
-      const cols = l.split('","');
-      const colQ = cols[0] ? cols[0].replace(/"/g, '').trim() : '';
-      const colR = cols[1] ? cols[1].replace(/"/g, '').trim() : '';
-      if (colQ.includes('Bruto')) rjBasahBruto = cleanIndoNumber(colR);
-      if (colQ.includes('Tarra')) rjBasahTarra = cleanIndoNumber(colR);
-      if (colQ.includes('Netto')) cellR22Netto = cleanIndoNumber(colR);
-      if (colQ.includes('Selisih Lebih')) sisaGldBelumRajangKg = cleanIndoNumber(colR);
-      if (colR.includes('%')) sisaGldBelumRajangPct = cleanIndoNumber(colR);
-    });
+  for (let i = 0; i < Math.min(parsedLines.length, 35); i++) {
+    const colQHeader = (parsedLines[i][16] || '').trim();
+    if (colQHeader.includes('Hasil Rajang Basah Partai') || (lines[i] && lines[i].includes('Hasil Rajang Basah Partai'))) {
+      for (let j = i + 1; j < Math.min(parsedLines.length, i + 9); j++) {
+        const cQ = (parsedLines[j][16] || '').trim();
+        const cR = (parsedLines[j][17] || '').trim();
+        if (cQ.includes('Bruto')) rjBasahBruto = cleanIndoNumber(cR);
+        else if (cQ.includes('Tarra')) rjBasahTarra = cleanIndoNumber(cR);
+        else if (cQ.includes('Netto')) cellR22Netto = cleanIndoNumber(cR);
+        else if (cQ.includes('Selisih Lebih')) sisaGldBelumRajangKg = cleanIndoNumber(cR);
+        else if (!cQ && cR.includes('%')) sisaGldBelumRajangPct = cleanIndoNumber(cR);
+      }
+      break;
+    }
   }
 
-  // Ekstraksi Proses Dryer Sesi 1: Cell Q156 (Rj Basah) & Cell R156 (Hasil Dryer)
-  let s1SusutKgExplicit = 0;
-  let s1SusutPctExplicit = 0;
-  if (s1RangeCsv) {
-    const s1Lines = s1RangeCsv.split('\n');
-    s1Lines.forEach((l) => {
-      const cols = l.split('","');
-      if (l.includes('N :')) {
-        const valQ156 = cleanIndoNumber(cols[0]);
-        const valR156 = cleanIndoNumber(cols[1]);
-        if (valQ156 > 0) rjBasahSesi1 = valQ156;
-        if (valR156 > 0) dryerSesi1 = valR156;
-      }
-      if (cols[1] && cols[1].includes('Kg') && !cols[1].includes('N :')) {
-        s1SusutKgExplicit = cleanIndoNumber(cols[1]);
-      }
-      if (cols[1] && cols[1].includes('%')) {
-        s1SusutPctExplicit = cleanIndoNumber(cols[1]);
-      }
-    });
-  }
+  // Helper pemindai blok Proses Dryer Pertama / Kedua / Ketiga di Full CSV (Kolom Q & R -> index 16 & 17)
+  const extractDryerSectionFromCsv = (sectionKeyword: string) => {
+    let rjBasah = 0;
+    let hasilDryer = 0;
+    let susutKg = 0;
+    let susutPct = 0;
 
-  // Ekstraksi Proses Dryer Sesi 2: Cell Q221 (Rj Basah) & Cell R221 (Hasil Dryer)
-  let s2SusutKgExplicit = 0;
-  let s2SusutPctExplicit = 0;
-  if (s2RangeCsv) {
-    const s2Lines = s2RangeCsv.split('\n');
-    s2Lines.forEach((l) => {
-      const cols = l.split('","');
-      if (l.includes('N :')) {
-        const valQ221 = cleanIndoNumber(cols[0]);
-        const valR221 = cleanIndoNumber(cols[1]);
-        if (valQ221 > 0) rjBasahSesi2 = valQ221;
-        if (valR221 > 0) dryerSesi2 = valR221;
+    for (let i = 0; i < parsedLines.length; i++) {
+      const colQHeader = (parsedLines[i][16] || '').trim();
+      if (colQHeader.includes(sectionKeyword) || (lines[i] && lines[i].includes(sectionKeyword))) {
+        for (let j = i + 1; j < Math.min(parsedLines.length, i + 8); j++) {
+          const cQ = (parsedLines[j][16] || '').trim();
+          const cR = (parsedLines[j][17] || '').trim();
+          if (cQ.includes('N :') || cR.includes('N :')) {
+            const valQ = cleanIndoNumber(cQ);
+            const valR = cleanIndoNumber(cR);
+            if (valQ > 0) rjBasah = valQ;
+            if (valR > 0) hasilDryer = valR;
+          } else if (cQ.includes('Susut Dryer') && cR.includes('Kg') && !cR.includes('N :')) {
+            susutKg = cleanIndoNumber(cR);
+          } else if (cR.includes('%') && (!cQ || cQ.includes('Susut'))) {
+            susutPct = cleanIndoNumber(cR);
+          }
+        }
+        break;
       }
-      if (cols[1] && cols[1].includes('Kg') && !cols[1].includes('N :')) {
-        s2SusutKgExplicit = cleanIndoNumber(cols[1]);
-      }
-      if (cols[1] && cols[1].includes('%')) {
-        s2SusutPctExplicit = cleanIndoNumber(cols[1]);
-      }
-    });
-  }
+    }
+    return { rjBasah, hasilDryer, susutKg, susutPct };
+  };
 
-  // Ekstraksi Proses Dryer Sesi 3 (Jika ada di kertas kerja, misal PARTAI 2)
-  let s3SusutKgExplicit = 0;
-  let s3SusutPctExplicit = 0;
-  if (s3RangeCsv) {
-    const s3Lines = s3RangeCsv.split('\n');
-    s3Lines.forEach((l) => {
-      const cols = l.split('","');
-      if (l.includes('N :')) {
-        const valQ = cleanIndoNumber(cols[0]);
-        const valR = cleanIndoNumber(cols[1]);
-        if (valQ > 0) rjBasahSesi3 = valQ;
-        if (valR > 0) dryerSesi3 = valR;
-      }
-      if (cols[1] && cols[1].includes('Kg') && !cols[1].includes('N :')) {
-        s3SusutKgExplicit = cleanIndoNumber(cols[1]);
-      }
-      if (cols[1] && cols[1].includes('%')) {
-        s3SusutPctExplicit = cleanIndoNumber(cols[1]);
-      }
-    });
-  }
+  // B. Proses Dryer Sesi 1, Sesi 2, Sesi 3 langsung dari Full CSV
+  const s1Parsed = extractDryerSectionFromCsv('Proses Dryer Pertama :');
+  rjBasahSesi1 = s1Parsed.rjBasah;
+  dryerSesi1 = s1Parsed.hasilDryer;
+  const s1SusutKgExplicit = s1Parsed.susutKg;
+  const s1SusutPctExplicit = s1Parsed.susutPct;
 
-  // Fallback ke full sheet match jika range query kosong
+  const s2Parsed = extractDryerSectionFromCsv('Proses Dryer Kedua :');
+  rjBasahSesi2 = s2Parsed.rjBasah;
+  dryerSesi2 = s2Parsed.hasilDryer;
+  const s2SusutKgExplicit = s2Parsed.susutKg;
+  const s2SusutPctExplicit = s2Parsed.susutPct;
+
+  const s3Parsed = extractDryerSectionFromCsv('Proses Dryer Ketiga :');
+  rjBasahSesi3 = s3Parsed.rjBasah;
+  dryerSesi3 = s3Parsed.hasilDryer;
+  const s3SusutKgExplicit = s3Parsed.susutKg;
+  const s3SusutPctExplicit = s3Parsed.susutPct;
+
+  // Fallback regex ke full sheet match jika struktur kolom berbeda
   if (rjBasahSesi1 === 0) {
     const matchDryer1Rj = csvText.match(/Proses Dryer Pertama :[\s\S]*?Rj\. Basah[\s\S]*?N : ([0-9.,]+) Kg/);
     if (matchDryer1Rj) rjBasahSesi1 = cleanIndoNumber(matchDryer1Rj[1]);
@@ -937,6 +970,16 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     if (matchDryer3) dryerSesi3 = cleanIndoNumber(matchDryer3[1]);
   }
 
+  // Fetch status Sesi 2 / Sesi 3 secara kondisional HANYA jika sesi 2/3 memiliki data timbangan fisik
+  const [s2StatusCsv, s3StatusCsv] = await Promise.all([
+    (rjBasahSesi2 > 0 || dryerSesi2 > 0)
+      ? fetchCsvWithRetry(buildGvizUrl('Q253:R253'), { required: false, retries: 1, timeoutMs: 8000 })
+      : Promise.resolve(''),
+    (rjBasahSesi3 > 0 || dryerSesi3 > 0)
+      ? fetchCsvWithRetry(buildGvizUrl('Q318:R318'), { required: false, retries: 1, timeoutMs: 8000 })
+      : Promise.resolve('')
+  ]);
+
   // 3. Akumulasi Timbangan Koli & Jumlah Sak Real-time
   const sumTimbanganNetto = timbanganItems.length > 0 
     ? round1(timbanganItems.reduce((acc, it) => acc + it.netto, 0)) 
@@ -952,22 +995,18 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     if (matchKoliRj1) koliRjBasah = Math.round(cleanIndoNumber(matchKoliRj1[1]));
   }
 
-  // Ekstraksi Hasil Akhir (TOTAL) seluruh data masing-masing partai:
-  // - Hasil akhir Rajang basah : Cell Q297
-  // - Hasil akhir Dryer        : Cell R297
+  // Ekstraksi Hasil Akhir (TOTAL) langsung dari Full CSV:
+  // Prioritaskan 'Total Dryer 1 + 2 + 3 :' jika ada (> 0), lalu 'Total Dryer 1 + 2 :'
   let totalRjBasahQ297 = 0;
   let totalDryerR297 = 0;
-  if (totalRangeCsv) {
-    const totalLines = totalRangeCsv.split('\n');
-    totalLines.forEach((l) => {
-      const cols = l.split('","');
-      if (l.includes('N :')) {
-        const valQ = cleanIndoNumber(cols[0]);
-        const valR = cleanIndoNumber(cols[1]);
-        if (valQ > 0) totalRjBasahQ297 = valQ;
-        if (valR > 0) totalDryerR297 = valR;
-      }
-    });
+  const total123Parsed = extractDryerSectionFromCsv('Total Dryer 1 + 2 + 3 :');
+  const total12Parsed = extractDryerSectionFromCsv('Total Dryer 1 + 2 :');
+  if (total123Parsed.rjBasah > 0 || total123Parsed.hasilDryer > 0) {
+    totalRjBasahQ297 = total123Parsed.rjBasah;
+    totalDryerR297 = total123Parsed.hasilDryer;
+  } else if (total12Parsed.rjBasah > 0 || total12Parsed.hasilDryer > 0) {
+    totalRjBasahQ297 = total12Parsed.rjBasah;
+    totalDryerR297 = total12Parsed.hasilDryer;
   }
 
   // Juga scan teks tab penuh jika ada label Hasil Dryer 1+2+3
@@ -1080,13 +1119,24 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     statusCsvText: string,
     cellRef: string,
     dryerWeight: number,
-    rjBasahWeight: number = 0
+    rjBasahWeight: number = 0,
+    prevSesi?: DhpSesiDryer
   ): { status: 'selesai' | 'berjalan' | 'belum'; rawStatusText: string; isChecked: boolean; statusCellCoordinate: string } => {
+    // Jika optional status range gagal ditarik sementara, pertahankan status 'selesai' sebelumnya agar badge tidak berkedip
+    if (!statusCsvText && prevSesi && prevSesi.status === 'selesai' && dryerWeight > 0) {
+      return {
+        status: 'selesai',
+        rawStatusText: prevSesi.rawStatusText || 'SELESAI',
+        isChecked: prevSesi.isChecked ?? true,
+        statusCellCoordinate: cellRef
+      };
+    }
+
     let isChecked = false;
     let rawText = '';
     if (statusCsvText) {
       const line = statusCsvText.trim().split('\n')[0] || '';
-      const cols = line.split('","').map((c) => c.replace(/"/g, '').trim());
+      const cols = parseCsvLine(line).map((c) => c.trim());
       if (cols.length >= 2) {
         isChecked = cols[0].toUpperCase() === 'TRUE';
         rawText = cols[1];
@@ -1153,9 +1203,27 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     };
   };
 
-  const s1StatusInfo = parseOperatorSessionStatus(s1StatusCsv, 'R188', dryerSesi1, rjBasahSesi1);
-  const s2StatusInfo = parseOperatorSessionStatus(s2StatusCsv, 'R253', dryerSesi2, rjBasahSesi2);
-  const s3StatusInfo = parseOperatorSessionStatus(s3StatusCsv, 'R318', dryerSesi3, rjBasahSesi3);
+  const s1StatusInfo = parseOperatorSessionStatus(
+    s1StatusCsv,
+    'R188',
+    dryerSesi1,
+    rjBasahSesi1,
+    prevTab?.sesiList?.find((s) => s.sesi === 1)
+  );
+  const s2StatusInfo = parseOperatorSessionStatus(
+    s2StatusCsv,
+    'R253',
+    dryerSesi2,
+    rjBasahSesi2,
+    prevTab?.sesiList?.find((s) => s.sesi === 2)
+  );
+  const s3StatusInfo = parseOperatorSessionStatus(
+    s3StatusCsv,
+    'R318',
+    dryerSesi3,
+    rjBasahSesi3,
+    prevTab?.sesiList?.find((s) => s.sesi === 3)
+  );
 
   // Evaluasi Apakah Partai Tuntas dalam 1 Sesi (Kondisi Hari ini: Partai 1 tuntas di Sesi 1)
   const isSesi1CompleteAll = dryerSesi1 > 0 && (
@@ -1340,12 +1408,9 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
   };
 }
 
-/**
- * Fetch dan Parse status harian dari Tab SOURCE HASIL DRYER (Cell I14:I25)
- */
-export async function fetchSourceHasilDryerStatus(
+async function fetchSourceHasilDryerStatusSafe(
   spreadsheetId: string = getDhpSpreadsheetId()
-): Promise<Record<string, { status: 'Proses' | 'OFF'; sesiAktif: string[] }>> {
+): Promise<{ ok: boolean; data: Record<string, { status: 'Proses' | 'OFF'; sesiAktif: string[] }> }> {
   const result: Record<string, { status: 'Proses' | 'OFF'; sesiAktif: string[] }> = {
     'PARTAI 1': { status: 'OFF', sesiAktif: [] },
     'PARTAI 2': { status: 'OFF', sesiAktif: [] },
@@ -1355,11 +1420,7 @@ export async function fetchSourceHasilDryerStatus(
 
   try {
     const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('SOURCE HASIL DRYER')}&t=${Date.now()}`;
-    const res = await fetch(gvizUrl);
-    if (!res.ok) return result;
-
-    const csvText = await res.text();
-    if (isHtmlResponse(res, csvText)) return result;
+    const csvText = await fetchCsvWithRetry(gvizUrl, { required: true, isFullSheet: false, retries: 2, timeoutMs: 10000 });
     const lines = csvText.split('\n');
 
     lines.forEach((l) => {
@@ -1388,141 +1449,206 @@ export async function fetchSourceHasilDryerStatus(
         }
       }
     });
+    return { ok: true, data: result };
   } catch (err) {
     console.warn('Gagal membaca SOURCE HASIL DRYER:', err);
+    return { ok: false, data: result };
   }
-
-  return result;
 }
 
 /**
- * Fetch seluruh Tab Partai (Partai 1 s/d 4) secara paralel dengan Logika Hybrid 3-State
+ * Fetch dan Parse status harian dari Tab SOURCE HASIL DRYER (Cell I14:I25)
+ */
+export async function fetchSourceHasilDryerStatus(
+  spreadsheetId: string = getDhpSpreadsheetId()
+): Promise<Record<string, { status: 'Proses' | 'OFF'; sesiAktif: string[] }>> {
+  const { data } = await fetchSourceHasilDryerStatusSafe(spreadsheetId);
+  return data;
+}
+
+/**
+ * Fetch seluruh Tab Partai (Partai 1 s/d 4) dengan In-Flight Deduplication, Staggered Waves, & Stale-While-Revalidate
  */
 export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadsheetId()): Promise<DhpPartaiData[]> {
-  const makeFallbackPartai = (tab: string): DhpPartaiData => ({
-    id: tab,
-    namaTab: tab,
-    noLaporan: '-',
-    tanggalMulai: '-',
-    tanggalSelesai: '-',
-    jenis: '-',
-    mesin: '-',
-    gldKering: 0,
-    koliGld: 0,
-    kaGld: null,
-    totalRjBasah: 0,
-    totalRjKering: 0,
-    kaDryRata: null,
-    selisihKg: 0,
-    selisihPct: 0,
-    susutDryerKg: 0,
-    susutDryerPct: 0,
-    totalSusutKg: 0,
-    totalSusutPct: 0,
-    status: 'kosong' as const,
-    catatanStatus: 'Tab tidak ditemukan atau belum terisi.',
-    statusDropdownKertasKerja: '',
-    isSusutAkhir: false,
-    sourceDryerStatus: 'OFF' as const,
-    dryerParams: {
-      rpmInput: null,
-      putaranCylinder: null,
-      tekananUap: null,
-      suhuCylinder: null,
-      anginHe: null
-    },
-    sesiList: [],
-    qc: {
-      uapBar: null,
-      admoistRpm: null,
-      airLpm: null,
-      kaPraRendam: null,
+  const existingInFlight = inFlightFetchAllMap.get(spreadsheetId);
+  if (existingInFlight) {
+    return existingInFlight;
+  }
+
+  const runFetch = async (): Promise<DhpPartaiData[]> => {
+    const prevCached = getCachedDhpPartai() || [];
+    const prevMap = new Map<string, DhpPartaiData>(prevCached.map((p) => [p.id, p]));
+    const failedTabs: string[] = [];
+
+    const makeFallbackPartai = (tab: string): DhpPartaiData => ({
+      id: tab,
+      namaTab: tab,
+      noLaporan: '-',
+      tanggalMulai: '-',
+      tanggalSelesai: '-',
+      jenis: '-',
       mesin: '-',
-      pengering: '-'
-    },
-    rawFetchedAt: new Date().toISOString()
-  });
+      gldKering: 0,
+      koliGld: 0,
+      kaGld: null,
+      totalRjBasah: 0,
+      totalRjKering: 0,
+      kaDryRata: null,
+      selisihKg: 0,
+      selisihPct: 0,
+      susutDryerKg: 0,
+      susutDryerPct: 0,
+      totalSusutKg: 0,
+      totalSusutPct: 0,
+      status: 'kosong' as const,
+      catatanStatus: 'Tab tidak ditemukan atau belum terisi.',
+      statusDropdownKertasKerja: '',
+      isSusutAkhir: false,
+      sourceDryerStatus: 'OFF' as const,
+      dryerParams: {
+        rpmInput: null,
+        putaranCylinder: null,
+        tekananUap: null,
+        suhuCylinder: null,
+        anginHe: null
+      },
+      sesiList: [],
+      qc: {
+        uapBar: null,
+        admoistRpm: null,
+        airLpm: null,
+        kaPraRendam: null,
+        mesin: '-',
+        pengering: '-'
+      },
+      rawFetchedAt: new Date().toISOString(),
+      isStaleFallback: true
+    });
 
-  // Batching 2 tab per gelombang agar CPU & jaringan HP tetap responsif (menghindari 49 koneksi serentak)
-  const [sourceStatusMap, p1, p2] = await Promise.all([
-    fetchSourceHasilDryerStatus(spreadsheetId),
-    fetchDhpPartai(spreadsheetId, DHP_TABS[0]).catch((err) => {
-      console.warn(`Gagal memuat ${DHP_TABS[0]}:`, err);
-      return makeFallbackPartai(DHP_TABS[0]);
-    }),
-    fetchDhpPartai(spreadsheetId, DHP_TABS[1]).catch((err) => {
-      console.warn(`Gagal memuat ${DHP_TABS[1]}:`, err);
-      return makeFallbackPartai(DHP_TABS[1]);
-    })
-  ]);
-
-  const [p3, p4] = await Promise.all([
-    fetchDhpPartai(spreadsheetId, DHP_TABS[2]).catch((err) => {
-      console.warn(`Gagal memuat ${DHP_TABS[2]}:`, err);
-      return makeFallbackPartai(DHP_TABS[2]);
-    }),
-    fetchDhpPartai(spreadsheetId, DHP_TABS[3]).catch((err) => {
-      console.warn(`Gagal memuat ${DHP_TABS[3]}:`, err);
-      return makeFallbackPartai(DHP_TABS[3]);
-    })
-  ]);
-
-  const partaiDataList = [p1, p2, p3, p4];
-
-  // Evaluasi Logika Hybrid 3-State dengan Indikator Dropdown Kolom Q/R ("Susut Akhir")
-  const hybridResults = partaiDataList.map((p) => {
-    const srcStatus = sourceStatusMap[p.id]?.status || 'OFF';
-    const isTodayActive = srcStatus === 'Proses';
-    const isSusutAkhir = p.isSusutAkhir || p.statusDropdownKertasKerja === 'Susut Akhir (Gld Kering-Rj. Kering)';
-    const isSusutSementara = p.statusDropdownKertasKerja === 'Susut Sementara' || p.statusDropdownKertasKerja === 'Perkiraan Susut Sementara';
-
-    let status: 'selesai' | 'berjalan' | 'kosong' = 'kosong';
-    let catatanStatus = '';
-
-    if (p.gldKering > 0) {
-      if (isSusutAkhir && p.totalRjKering > 0) {
-        status = 'selesai';
-        catatanStatus = `Partai dinyatakan habis/tuntas oleh operator (Dropdown Kolom Q: "Susut Akhir"). Siap dikirim ke Rekap Susut (${p.totalSusutPct}% total susut).`;
-      } else if (isSusutSementara) {
-        status = 'berjalan';
-        if (isTodayActive) {
-          catatanStatus = `Proses sedang berjalan aktif hari ini (Kolom Q: "${p.statusDropdownKertasKerja}" · SOURCE HASIL DRYER: "Proses"). Gld Kering: ${formatInt(p.gldKering)} Kg.`;
-        } else {
-          catatanStatus = `Proses sedang berjalan (Multi-day dryer · Kolom Q: "${p.statusDropdownKertasKerja}"). Belum dinyatakan habis oleh operator.`;
+    const fetchTabSafe = async (tab: string): Promise<DhpPartaiData> => {
+      const prevTab = prevMap.get(tab);
+      try {
+        return await fetchDhpPartai(spreadsheetId, tab, prevTab);
+      } catch (err) {
+        console.warn(`Gagal memuat ${tab} (mempertahankan data terakhir jika tersedia):`, err);
+        failedTabs.push(tab);
+        if (prevTab && (prevTab.gldKering > 0 || prevTab.totalRjBasah > 0 || prevTab.status !== 'kosong')) {
+          return {
+            ...prevTab,
+            isStaleFallback: true
+          };
         }
-      } else if (p.totalRjKering > 0 && p.totalRjBasah > 0) {
-        status = 'selesai';
-        catatanStatus = `Seluruh proses pengeringan tuntas. Siap dikirim ke Rekap Susut (${p.totalSusutPct}% total susut).`;
-      } else {
-        status = 'berjalan';
-        if (isTodayActive) {
-          catatanStatus = `Sedang berjalan aktif hari ini (Tercatat "Proses" di SOURCE HASIL DRYER). Gld Kering: ${formatInt(p.gldKering)} Kg tercatat.`;
-        } else {
-          catatanStatus = `Proses sedang berjalan (Multi-day dryer / menunggu sesi berikutnya tuntas). Gld Kering: ${formatInt(p.gldKering)} Kg.`;
-        }
+        return makeFallbackPartai(tab);
       }
-    } else if (isTodayActive) {
-      status = 'berjalan';
-      catatanStatus = `Terjadwal aktif hari ini (SOURCE HASIL DRYER: "Proses"). Menunggu penimbangan bahan awal Gelondong Kering.`;
-    } else {
-      status = 'kosong';
-      catatanStatus = `Kertas kerja masih kosong (SOURCE HASIL DRYER: "OFF").`;
+    };
+
+    // Gelombang 1: SOURCE HASIL DRYER + PARTAI 1 + PARTAI 2 (~7 request total)
+    const [sourceRes, p1, p2] = await Promise.all([
+      fetchSourceHasilDryerStatusSafe(spreadsheetId),
+      fetchTabSafe(DHP_TABS[0]),
+      fetchTabSafe(DHP_TABS[1])
+    ]);
+
+    // Jeda ringan 150ms agar Google Sheets & browser HP tidak mengalami burst rate-limit
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    // Gelombang 2: PARTAI 3 + PARTAI 4 (~6 request total)
+    const [p3, p4] = await Promise.all([
+      fetchTabSafe(DHP_TABS[2]),
+      fetchTabSafe(DHP_TABS[3])
+    ]);
+
+    const sourceStatusMap = sourceRes.data;
+    const partaiDataList = [p1, p2, p3, p4];
+
+    // Evaluasi Logika Hybrid 3-State dengan proteksi anti-reset saat transient failure
+    const hybridResults = partaiDataList.map((p) => {
+      const prevTab = prevMap.get(p.id);
+      const srcStatus: 'Proses' | 'OFF' = sourceRes.ok
+        ? (sourceStatusMap[p.id]?.status || 'OFF')
+        : (prevTab?.sourceDryerStatus || 'OFF');
+      const isTodayActive = sourceRes.ok
+        ? srcStatus === 'Proses'
+        : (prevTab?.isTodayActive ?? srcStatus === 'Proses');
+
+      // Jika tab ini memakai fallback cache karena gagal fetch, pertahankan metrik & status terakhirnya
+      if (p.isStaleFallback && p.gldKering > 0) {
+        return {
+          ...p,
+          sourceDryerStatus: srcStatus,
+          isTodayActive
+        };
+      }
+
+      const isSusutAkhir = p.isSusutAkhir || p.statusDropdownKertasKerja === 'Susut Akhir (Gld Kering-Rj. Kering)';
+      const isSusutSementara = p.statusDropdownKertasKerja === 'Susut Sementara' || p.statusDropdownKertasKerja === 'Perkiraan Susut Sementara';
+
+      let status: 'selesai' | 'berjalan' | 'kosong' = 'kosong';
+      let catatanStatus = '';
+
+      if (p.gldKering > 0) {
+        if (isSusutAkhir && p.totalRjKering > 0) {
+          status = 'selesai';
+          catatanStatus = `Partai dinyatakan habis/tuntas oleh operator (Dropdown Kolom Q: "Susut Akhir"). Siap dikirim ke Rekap Susut (${p.totalSusutPct}% total susut).`;
+        } else if (isSusutSementara) {
+          status = 'berjalan';
+          if (isTodayActive) {
+            catatanStatus = `Proses sedang berjalan aktif hari ini (Kolom Q: "${p.statusDropdownKertasKerja}" · SOURCE HASIL DRYER: "Proses"). Gld Kering: ${formatInt(p.gldKering)} Kg.`;
+          } else {
+            catatanStatus = `Proses sedang berjalan (Multi-day dryer · Kolom Q: "${p.statusDropdownKertasKerja}"). Belum dinyatakan habis oleh operator.`;
+          }
+        } else if (p.totalRjKering > 0 && p.totalRjBasah > 0) {
+          status = 'selesai';
+          catatanStatus = `Seluruh proses pengeringan tuntas. Siap dikirim ke Rekap Susut (${p.totalSusutPct}% total susut).`;
+        } else {
+          status = 'berjalan';
+          if (isTodayActive) {
+            catatanStatus = `Sedang berjalan aktif hari ini (Tercatat "Proses" di SOURCE HASIL DRYER). Gld Kering: ${formatInt(p.gldKering)} Kg tercatat.`;
+          } else {
+            catatanStatus = `Proses sedang berjalan (Multi-day dryer / menunggu sesi berikutnya tuntas). Gld Kering: ${formatInt(p.gldKering)} Kg.`;
+          }
+        }
+      } else if (isTodayActive) {
+        status = 'berjalan';
+        catatanStatus = `Terjadwal aktif hari ini (SOURCE HASIL DRYER: "Proses"). Menunggu penimbangan bahan awal Gelondong Kering.`;
+      } else {
+        status = 'kosong';
+        catatanStatus = `Kertas kerja masih kosong (SOURCE HASIL DRYER: "OFF").`;
+      }
+
+      return {
+        ...p,
+        status,
+        catatanStatus,
+        statusDropdownKertasKerja: p.statusDropdownKertasKerja,
+        isSusutAkhir,
+        physicsValidation: p.physicsValidation,
+        sourceDryerStatus: srcStatus,
+        isTodayActive
+      };
+    });
+
+    lastDhpFetchReport = {
+      fetchedAt: new Date().toISOString(),
+      failedTabs,
+      sourceDryerFailed: !sourceRes.ok,
+      usedCacheFallback: failedTabs.length > 0 || !sourceRes.ok
+    };
+
+    // Jangan pernah menimpa cache localStorage yang valid jika seluruh request tab gagal bersamaan
+    const anyTabLive = failedTabs.length < DHP_TABS.length;
+    if (anyTabLive || prevCached.length === 0) {
+      saveCachedDhpPartai(hybridResults);
     }
 
-    return {
-      ...p,
-      status,
-      catatanStatus,
-      statusDropdownKertasKerja: p.statusDropdownKertasKerja,
-      isSusutAkhir,
-      physicsValidation: p.physicsValidation,
-      sourceDryerStatus: srcStatus,
-      isTodayActive
-    };
-  });
+    return hybridResults;
+  };
 
-  saveCachedDhpPartai(hybridResults);
-  return hybridResults;
+  const promise = runFetch().finally(() => {
+    inFlightFetchAllMap.delete(spreadsheetId);
+  });
+  inFlightFetchAllMap.set(spreadsheetId, promise);
+  return promise;
 }
 
 /**

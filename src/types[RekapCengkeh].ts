@@ -219,6 +219,7 @@ export interface DhpPartaiData {
   qc: DhpQcParams;
   jalurSilo?: 'Silo' | 'Manual'; // Parameter Alur Proses Admoist -> RC4 (Cell O8:P8: "Silo" atau "Manual")
   rawFetchedAt: string;
+  isStaleFallback?: boolean; // True jika sementara mempertahankan cache terakhir akibat gangguan fetch
 }
 
 export interface DhpSyncLog {

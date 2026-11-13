@@ -63,7 +63,8 @@ import {
   clearDhpSyncLogs,
   removeDhpSyncLog,
   getCachedDhpPartai,
-  formatHariTanggalAdmoist
+  formatHariTanggalAdmoist,
+  getLastDhpFetchReport
 } from './dhpService[RekapCengkeh]';
 import { formatKg, formatPct, formatInt, formatDec1, round1, round2, exportToPdf, formatTanggalIndo, isHtmlResponse } from './Code[RekapCengkeh]';
 
@@ -91,9 +92,11 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isPushing, setIsPushing] = useState<boolean>(false);
   const [pushStatusMessage, setPushStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [fetchFallbackNotice, setFetchFallbackNotice] = useState<string | null>(null);
   const [syncLogs, setSyncLogs] = useState<DhpSyncLog[]>(() => getDhpSyncLogs());
   const [syncLogPage, setSyncLogPage] = useState<number>(1);
   const SYNC_LOG_PAGE_SIZE = 15;
+  const isFetchingPartaiRef = React.useRef<boolean>(false);
 
   // Field notes state per partai
   const [fieldNotes, setFieldNotes] = useState<Record<string, string>>(() => {
@@ -148,22 +151,81 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     }
   };
 
+  const latestCtxRef = React.useRef({
+    isAutoDispatch,
+    isPushing,
+    masterRows,
+    execUrl: gasConfig.execUrl
+  });
+  latestCtxRef.current = {
+    isAutoDispatch,
+    isPushing,
+    masterRows,
+    execUrl: gasConfig.execUrl
+  };
+
   // Selalu sync data live terbaru dari Google Sheets saat view dibuka/mount
   useEffect(() => {
     loadAllPartai(partaiList.length > 0);
   }, []);
 
   const loadAllPartai = async (isSilent: boolean = false) => {
+    if (isSilent && isFetchingPartaiRef.current) {
+      return;
+    }
+    isFetchingPartaiRef.current = true;
     if (!isSilent) {
       setIsLoading(true);
       setPushStatusMessage(null);
     }
     try {
       const data = await fetchAllDhpPartai(getDhpSpreadsheetId());
-      setPartaiList(data);
+      const report = getLastDhpFetchReport();
+
+      setPartaiList((prevList) => {
+        if (!prevList || prevList.length === 0) return data;
+        const prevById = new Map(prevList.map((item) => [item.id, item]));
+        return data.map((nextItem) => {
+          const prevItem = prevById.get(nextItem.id);
+          // Anti-downgrade guard: jangan pernah menimpa kartu valid dengan status Kosong akibat gagal fetch sementara
+          if (
+            nextItem.isStaleFallback &&
+            nextItem.status === 'kosong' &&
+            nextItem.gldKering === 0 &&
+            prevItem &&
+            (prevItem.gldKering > 0 || prevItem.totalRjBasah > 0 || prevItem.status !== 'kosong')
+          ) {
+            return {
+              ...prevItem,
+              sourceDryerStatus: report.sourceDryerFailed ? prevItem.sourceDryerStatus : nextItem.sourceDryerStatus,
+              isTodayActive: report.sourceDryerFailed ? prevItem.isTodayActive : nextItem.isTodayActive,
+              isStaleFallback: true
+            };
+          }
+          return nextItem;
+        });
+      });
+
+      if (report.usedCacheFallback) {
+        const parts: string[] = [];
+        if (report.failedTabs.length > 0) {
+          parts.push(`tab ${report.failedTabs.join(', ')}`);
+        }
+        if (report.sourceDryerFailed) {
+          parts.push('status SOURCE HASIL DRYER');
+        }
+        if (!isSilent && parts.length > 0) {
+          setFetchFallbackNotice(
+            `Koneksi Google Sheets sementara sibuk pada ${parts.join(' dan ')} — menampilkan data valid terakhir tersimpan agar informasi tidak hilang.`
+          );
+        }
+      } else {
+        setFetchFallbackNotice(null);
+      }
 
       // HEADLESS AUTO-DISPATCH CHECKER (Unattended Mode)
-      if (isAutoDispatch && data.length > 0 && !isPushing) {
+      const ctx = latestCtxRef.current;
+      if (ctx.isAutoDispatch && data.length > 0 && !ctx.isPushing) {
         const currentSyncLogs = getDhpSyncLogs();
         for (const p of data) {
           if (
@@ -179,7 +241,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               p.tanggalAdmoist ? formatTanggalIndo(p.tanggalAdmoist) : null
             ].filter((d): d is string => Boolean(d && d !== '-' && d !== 'Belum Tercatat'));
 
-            const isAlreadyInMaster = masterRows.some((r) => {
+            const isAlreadyInMaster = ctx.masterRows.some((r) => {
               if (!r) return false;
               const rTgl = String(r.rawTanggal || r.tanggal || '').trim().toLowerCase();
               const sameTanggal = candDates.some((d) => {
@@ -205,7 +267,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             if (!isAlreadyInMaster && !isAlreadyDispatchedInLogs) {
               setIsPushing(true);
               try {
-                await pushDhpToMasterSheet(p, 'Auto-Dispatch (Sistem)', gasConfig.execUrl);
+                await pushDhpToMasterSheet(p, 'Auto-Dispatch (Sistem)', ctx.execUrl);
                 await onRefreshMaster();
                 setPushStatusMessage({
                   type: 'success',
@@ -231,6 +293,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         });
       }
     } finally {
+      isFetchingPartaiRef.current = false;
       if (!isSilent) {
         setIsLoading(false);
       }
@@ -244,7 +307,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
       loadAllPartai(true);
     }, 60000);
     return () => clearInterval(timer);
-  }, [isAutoDispatch, masterRows, gasConfig.execUrl]);
+  }, [isAutoDispatch]);
 
   const activePartai = useMemo(() => {
     return partaiList.find((p) => p.id === selectedPartaiId) || partaiList[0];
@@ -680,6 +743,24 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           <button
             onClick={() => setPushStatusMessage(null)}
             className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/60"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Non-blocking Notice jika salah satu tab sementara memakai data cache akibat rate-limit/jaringan */}
+      {fetchFallbackNotice && (
+        <div className="px-4 py-3 rounded-xl border border-amber-600/60 bg-amber-950/50 text-amber-200 flex items-center justify-between gap-3 animate-in fade-in duration-150">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="text-xs leading-relaxed">{fetchFallbackNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFetchFallbackNotice(null)}
+            className="text-amber-300/80 hover:text-white p-1 rounded-lg hover:bg-amber-900/50 shrink-0"
+            aria-label="Tutup pemberitahuan"
           >
             <X className="w-4 h-4" />
           </button>
