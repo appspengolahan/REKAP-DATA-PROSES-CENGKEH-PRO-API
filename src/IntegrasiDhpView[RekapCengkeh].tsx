@@ -77,6 +77,15 @@ interface IntegrasiDhpViewProps {
   onOpenGasCenter?: (tab?: 'endpoint' | 'payload' | 'script') => void;
 }
 
+const formatKgKoli = (kg: number | null | undefined, koli?: number | null): string => {
+  const numKg = Number(kg || 0);
+  const kgText = formatKg(numKg);
+  if (numKg > 0 && koli && koli > 0) {
+    return `${kgText} / ${formatInt(koli)} Ø`;
+  }
+  return kgText;
+};
+
 export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   userRole,
   gasConfig,
@@ -900,7 +909,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <div className="flex items-center justify-between text-slate-400">
                     <span>Gld Kering:</span>
                     <span className="font-bold text-slate-200">
-                      {p?.gldKering ? formatKg(p.gldKering) : '-'}
+                      {p?.gldKering ? formatKgKoli(p.gldKering, p.koliGld) : '-'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-slate-400">
@@ -1019,31 +1028,31 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             </div>
 
             {/* Metrics Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-              <div className="bg-slate-800/50 p-3 sm:p-4 rounded-xl border border-slate-700/60">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+              <div className="bg-slate-800/50 p-3.5 sm:p-4 rounded-xl border border-slate-700/60">
                 <div className="text-[11px] font-semibold text-slate-400 mb-1">Gelondong Kering (Total)</div>
-                <div className="text-base sm:text-lg font-bold text-white">
-                  {formatKg(activePartai.gldKering)}
+                <div className="text-base sm:text-lg font-bold text-white font-mono">
+                  {formatKgKoli(activePartai.gldKering, activePartai.koliGld)}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
-                  Koli: {activePartai.koliGld ? `${activePartai.koliGld} Sak` : '-'}
+                  Total Bahan Baku Masuk
                 </div>
               </div>
 
-              <div className="bg-slate-800/50 p-3 sm:p-4 rounded-xl border border-slate-700/60">
+              <div className="bg-slate-800/50 p-3.5 sm:p-4 rounded-xl border border-slate-700/60">
                 <div className="text-[11px] font-semibold text-slate-400 mb-1">KA Pra-Rendam (KA Gld)</div>
-                <div className="text-base sm:text-lg font-bold text-amber-300">
+                <div className="text-base sm:text-lg font-bold text-amber-300 font-mono">
                   {activePartai.kaGld ? `${activePartai.kaGld.toFixed(2)}%` : '-'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">Kadar Air Masuk</div>
               </div>
 
-              <div className="bg-slate-800/50 p-3 sm:p-4 rounded-xl border border-slate-700/60">
+              <div className="bg-slate-800/50 p-3.5 sm:p-4 rounded-xl border border-slate-700/60">
                 <div className="text-[11px] font-semibold text-slate-400 mb-1">Rajang Basah (Netto)</div>
                 <div className="text-base sm:text-lg font-bold text-blue-300 font-mono">
-                  {formatKg(activePartai.totalRjBasah)}
+                  {formatKgKoli(activePartai.totalRjBasah, activePartai.koliRjBasah || activePartai.timbanganItems?.length)}
                 </div>
-                <div className="text-[10px] text-slate-400 mt-0.5 truncate">
+                <div className="text-[10px] text-slate-400 mt-0.5">
                   {(() => {
                     const diffKg = round1(activePartai.totalRjBasah - activePartai.gldKering);
                     // Persentase kenaikan selalu dihitung terhadap Bobot Awal (Gelondong Kering) sebagai acuan dasar 100%
@@ -1051,17 +1060,15 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       ? round2((diffKg / activePartai.gldKering) * 100) 
                       : 0;
                     const sign = diffKg >= 0 ? '+' : '-';
-                    return activePartai.koliRjBasah 
-                      ? `${activePartai.koliRjBasah} Sak Ditimbang · Selisih: ${sign}${formatKg(Math.abs(diffKg))} (${sign}${formatPct(Math.abs(diffPct))})` 
-                      : `Selisih: ${sign}${formatKg(Math.abs(diffKg))} (${sign}${formatPct(Math.abs(diffPct))})`;
+                    return `Selisih: ${sign}${formatKg(Math.abs(diffKg))} (${sign}${formatPct(Math.abs(diffPct))})`;
                   })()}
                 </div>
               </div>
 
-              <div className="bg-slate-800/50 p-3 sm:p-4 rounded-xl border border-slate-700/60">
+              <div className="bg-slate-800/50 p-3.5 sm:p-4 rounded-xl border border-slate-700/60">
                 <div className="text-[11px] font-semibold text-slate-400 mb-1">Rajang Kering Akhir</div>
                 <div className="text-base sm:text-lg font-bold text-emerald-300 font-mono">
-                  {formatKg(activePartai.totalRjKering)}
+                  {formatKgKoli(activePartai.totalRjKering, activePartai.koliRjKering)}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">
                   {(() => {
@@ -1332,15 +1339,15 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
                     <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
                       <div className="text-[11px] text-slate-400 mb-0.5">Bruto Timbang</div>
-                      <div className="text-base font-bold text-white font-mono">
-                        {formatKg(brutoWeight)}
+                      <div className="text-sm sm:text-base font-bold text-white font-mono">
+                        {formatKgKoli(brutoWeight, koliCount)}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">Total Kotor</div>
                     </div>
 
                     <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/70">
                       <div className="text-[11px] text-slate-400 mb-0.5">Tarra Sak</div>
-                      <div className="text-base font-bold text-slate-300 font-mono">
+                      <div className="text-sm sm:text-base font-bold text-slate-300 font-mono">
                         {formatKg(tarraWeight)}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">0,2 Kg / Sak</div>
@@ -1348,8 +1355,8 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
                     <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/40">
                       <div className="text-[11px] text-blue-300 font-semibold mb-0.5">Netto Hasil Rajang</div>
-                      <div className="text-base font-bold text-cyan-300 font-mono">
-                        {formatKg(activePartai.totalRjBasah)}
+                      <div className="text-sm sm:text-base font-bold text-cyan-300 font-mono">
+                        {formatKgKoli(activePartai.totalRjBasah, koliCount)}
                       </div>
                       <div className="text-[10px] text-blue-400/80 mt-0.5">Bersih Siap Dryer</div>
                     </div>
@@ -1528,7 +1535,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       )}
                     </div>
                     <div className="flex items-center gap-3">
-                      <span>Hasil Dryer: <strong className="text-slate-200">{formatKg(sesiHasilDryer)}</strong></span>
+                      <span>Hasil Dryer: <strong className="text-slate-200">{formatKgKoli(sesiHasilDryer, sesiData?.koliHasilDryer)}</strong></span>
                       <span>Susut Dryer: <strong className="text-slate-200">{formatPct(sesiSusutPct)}</strong></span>
                     </div>
                   </div>
@@ -1687,14 +1694,14 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-slate-800/80 border border-slate-700">
               <div>
                 <span className="text-[11px] text-slate-400">Bahan Baku (Gld Kering):</span>
-                <div className="text-base font-bold text-white mt-0.5">
-                  {formatKg(activePartai.gldKering)}
+                <div className="text-base font-bold text-white mt-0.5 font-mono">
+                  {formatKgKoli(activePartai.gldKering, activePartai.koliGld)}
                 </div>
               </div>
               <div>
                 <span className="text-[11px] text-slate-400">Hasil Akhir (Total Dryer):</span>
-                <div className="text-base font-bold text-emerald-400 mt-0.5">
-                  {formatKg(activePartai.totalRjKering)}
+                <div className="text-base font-bold text-emerald-400 mt-0.5 font-mono">
+                  {formatKgKoli(activePartai.totalRjKering, activePartai.koliRjKering)}
                 </div>
               </div>
               <div>
@@ -2506,11 +2513,11 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 </div>
                 <div className="flex justify-between gap-2">
                   <span className="text-slate-400">Gelondong Kering:</span>
-                  <span className="font-bold text-white">{formatKg(activePartai.gldKering)}</span>
+                  <span className="font-bold text-white font-mono">{formatKgKoli(activePartai.gldKering, activePartai.koliGld)}</span>
                 </div>
                 <div className="flex justify-between gap-2">
                   <span className="text-slate-400">Rajang Kering Akhir:</span>
-                  <span className="font-bold text-emerald-300">{formatKg(activePartai.totalRjKering)}</span>
+                  <span className="font-bold text-emerald-300 font-mono">{formatKgKoli(activePartai.totalRjKering, activePartai.koliRjKering)}</span>
                 </div>
                 <div className="flex justify-between gap-2 pt-1 border-t border-slate-700">
                   <span className="text-slate-400">Total Susut Akhir:</span>

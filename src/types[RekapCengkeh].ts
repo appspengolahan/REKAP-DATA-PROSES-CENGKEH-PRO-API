@@ -152,6 +152,8 @@ export interface DhpSesiDryer {
   tanggal: string;
   rjBasah: number;
   hasilDryer: number;
+  koliRjBasah?: number;
+  koliHasilDryer?: number;
   kaDry: number | null;
   susutDryerKg: number;
   susutDryerPct: number;
@@ -187,6 +189,7 @@ export interface DhpPartaiData {
   kaGld: number | null;
   totalRjBasah: number;
   totalRjKering: number;
+  koliRjKering?: number;
   kaDryRata: number | null;
   selisihKg: number;
   selisihPct: number;

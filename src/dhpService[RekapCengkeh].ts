@@ -425,6 +425,7 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
             koliGld,
             totalRjBasah,
             koliRjBasah,
+            koliRjKering: p.koliRjKering || 0,
             rjBasahBruto,
             rjBasahTarra,
             sisaGldBelumRajangKg,
@@ -899,6 +900,8 @@ export async function fetchDhpPartai(
     let hasilDryer = 0;
     let susutKg = 0;
     let susutPct = 0;
+    let koliRjBasah = 0;
+    let koliHasilDryer = 0;
 
     for (let i = 0; i < parsedLines.length; i++) {
       const colQHeader = (parsedLines[i][16] || '').trim();
@@ -911,6 +914,11 @@ export async function fetchDhpPartai(
             const valR = cleanIndoNumber(cR);
             if (valQ > 0) rjBasah = valQ;
             if (valR > 0) hasilDryer = valR;
+          } else if ((cQ.includes('Koli') || cR.includes('Koli')) && !cQ.includes('Netto')) {
+            const kQ = Math.round(cleanIndoNumber(cQ));
+            const kR = Math.round(cleanIndoNumber(cR));
+            if (kQ > 0) koliRjBasah = kQ;
+            if (kR > 0) koliHasilDryer = kR;
           } else if (cQ.includes('Susut Dryer') && cR.includes('Kg') && !cR.includes('N :')) {
             susutKg = cleanIndoNumber(cR);
           } else if (cR.includes('%') && (!cQ || cQ.includes('Susut'))) {
@@ -920,7 +928,7 @@ export async function fetchDhpPartai(
         break;
       }
     }
-    return { rjBasah, hasilDryer, susutKg, susutPct };
+    return { rjBasah, hasilDryer, susutKg, susutPct, koliRjBasah, koliHasilDryer };
   };
 
   // B. Proses Dryer Sesi 1, Sesi 2, Sesi 3 langsung dari Full CSV
@@ -929,18 +937,24 @@ export async function fetchDhpPartai(
   dryerSesi1 = s1Parsed.hasilDryer;
   const s1SusutKgExplicit = s1Parsed.susutKg;
   const s1SusutPctExplicit = s1Parsed.susutPct;
+  const s1KoliRjBasah = s1Parsed.koliRjBasah;
+  let s1KoliDryer = s1Parsed.koliHasilDryer;
 
   const s2Parsed = extractDryerSectionFromCsv('Proses Dryer Kedua :');
   rjBasahSesi2 = s2Parsed.rjBasah;
   dryerSesi2 = s2Parsed.hasilDryer;
   const s2SusutKgExplicit = s2Parsed.susutKg;
   const s2SusutPctExplicit = s2Parsed.susutPct;
+  const s2KoliRjBasah = s2Parsed.koliRjBasah;
+  const s2KoliDryer = s2Parsed.koliHasilDryer;
 
   const s3Parsed = extractDryerSectionFromCsv('Proses Dryer Ketiga :');
   rjBasahSesi3 = s3Parsed.rjBasah;
   dryerSesi3 = s3Parsed.hasilDryer;
   const s3SusutKgExplicit = s3Parsed.susutKg;
   const s3SusutPctExplicit = s3Parsed.susutPct;
+  const s3KoliRjBasah = s3Parsed.koliRjBasah;
+  const s3KoliDryer = s3Parsed.koliHasilDryer;
 
   // Fallback regex ke full sheet match jika struktur kolom berbeda
   if (rjBasahSesi1 === 0) {
@@ -999,14 +1013,26 @@ export async function fetchDhpPartai(
   // Prioritaskan 'Total Dryer 1 + 2 + 3 :' jika ada (> 0), lalu 'Total Dryer 1 + 2 :'
   let totalRjBasahQ297 = 0;
   let totalDryerR297 = 0;
+  let totalKoliRjKering = 0;
   const total123Parsed = extractDryerSectionFromCsv('Total Dryer 1 + 2 + 3 :');
   const total12Parsed = extractDryerSectionFromCsv('Total Dryer 1 + 2 :');
   if (total123Parsed.rjBasah > 0 || total123Parsed.hasilDryer > 0) {
     totalRjBasahQ297 = total123Parsed.rjBasah;
     totalDryerR297 = total123Parsed.hasilDryer;
+    if (total123Parsed.koliHasilDryer > 0) totalKoliRjKering = total123Parsed.koliHasilDryer;
   } else if (total12Parsed.rjBasah > 0 || total12Parsed.hasilDryer > 0) {
     totalRjBasahQ297 = total12Parsed.rjBasah;
     totalDryerR297 = total12Parsed.hasilDryer;
+    if (total12Parsed.koliHasilDryer > 0) totalKoliRjKering = total12Parsed.koliHasilDryer;
+  }
+
+  // Fallback jika baris "Hasil : XX Ø" ada pada blok timbang dryer
+  if (s1KoliDryer === 0) {
+    const matchHasilKoli = csvText.match(/Hasil\s*:\s*(\d+)\s*Ø/i);
+    if (matchHasilKoli) {
+      const parsedKoli = parseInt(matchHasilKoli[1], 10);
+      if (parsedKoli > 0) s1KoliDryer = parsedKoli;
+    }
   }
 
   // Juga scan teks tab penuh jika ada label Hasil Dryer 1+2+3
@@ -1055,6 +1081,10 @@ export async function fetchDhpPartai(
   let totalRjKering = totalDryerR297 > 0
     ? totalDryerR297
     : round1(dryerSesi1 + dryerSesi2 + dryerSesi3);
+
+  const koliRjKering = totalRjKering > 0
+    ? (totalKoliRjKering || (s1KoliDryer + s2KoliDryer + s3KoliDryer))
+    : 0;
 
   // Perhitungan Selisih & Susut Dryer
   const selisihKg = round1(totalRjBasah - gldKering);
@@ -1248,6 +1278,8 @@ export async function fetchDhpPartai(
       tanggal: tanggalRajang && tanggalRajang !== 'Belum Tercatat' ? tanggalRajang : tanggalMulai,
       rjBasah: (rjBasahSesi2 > 0) ? (rjBasahSesi1 || round1(totalRjBasah - rjBasahSesi2 - rjBasahSesi3)) : (totalRjBasah > 0 ? totalRjBasah : rjBasahSesi1),
       hasilDryer: dryerSesi1 || totalRjKering,
+      koliRjBasah: s1KoliRjBasah || koliRjBasah,
+      koliHasilDryer: (dryerSesi1 || totalRjKering) > 0 ? (s1KoliDryer || koliRjKering) : 0,
       kaDry: kaDryer1 ?? kaDryRata,
       susutDryerKg: susutDryerSesi1Kg || (totalRjBasah > 0 && totalRjKering > 0 ? round1(totalRjBasah - totalRjKering) : 0),
       susutDryerPct: susutDryerSesi1Pct || (totalRjBasah > 0 && totalRjKering > 0 ? round2(((totalRjBasah - totalRjKering) / totalRjBasah) * 100) : 0),
@@ -1273,6 +1305,8 @@ export async function fetchDhpPartai(
       tanggal: tanggalSelesai !== tanggalMulai ? tanggalSelesai : (tanggalRajang || tanggalMulai),
       rjBasah: rjBasahSesi2,
       hasilDryer: dryerSesi2,
+      koliRjBasah: s2KoliRjBasah,
+      koliHasilDryer: dryerSesi2 > 0 ? s2KoliDryer : 0,
       kaDry: kaDryer2,
       susutDryerKg: susutDryerSesi2Kg,
       susutDryerPct: susutDryerSesi2Pct,
@@ -1296,6 +1330,8 @@ export async function fetchDhpPartai(
       tanggal: tanggalSelesai || tanggalMulai,
       rjBasah: rjBasahSesi3,
       hasilDryer: dryerSesi3,
+      koliRjBasah: s3KoliRjBasah,
+      koliHasilDryer: dryerSesi3 > 0 ? s3KoliDryer : 0,
       kaDry: kaDryer3,
       susutDryerKg: susutDryerSesi3Kg,
       susutDryerPct: susutDryerSesi3Pct,
@@ -1381,6 +1417,7 @@ export async function fetchDhpPartai(
     hasilAkhirRajangBasahQ297: totalRjBasahQ297,
     hasilAkhirDryerR297: totalDryerR297,
     totalRjKering,
+    koliRjKering,
     kaDryRata,
     selisihKg,
     selisihPct,
@@ -1493,6 +1530,7 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
       kaGld: null,
       totalRjBasah: 0,
       totalRjKering: 0,
+      koliRjKering: 0,
       kaDryRata: null,
       selisihKg: 0,
       selisihPct: 0,
