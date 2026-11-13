@@ -66,7 +66,7 @@ export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = React.memo(({ d
             setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
             setCurrentPage(1);
           }}
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#1a56c4] bg-[#eef3fd] hover:bg-blue-100 px-3 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-lg cursor-pointer transition-colors border border-blue-200"
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#1a56c4] bg-[#eef3fd] hover:bg-blue-100 px-3 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-lg cursor-pointer transition-colors border border-blue-200"
           title="Klik untuk mengubah urutan periode bulan"
         >
           <ArrowUpDown className="w-3.5 h-3.5" />
@@ -206,7 +206,7 @@ export const TableJenisRekapCengkeh: React.FC<TableJenisProps> = React.memo(({ d
               setCurrentPage(1);
             }}
             placeholder="Cari jenis cengkeh..."
-            className="w-full pl-8 pr-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-md border border-[#e1e5ec] text-xs bg-white text-[#1f2937] placeholder-[#6b7280]"
+            className="w-full pl-8 pr-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-md border border-[#e1e5ec] text-xs bg-white text-[#1f2937] placeholder-[#6b7280]"
           />
         </div>
 
@@ -215,7 +215,7 @@ export const TableJenisRekapCengkeh: React.FC<TableJenisProps> = React.memo(({ d
           <button
             type="button"
             onClick={() => { setSortBy('volume'); setCurrentPage(1); }}
-            className={`px-3 py-1.5 min-h-[44px] sm:min-h-[34px] rounded border border-[#e1e5ec] cursor-pointer ${
+            className={`px-3 py-1.5 min-h-[44px] lg:min-h-[34px] rounded border border-[#e1e5ec] cursor-pointer ${
               sortBy === 'volume' ? 'bg-[#1a56c4] text-white font-semibold' : 'bg-white text-[#1f2937]'
             }`}
           >
@@ -224,7 +224,7 @@ export const TableJenisRekapCengkeh: React.FC<TableJenisProps> = React.memo(({ d
           <button
             type="button"
             onClick={() => { setSortBy('susut'); setCurrentPage(1); }}
-            className={`px-3 py-1.5 min-h-[44px] sm:min-h-[34px] rounded border border-[#e1e5ec] cursor-pointer ${
+            className={`px-3 py-1.5 min-h-[44px] lg:min-h-[34px] rounded border border-[#e1e5ec] cursor-pointer ${
               sortBy === 'susut' ? 'bg-[#1a56c4] text-white font-semibold' : 'bg-white text-[#1f2937]'
             }`}
           >
@@ -350,29 +350,37 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
     });
   }, [rows, sortOrder]);
 
-  const filtered = sorted.filter((r) => {
-    // Filter sumber
-    if (filterSumber === 'dhp' && r.sumber !== 'DHP') return false;
-    if (filterSumber === 'master' && r.sumber === 'DHP') return false;
-
-    // Filter jalur proses Admoist -> Silo vs Manual
-    if (filterJalur === 'silo' && r.jalurSilo !== 'Silo') return false;
-    if (filterJalur === 'manual' && r.jalurSilo === 'Silo') return false;
-
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return (
-      r.srcRow.toString().includes(q) ||
-      r.tanggal.includes(q) ||
-      r.jenis.toLowerCase().includes(q) ||
-      r.bulan.toLowerCase().includes(q) ||
-      r.tahun.includes(q) ||
-      (r.jalurSilo && r.jalurSilo.toLowerCase().includes(q)) ||
-      (r.dhpPartaiId && r.dhpPartaiId.toLowerCase().includes(q))
-    );
-  });
+    return sorted.filter((r) => {
+      if (filterSumber === 'dhp' && r.sumber !== 'DHP') return false;
+      if (filterSumber === 'master' && r.sumber === 'DHP') return false;
+
+      if (filterJalur === 'silo' && r.jalurSilo !== 'Silo') return false;
+      if (filterJalur === 'manual' && r.jalurSilo === 'Silo') return false;
+
+      if (!q) return true;
+      return (
+        r.srcRow.toString().includes(q) ||
+        r.tanggal.includes(q) ||
+        r.jenis.toLowerCase().includes(q) ||
+        r.bulan.toLowerCase().includes(q) ||
+        r.tahun.includes(q) ||
+        (r.jalurSilo && r.jalurSilo.toLowerCase().includes(q)) ||
+        (r.dhpPartaiId && r.dhpPartaiId.toLowerCase().includes(q))
+      );
+    });
+  }, [sorted, filterSumber, filterJalur, search]);
 
   const totalPages = Math.ceil(filtered.length / pageSize) || 1;
-  const pagedRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(1);
+  }, [totalPages, currentPage]);
+
+  const pagedRows = useMemo(
+    () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filtered, currentPage]
+  );
 
   return (
     <div className="space-y-3">
@@ -388,7 +396,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
                 setCurrentPage(1);
               }}
               placeholder="Cari nomor partai, tanggal, jenis cengkeh..."
-              className="w-full pl-8 pr-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-md border border-[#e1e5ec] text-xs bg-white text-[#1f2937] placeholder-[#6b7280]"
+              className="w-full pl-8 pr-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-md border border-[#e1e5ec] text-xs bg-white text-[#1f2937] placeholder-[#6b7280]"
             />
           </div>
 
@@ -397,7 +405,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
             <button
               type="button"
               onClick={() => { setFilterSumber('semua'); setCurrentPage(1); }}
-              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterSumber === 'semua'
                   ? 'bg-white text-blue-700 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -408,7 +416,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
             <button
               type="button"
               onClick={() => { setFilterSumber('dhp'); setCurrentPage(1); }}
-              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterSumber === 'dhp'
                   ? 'bg-amber-50 text-amber-800 shadow-2xs font-bold border border-amber-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -419,7 +427,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
             <button
               type="button"
               onClick={() => { setFilterSumber('master'); setCurrentPage(1); }}
-              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterSumber === 'master'
                   ? 'bg-white text-blue-700 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -434,7 +442,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
             <button
               type="button"
               onClick={() => { setFilterJalur('semua'); setCurrentPage(1); }}
-              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterJalur === 'semua'
                   ? 'bg-white text-emerald-800 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -445,7 +453,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
             <button
               type="button"
               onClick={() => { setFilterJalur('silo'); setCurrentPage(1); }}
-              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterJalur === 'silo'
                   ? 'bg-emerald-50 text-emerald-800 shadow-2xs font-bold border border-emerald-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -456,7 +464,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
             <button
               type="button"
               onClick={() => { setFilterJalur('manual'); setCurrentPage(1); }}
-              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterJalur === 'manual'
                   ? 'bg-slate-200 text-slate-800 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -469,7 +477,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
           <button
             type="button"
             onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] bg-white text-[#1f2937] hover:bg-slate-50 transition-colors font-medium text-xs cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-[#e1e5ec] bg-white text-[#1f2937] hover:bg-slate-50 transition-colors font-medium text-xs cursor-pointer shadow-2xs"
             title="Ubah urutan tanggal data"
           >
             <ArrowUpDown className="w-3.5 h-3.5 text-blue-600" />
@@ -571,7 +579,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
                     <button
                       type="button"
                       onClick={() => onToggleVerify && onToggleVerify(r.srcRow)}
-                      className={`no-print inline-flex items-center justify-center gap-1 px-2.5 py-1.5 min-h-[44px] sm:min-h-[30px] rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                      className={`no-print inline-flex items-center justify-center gap-1 px-2.5 py-1.5 min-h-[44px] lg:min-h-[30px] rounded text-[11px] font-medium transition-colors cursor-pointer ${
                         r.verified
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : 'bg-slate-100 text-slate-600 border border-slate-200'

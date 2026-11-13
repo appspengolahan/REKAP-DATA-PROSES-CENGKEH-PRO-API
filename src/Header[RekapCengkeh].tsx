@@ -318,7 +318,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                               onRoleChange(r as UserRole);
                               setIsUserMenuOpen(false);
                             }}
-                            className={`w-full flex items-center justify-between px-3 py-2 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-3 py-2 min-h-[44px] lg:min-h-[36px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-blue-600 text-white shadow-xs'
                                 : 'text-slate-300 hover:text-white hover:bg-slate-800/90 bg-slate-900/60'
@@ -404,7 +404,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                           setIsUserMenuOpen(false);
                           onOpenInstallPwa();
                         }}
-                        className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 transition-colors text-left group cursor-pointer"
+                        className="w-full flex items-center justify-between p-2.5 min-h-[44px] rounded-xl hover:bg-slate-800 transition-colors text-left group cursor-pointer"
                       >
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg group-hover:bg-amber-500/20 transition-colors">
@@ -427,7 +427,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                         setIsUserMenuOpen(false);
                         onOpenSwitchBoard();
                       }}
-                      className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 transition-colors text-left group cursor-pointer"
+                      className="w-full flex items-center justify-between p-2.5 min-h-[44px] rounded-xl hover:bg-slate-800 transition-colors text-left group cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg group-hover:bg-amber-500/20 transition-colors">
@@ -446,7 +446,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                         setIsUserMenuOpen(false);
                         onOpenGasCenter();
                       }}
-                      className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 transition-colors text-left group cursor-pointer"
+                      className="w-full flex items-center justify-between p-2.5 min-h-[44px] rounded-xl hover:bg-slate-800 transition-colors text-left group cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-lg group-hover:bg-cyan-500/20 transition-colors">
@@ -468,7 +468,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                         setIsUserMenuOpen(false);
                         onOpenHelp();
                       }}
-                      className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-800 transition-colors text-left group cursor-pointer"
+                      className="w-full flex items-center justify-between p-2.5 min-h-[44px] rounded-xl hover:bg-slate-800 transition-colors text-left group cursor-pointer"
                     >
                       <div className="flex items-center gap-3">
                         <div className="p-2 bg-amber-500/10 text-amber-400 rounded-lg group-hover:bg-amber-500/20 transition-colors">

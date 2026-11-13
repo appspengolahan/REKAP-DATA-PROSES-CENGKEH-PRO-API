@@ -637,13 +637,13 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 md:backdrop-blur-xs no-print animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 lg:backdrop-blur-xs no-print animate-in fade-in duration-200"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div className="relative w-full max-w-2xl max-h-[90dvh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 sm:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-slate-800 flex flex-col">
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 sm:top-4 sm:right-4 min-h-[44px] min-w-[44px] sm:min-h-[36px] sm:min-w-[36px] inline-flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 min-h-[44px] min-w-[44px] lg:min-h-[36px] lg:min-w-[36px] inline-flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
@@ -669,7 +669,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('endpoint')}
-            className={`shrink-0 min-h-[44px] sm:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            className={`shrink-0 min-h-[44px] lg:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               activeTab === 'endpoint'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
@@ -681,7 +681,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('payload')}
-            className={`shrink-0 min-h-[44px] sm:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            className={`shrink-0 min-h-[44px] lg:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               activeTab === 'payload'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
@@ -696,7 +696,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('script')}
-            className={`shrink-0 min-h-[44px] sm:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            className={`shrink-0 min-h-[44px] lg:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               activeTab === 'script'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
@@ -723,7 +723,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                   <button
                     onClick={onManualSync}
                     disabled={isSyncing}
-                    className="min-h-[44px] sm:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 disabled:opacity-50 transition-colors cursor-pointer shadow-2xs"
+                    className="min-h-[44px] lg:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 disabled:opacity-50 transition-colors cursor-pointer shadow-2xs"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                     <span>{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan Sekarang'}</span>
@@ -747,7 +747,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                     setAutoSync(next);
                     if (onToggleAutoSync) onToggleAutoSync();
                   }}
-                  className={`px-3 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer border ${
+                  className={`min-h-[44px] lg:min-h-[32px] px-3.5 py-1 rounded-full text-xs font-bold transition-colors cursor-pointer border shrink-0 ${
                     autoSync
                       ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
                       : 'bg-slate-200 text-slate-600 border-slate-300'
@@ -769,7 +769,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                   value={execUrl}
                   onChange={(e) => setExecUrl(e.target.value)}
                   placeholder="https://script.google.com/macros/s/.../exec"
-                  className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                  className="w-full px-3 py-2 min-h-[44px] lg:min-h-[36px] text-xs font-mono rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
                 />
               </div>
 
@@ -783,7 +783,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                     value={spreadsheetId}
                     onChange={(e) => setSpreadsheetId(e.target.value)}
                     placeholder="ID Spreadsheet Google Sheets"
-                    className="w-full px-3 py-2 text-xs font-mono rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                    className="w-full px-3 py-2 min-h-[44px] lg:min-h-[36px] text-xs font-mono rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
                   />
                 </div>
 
@@ -796,7 +796,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                     value={sheetName}
                     onChange={(e) => setSheetName(e.target.value)}
                     placeholder="DATA PROSES CKH"
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                    className="w-full px-3 py-2 min-h-[44px] lg:min-h-[36px] text-xs rounded-lg border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
                   />
                 </div>
               </div>
@@ -827,7 +827,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                   type="button"
                   onClick={handleTestConnection}
                   disabled={isTesting}
-                  className="min-h-[44px] sm:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="min-h-[44px] lg:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Terminal className="w-3.5 h-3.5" />
                   <span>{isTesting ? 'Menguji...' : 'Uji Koneksi Sheets'}</span>
@@ -836,7 +836,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                 <button
                   type="button"
                   onClick={handleResetDefaults}
-                  className="min-h-[44px] sm:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                  className="min-h-[44px] lg:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                 >
                   Reset Default
                 </button>
@@ -846,7 +846,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                 <button
                   type="button"
                   onClick={onForceRebuildCache}
-                  className="min-h-[44px] sm:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-medium text-amber-700 hover:bg-amber-50 border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="min-h-[44px] lg:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-medium text-amber-700 hover:bg-amber-50 border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
                   title="Bangun ulang cache lokal dari snapshot awal"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -856,7 +856,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                 <button
                   type="button"
                   onClick={handleSave}
-                  className="min-h-[44px] sm:min-h-[34px] px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="min-h-[44px] lg:min-h-[34px] px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>Simpan Konfigurasi</span>
@@ -883,14 +883,14 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-semibold text-slate-700">Metode HTTP:</span>
-                <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100">
+                <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-100 gap-0.5">
                   <button
                     type="button"
                     onClick={() => {
                       setPayloadMethod('GET');
                       setPayloadBody('{\n  "action": "getData"\n}');
                     }}
-                    className={`px-3 py-1 rounded-md text-xs font-bold transition-colors cursor-pointer ${
+                    className={`min-h-[44px] lg:min-h-[32px] px-3 py-1 rounded-md text-xs font-bold transition-colors cursor-pointer ${
                       payloadMethod === 'GET'
                         ? 'bg-blue-600 text-white shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900'
@@ -904,7 +904,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                       setPayloadMethod('POST');
                       setPayloadBody('{\n  "action": "ping",\n  "timestamp": "' + new Date().toISOString() + '"\n}');
                     }}
-                    className={`px-3 py-1 rounded-md text-xs font-bold transition-colors cursor-pointer ${
+                    className={`min-h-[44px] lg:min-h-[32px] px-3 py-1 rounded-md text-xs font-bold transition-colors cursor-pointer ${
                       payloadMethod === 'POST'
                         ? 'bg-blue-600 text-white shadow-2xs'
                         : 'text-slate-600 hover:text-slate-900'
@@ -921,14 +921,14 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setPayloadBody('{\n  "action": "getData"\n}')}
-                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-mono cursor-pointer"
+                  className="min-h-[44px] lg:min-h-[28px] px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-mono cursor-pointer"
                 >
                   getData
                 </button>
                 <button
                   type="button"
                   onClick={() => setPayloadBody('{\n  "action": "ping",\n  "sender": "PT Batu Karang Divisi I"\n}')}
-                  className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-mono cursor-pointer"
+                  className="min-h-[44px] lg:min-h-[28px] px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-mono cursor-pointer"
                 >
                   ping
                 </button>
@@ -957,7 +957,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                 type="button"
                 onClick={handleSendPayloadTest}
                 disabled={isSendingPayload}
-                className="min-h-[44px] sm:min-h-[34px] px-4 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs flex items-center gap-1.5 disabled:opacity-60 transition-colors cursor-pointer"
+                className="min-h-[44px] lg:min-h-[34px] px-4 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs flex items-center gap-1.5 disabled:opacity-60 transition-colors cursor-pointer"
               >
                 {isSendingPayload ? (
                   <>
@@ -1036,7 +1036,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                     setCopiedScript(true);
                     setTimeout(() => setCopiedScript(false), 2500);
                   }}
-                  className="min-h-[44px] sm:min-h-[36px] px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
+                  className="min-h-[44px] lg:min-h-[36px] px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
                 >
                   {copiedScript ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-white" />}
                   <span>{copiedScript ? 'Tersalin Utuh ke Clipboard!' : 'Salin Seluruh Kode.gs'}</span>

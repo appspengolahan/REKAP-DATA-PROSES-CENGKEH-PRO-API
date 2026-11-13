@@ -314,7 +314,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
     <div className="space-y-6 animate-in fade-in duration-150">
       {/* Toast Notification */}
       {saveToast && (
-        <div className="fixed top-20 right-6 z-50 bg-emerald-900 border border-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 animate-in slide-in-from-top-2 text-xs">
+        <div className="fixed top-20 left-4 right-4 sm:left-auto sm:right-6 z-50 max-w-md bg-emerald-900 border border-emerald-600 text-white px-4 py-2.5 rounded-xl shadow-2xl flex items-center gap-2.5 animate-in slide-in-from-top-2 text-xs">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>{saveToast}</span>
         </div>
@@ -338,8 +338,9 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
 
         <div className="flex items-center gap-2 no-print">
           <button
+            type="button"
             onClick={() => exportToPdf('AnalisisDeviasiAcuan')}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-300 shadow-2xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold border border-slate-300 shadow-2xs transition-colors cursor-pointer"
           >
             <Printer className="w-3.5 h-3.5 text-slate-600" />
             <span>Cetak PDF</span>
@@ -348,10 +349,10 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
       </div>
 
       {/* SECTION 01: Parameter Standar Acuan */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
+      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-2xs">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-100">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-blue-700 uppercase tracking-wider bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
                 01. Parameter Standar Acuan
               </span>
@@ -364,14 +365,14 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-slate-500 font-medium">
               Pratinjau: <strong className="text-blue-700">{acuanPerVarian.size}</strong> varian terhitung
             </span>
             <button
               type="button"
               onClick={handleApplyConfig}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] lg:min-h-[38px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
             >
               <Check className="w-3.5 h-3.5" />
               <span>Terapkan Standar Acuan</span>
@@ -388,7 +389,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
             <select
               value={formConfig.bulanDasarMulai}
               onChange={(e) => setFormConfig((prev) => ({ ...prev, bulanDasarMulai: e.target.value }))}
-              className="w-full text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs font-medium px-2.5 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               {MONTH_ORDER.map((m) => (
                 <option key={m} value={m}>{m}</option>
@@ -403,7 +404,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
             <select
               value={formConfig.bulanDasarSampai}
               onChange={(e) => setFormConfig((prev) => ({ ...prev, bulanDasarSampai: e.target.value }))}
-              className="w-full text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs font-medium px-2.5 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               {MONTH_ORDER.map((m) => (
                 <option key={m} value={m}>{m}</option>
@@ -418,7 +419,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
             <select
               value={formConfig.tahunDasar}
               onChange={(e) => setFormConfig((prev) => ({ ...prev, tahunDasar: e.target.value }))}
-              className="w-full text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs font-medium px-2.5 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               <option value="2026">2026</option>
               <option value="2025">2025</option>
@@ -433,7 +434,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
             <select
               value={formConfig.acuanAktifBulan}
               onChange={(e) => setFormConfig((prev) => ({ ...prev, acuanAktifBulan: e.target.value }))}
-              className="w-full text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs font-medium px-2.5 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
             >
               {MONTH_ORDER.map((m) => (
                 <option key={m} value={m}>{m}</option>
@@ -452,7 +453,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
               max="2.00"
               value={formConfig.batasWaspadaPct}
               onChange={(e) => setFormConfig((prev) => ({ ...prev, batasWaspadaPct: parseFloat(e.target.value) || 0.30 }))}
-              className="w-full text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs font-medium px-2.5 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
 
@@ -467,14 +468,14 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
               max="5.00"
               value={formConfig.batasOosPct}
               onChange={(e) => setFormConfig((prev) => ({ ...prev, batasOosPct: parseFloat(e.target.value) || 0.60 }))}
-              className="w-full text-xs font-medium px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full text-xs font-medium px-2.5 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
         </div>
       </div>
 
       {/* SECTION 02: Dashboard Komparasi Multi-Varian */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-2xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
           <div>
             <div className="text-xs font-bold text-blue-700 uppercase tracking-wider">
@@ -492,7 +493,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
               <select
                 value={evalBulan}
                 onChange={(e) => setEvalBulan(e.target.value)}
-                className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
+                className="text-xs font-semibold px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
               >
                 {MONTH_ORDER.map((m) => (
                   <option key={m} value={m}>{m}</option>
@@ -505,7 +506,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
               <select
                 value={evalTahun}
                 onChange={(e) => setEvalTahun(e.target.value)}
-                className="text-xs font-semibold px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
+                className="text-xs font-semibold px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
               >
                 <option value="2026">2026</option>
                 <option value="2025">2025</option>
@@ -514,13 +515,13 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
             </div>
 
             {/* Filter Jalur Buttons */}
-            <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+            <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50 gap-0.5">
               {(['Semua', 'SKT', 'SKM'] as const).map((j) => (
                 <button
                   key={j}
                   type="button"
                   onClick={() => setFilterJalur(j)}
-                  className={`px-2.5 py-0.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                  className={`px-3 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                     filterJalur === j
                       ? 'bg-white text-blue-700 shadow-2xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
@@ -735,7 +736,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
                 <button
                   type="button"
                   onClick={() => setShowAllChart((prev) => !prev)}
-                  className="text-xs font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                  className="inline-flex items-center justify-center px-4 min-h-[44px] lg:min-h-[34px] text-xs font-semibold text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                 >
                   {showAllChart ? 'Tampilkan Lebih Sedikit' : `Tampilkan Semua (${varianKomparasiList.length} Varian)`}
                 </button>
@@ -764,7 +765,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
                   value={searchVarian}
                   onChange={(e) => setSearchVarian(e.target.value)}
                   placeholder="Cari varian cengkeh..."
-                  className="w-full pl-8 pr-3 py-1.5 min-h-[44px] sm:min-h-[36px] text-xs rounded-lg border border-slate-300 bg-white text-slate-800"
+                  className="w-full pl-8 pr-3 py-1.5 min-h-[44px] lg:min-h-[36px] text-xs rounded-lg border border-slate-300 bg-white text-slate-800"
                 />
               </div>
             </div>

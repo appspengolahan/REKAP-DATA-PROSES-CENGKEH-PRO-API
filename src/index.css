@@ -43,7 +43,7 @@
   }
 }
 
-@media (max-width: 767px) {
+@media (max-width: 1023px), (pointer: coarse) {
   input,
   select,
   textarea {

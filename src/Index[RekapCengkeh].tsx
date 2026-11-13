@@ -475,12 +475,17 @@ export const IndexRekapCengkeh: React.FC = () => {
     saveCachedDataset(updated);
   };
 
-  // 4 Highlight Cards for Variant Tab
-  const sortedVariants = [...rekapJenisPeriodeData.list];
-  const topVariantVol = sortedVariants[0];
-  const sortedByYield = [...sortedVariants].sort((a, b) => a.totalSusutPct - b.totalSusutPct);
-  const bestYieldVariant = sortedByYield[0];
-  const highestSusutVariant = sortedByYield[sortedByYield.length - 1];
+  // 4 Highlight Cards for Variant Tab (memoized)
+  const { topVariantVol, bestYieldVariant, highestSusutVariant } = useMemo(() => {
+    const list = rekapJenisPeriodeData.list;
+    const topVol = list[0];
+    const sortedByYield = [...list].sort((a, b) => a.totalSusutPct - b.totalSusutPct);
+    return {
+      topVariantVol: topVol,
+      bestYieldVariant: sortedByYield[0],
+      highestSusutVariant: sortedByYield[sortedByYield.length - 1],
+    };
+  }, [rekapJenisPeriodeData.list]);
 
   return (
     <div className="h-[100dvh] w-full overflow-hidden bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
@@ -583,8 +588,10 @@ export const IndexRekapCengkeh: React.FC = () => {
             <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center justify-between no-print animate-in fade-in duration-150">
               <span className="font-medium">{syncNotice}</span>
               <button
+                type="button"
                 onClick={() => setSyncNotice(null)}
-                className="text-blue-700 hover:text-blue-900 font-bold ml-3"
+                className="min-h-[44px] min-w-[44px] lg:min-h-[28px] lg:min-w-[28px] inline-flex items-center justify-center rounded-lg text-blue-700 hover:text-blue-900 hover:bg-blue-100 font-bold ml-2 shrink-0 cursor-pointer"
+                aria-label="Tutup notifikasi"
               >
                 ✕
               </button>
@@ -608,13 +615,13 @@ export const IndexRekapCengkeh: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 no-print">
-                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-200 text-xs shadow-2xs">
+                <div className="flex items-center gap-2 no-print flex-wrap">
+                  <div className="flex items-center gap-1.5 bg-white px-3 min-h-[44px] lg:min-h-[36px] rounded-xl border border-slate-200 text-xs shadow-2xs">
                     <span className="text-slate-500 font-medium">Tahun:</span>
                     <select
                       value={selectedTahun}
                       onChange={(e) => setSelectedTahun(e.target.value)}
-                      className="font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
+                      className="min-h-[44px] lg:min-h-[34px] font-bold text-slate-800 bg-transparent focus:outline-hidden cursor-pointer"
                     >
                       <option value="Semua">Semua Tahun</option>
                       {filterOptions.tahun.map((t) => (
@@ -624,8 +631,9 @@ export const IndexRekapCengkeh: React.FC = () => {
                   </div>
 
                   <button
+                    type="button"
                     onClick={() => exportToPdf('Dashboard')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     <span>Cetak PDF</span>
@@ -739,8 +747,9 @@ export const IndexRekapCengkeh: React.FC = () => {
                     </span>
                   )}
                   <button
+                    type="button"
                     onClick={() => exportToPdf('RekapBulan')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     <span>Export Tab Ini (PDF)</span>
@@ -755,11 +764,11 @@ export const IndexRekapCengkeh: React.FC = () => {
                     <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                       Filter Periode:
                     </span>
-                    <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                    <div className="inline-flex flex-wrap rounded-lg border border-slate-200 p-0.5 bg-slate-50 gap-0.5">
                       <button
                         type="button"
                         onClick={() => setModePeriodeBulan('rentang')}
-                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                        className={`px-3 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                           modePeriodeBulan === 'rentang'
                             ? 'bg-[#1a56c4] text-white shadow-2xs'
                             : 'text-slate-600 hover:text-slate-900'
@@ -770,7 +779,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setModePeriodeBulan('semua')}
-                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                        className={`px-3 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                           modePeriodeBulan === 'semua'
                             ? 'bg-[#1a56c4] text-white shadow-2xs'
                             : 'text-slate-600 hover:text-slate-900'
@@ -791,7 +800,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         setPeriodeBulanAwal({ bulan: 'Agustus', tahun: '2026' });
                         setPeriodeBulanAkhir({ bulan: 'Oktober', tahun: '2026' });
                       }}
-                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                         modePeriodeBulan === 'rentang' && periodeBulanAwal.bulan === 'Agustus' && periodeBulanAwal.tahun === '2026' && periodeBulanAkhir.bulan === 'Oktober' && periodeBulanAkhir.tahun === '2026'
                           ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -806,7 +815,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         setPeriodeBulanAwal({ bulan: 'Januari', tahun: '2026' });
                         setPeriodeBulanAkhir({ bulan: 'Desember', tahun: '2026' });
                       }}
-                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                         modePeriodeBulan === 'rentang' && periodeBulanAwal.bulan === 'Januari' && periodeBulanAwal.tahun === '2026' && periodeBulanAkhir.bulan === 'Desember' && periodeBulanAkhir.tahun === '2026'
                           ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -821,7 +830,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         setPeriodeBulanAwal({ bulan: 'Januari', tahun: '2025' });
                         setPeriodeBulanAkhir({ bulan: 'Desember', tahun: '2025' });
                       }}
-                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                         modePeriodeBulan === 'rentang' && periodeBulanAwal.bulan === 'Januari' && periodeBulanAwal.tahun === '2025' && periodeBulanAkhir.bulan === 'Desember' && periodeBulanAkhir.tahun === '2025'
                           ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -832,7 +841,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setModePeriodeBulan('semua')}
-                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                         modePeriodeBulan === 'semua'
                           ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -852,7 +861,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         <select
                           value={periodeBulanAwal.bulan}
                           onChange={(e) => setPeriodeBulanAwal({ ...periodeBulanAwal, bulan: e.target.value })}
-                          className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                          className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
                         >
                           {filterOptions.bulan.map((m) => (
                             <option key={m} value={m}>{m}</option>
@@ -861,7 +870,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         <select
                           value={periodeBulanAwal.tahun}
                           onChange={(e) => setPeriodeBulanAwal({ ...periodeBulanAwal, tahun: e.target.value })}
-                          className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                          className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
                         >
                           {filterOptions.tahun.map((y) => (
                             <option key={y} value={y}>{y}</option>
@@ -872,7 +881,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         <select
                           value={periodeBulanAkhir.bulan}
                           onChange={(e) => setPeriodeBulanAkhir({ ...periodeBulanAkhir, bulan: e.target.value })}
-                          className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                          className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
                         >
                           {filterOptions.bulan.map((m) => (
                             <option key={m} value={m}>{m}</option>
@@ -881,7 +890,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         <select
                           value={periodeBulanAkhir.tahun}
                           onChange={(e) => setPeriodeBulanAkhir({ ...periodeBulanAkhir, tahun: e.target.value })}
-                          className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                          className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
                         >
                           {filterOptions.tahun.map((y) => (
                             <option key={y} value={y}>{y}</option>
@@ -902,7 +911,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                       <select
                         value={selectedJenisBulan}
                         onChange={(e) => setSelectedJenisBulan(e.target.value)}
-                        className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                        className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
                       >
                         <option value="Semua">Semua Jenis (Agregat)</option>
                         {filterOptions.jenis.map((j) => (
@@ -1022,7 +1031,7 @@ export const IndexRekapCengkeh: React.FC = () => {
               </div>
 
               {/* Tabel Kinerja Bulanan (Urutan: Periode bulan terbaru di paling atas, terlama di paling bawah) */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-2xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3.5 pb-2.5 border-b border-slate-100">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">
@@ -1063,7 +1072,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowSubVarianBulan(!showSubVarianBulan)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer shrink-0"
                   >
                     {showSubVarianBulan ? (
                       <>
@@ -1095,7 +1104,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         <select
                           value={selectedBulanJenis}
                           onChange={(e) => setSelectedBulanJenis(e.target.value)}
-                          className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
+                          className="text-xs font-medium px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
                         >
                           {filterOptions.jenis.map((j) => (
                             <option key={j} value={j}>{j}</option>
@@ -1144,13 +1153,14 @@ export const IndexRekapCengkeh: React.FC = () => {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 no-print">
+                <div className="flex items-center gap-2 no-print flex-wrap">
                   <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-800 font-semibold border border-blue-200">
                     Periode: {rekapJenisPeriodeData.periodeLabel}
                   </span>
                   <button
+                    type="button"
                     onClick={() => exportToPdf('RekapJenis')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     <span>Export Tab Ini (PDF)</span>
@@ -1165,11 +1175,11 @@ export const IndexRekapCengkeh: React.FC = () => {
                     <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">
                       Filter Periode:
                     </span>
-                    <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                    <div className="inline-flex flex-wrap rounded-lg border border-slate-200 p-0.5 bg-slate-50 gap-0.5">
                       <button
                         type="button"
                         onClick={() => setModePeriodeJenis('rentang')}
-                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                        className={`px-3 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                           modePeriodeJenis === 'rentang'
                             ? 'bg-[#1a56c4] text-white shadow-2xs'
                             : 'text-slate-600 hover:text-slate-900'
@@ -1180,7 +1190,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setModePeriodeJenis('semua')}
-                        className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                        className={`px-3 py-1.5 min-h-[44px] lg:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                           modePeriodeJenis === 'semua'
                             ? 'bg-[#1a56c4] text-white shadow-2xs'
                             : 'text-slate-600 hover:text-slate-900'
@@ -1201,7 +1211,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         setPeriodeAwal({ bulan: 'Agustus', tahun: '2026' });
                         setPeriodeAkhir({ bulan: 'Oktober', tahun: '2026' });
                       }}
-                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                         modePeriodeJenis === 'rentang' && periodeAwal.bulan === 'Agustus' && periodeAwal.tahun === '2026' && periodeAkhir.bulan === 'Oktober' && periodeAkhir.tahun === '2026'
                           ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -1216,7 +1226,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         setPeriodeAwal({ bulan: 'Januari', tahun: '2026' });
                         setPeriodeAkhir({ bulan: 'Desember', tahun: '2026' });
                       }}
-                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                         modePeriodeJenis === 'rentang' && periodeAwal.bulan === 'Januari' && periodeAwal.tahun === '2026' && periodeAkhir.bulan === 'Desember' && periodeAkhir.tahun === '2026'
                           ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -1231,7 +1241,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         setPeriodeAwal({ bulan: 'Januari', tahun: '2025' });
                         setPeriodeAkhir({ bulan: 'Desember', tahun: '2025' });
                       }}
-                      className={`px-2.5 py-1 rounded-md border text-xs font-medium transition-colors cursor-pointer ${
+                      className={`px-2.5 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-md border text-xs font-medium transition-colors cursor-pointer ${
                         modePeriodeJenis === 'rentang' && periodeAwal.bulan === 'Januari' && periodeAwal.tahun === '2025' && periodeAkhir.bulan === 'Desember' && periodeAkhir.tahun === '2025'
                           ? 'bg-blue-50 border-blue-400 text-blue-700 font-bold'
                           : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -1249,7 +1259,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                     <select
                       value={periodeAwal.bulan}
                       onChange={(e) => setPeriodeAwal({ ...periodeAwal, bulan: e.target.value })}
-                      className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                      className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
                     >
                       {filterOptions.bulan.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -1258,7 +1268,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                     <select
                       value={periodeAwal.tahun}
                       onChange={(e) => setPeriodeAwal({ ...periodeAwal, tahun: e.target.value })}
-                      className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                      className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
                     >
                       {filterOptions.tahun.map((y) => (
                         <option key={y} value={y}>{y}</option>
@@ -1269,7 +1279,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                     <select
                       value={periodeAkhir.bulan}
                       onChange={(e) => setPeriodeAkhir({ ...periodeAkhir, bulan: e.target.value })}
-                      className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                      className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
                     >
                       {filterOptions.bulan.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -1278,7 +1288,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                     <select
                       value={periodeAkhir.tahun}
                       onChange={(e) => setPeriodeAkhir({ ...periodeAkhir, tahun: e.target.value })}
-                      className="px-2.5 py-1 rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
+                      className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-slate-300 text-xs bg-white text-slate-800 cursor-pointer font-medium"
                     >
                       {filterOptions.tahun.map((y) => (
                         <option key={y} value={y}>{y}</option>
@@ -1420,7 +1430,7 @@ export const IndexRekapCengkeh: React.FC = () => {
               </div>
 
               {/* Card 1: Trend Susut per Varian Individu */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-2xs">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
                   <div>
                     <h3 className="text-sm font-bold text-slate-900">
@@ -1436,7 +1446,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                     <select
                       value={selectedTrendJenis}
                       onChange={(e) => setSelectedTrendJenis(e.target.value)}
-                      className="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
+                      className="text-xs font-medium px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white text-slate-800 cursor-pointer"
                     >
                       <option value="Semua">Semua Jenis (Agregat)</option>
                       {filterOptions.jenis.map((j) => (
@@ -1479,14 +1489,14 @@ export const IndexRekapCengkeh: React.FC = () => {
 
               {/* Card 2: Perbandingan Susut Antar Seluruh Jenis */}
               <div 
-                className="bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-5 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative"
+                className="bg-white border border-slate-200 hover:border-blue-300 rounded-2xl p-3.5 sm:p-5 shadow-2xs hover:shadow-md transition-all cursor-pointer group relative"
                 onClick={() => setExpandedChart({
                   title: 'Perbandingan Total Susut Rata-rata per Jenis Cengkeh (%)',
                   subtitle: 'Peringkat persentase susut per komoditas varian',
                   component: <JenisBarChartRekapCengkeh data={rekapJenisPeriodeData.list} isExpanded={true} />
                 })}
               >
-                <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center justify-between gap-2 mb-3">
                   <h3 className="text-sm font-bold text-slate-900">
                     Perbandingan Total Susut Rata-rata per Jenis Cengkeh (%)
                   </h3>
@@ -1500,7 +1510,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                         component: <JenisBarChartRekapCengkeh data={rekapJenisPeriodeData.list} isExpanded={true} />
                       });
                     }}
-                    className="no-print inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 px-2.5 py-1 rounded-lg border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+                    className="no-print inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 px-3 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-lg border border-blue-200 transition-colors cursor-pointer shadow-2xs shrink-0"
                   >
                     <Maximize2 className="w-3.5 h-3.5" />
                     <span>Perbesar</span>
@@ -1526,7 +1536,7 @@ export const IndexRekapCengkeh: React.FC = () => {
               </div>
 
               {/* Card 3: Tabel Rekap per Jenis Cengkeh (Persis Standar Gambar 1) */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-2xs">
                 <div className="flex items-center justify-between mb-3.5">
                   <h3 className="text-sm font-bold text-slate-900">
                     Tabel Rekap per Jenis Cengkeh
@@ -1555,8 +1565,9 @@ export const IndexRekapCengkeh: React.FC = () => {
 
                 <div className="flex items-center gap-2 no-print">
                   <button
+                    type="button"
                     onClick={() => exportToPdf('LogDataHarian')}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                    className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                   >
                     <Printer className="w-3.5 h-3.5" />
                     <span>Export Tab Ini (PDF)</span>
@@ -1564,7 +1575,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-2xs">
+              <div className="bg-white border border-slate-200 rounded-2xl p-3.5 sm:p-5 shadow-2xs">
                 <BatchExplorerTableRekapCengkeh
                   rows={explorerRows}
                   onToggleVerify={handleToggleVerify}

@@ -624,7 +624,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           <button
             onClick={() => loadAllPartai()}
             disabled={isLoading}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-all shadow-sm cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] lg:min-h-[38px] rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-all shadow-sm cursor-pointer ${
               isLoading ? 'opacity-70 cursor-not-allowed' : ''
             }`}
             title="Tarik / Refresh Kertas Kerja DHP Cengkeh dari Google Sheet"
@@ -638,7 +638,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             <button
               type="button"
               onClick={() => setIsActionsMenuOpen((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] lg:min-h-[38px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
               title="Menu Pengaturan, Skrip GAS & Export PDF"
             >
               <Settings2 className="w-3.5 h-3.5 text-slate-400" />
@@ -659,7 +659,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       setIsActionsMenuOpen(false);
                       setIsConfigModalOpen(true);
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-slate-200 hover:text-white hover:bg-slate-800 text-left transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 min-h-[44px] text-slate-200 hover:text-white hover:bg-slate-800 text-left transition-colors cursor-pointer"
                   >
                     <Settings2 className="w-4 h-4 text-amber-400 shrink-0" />
                     <div className="min-w-0">
@@ -676,7 +676,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                         onOpenGasCenter('script');
                       }
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-cyan-300 hover:text-cyan-200 hover:bg-slate-800 text-left transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 min-h-[44px] text-cyan-300 hover:text-cyan-200 hover:bg-slate-800 text-left transition-colors cursor-pointer"
                   >
                     <FileCode className="w-4 h-4 text-cyan-400 shrink-0" />
                     <div className="min-w-0">
@@ -691,7 +691,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       setIsActionsMenuOpen(false);
                       exportToPdf('IntegrasiDhpCengkeh');
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-slate-200 hover:text-white hover:bg-slate-800 text-left transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 min-h-[44px] text-slate-200 hover:text-white hover:bg-slate-800 text-left transition-colors cursor-pointer"
                   >
                     <Printer className="w-4 h-4 text-blue-400 shrink-0" />
                     <div className="min-w-0">
@@ -708,7 +708,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       setIsActionsMenuOpen(false);
                       loadAllPartai();
                     }}
-                    className="w-full flex items-center gap-2.5 px-3.5 py-2 text-amber-300 hover:text-amber-200 hover:bg-slate-800 text-left transition-colors cursor-pointer"
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2 min-h-[44px] text-amber-300 hover:text-amber-200 hover:bg-slate-800 text-left transition-colors cursor-pointer"
                   >
                     <RefreshCw className="w-4 h-4 text-amber-400 shrink-0" />
                     <div className="min-w-0">
@@ -741,8 +741,10 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             <div className="text-xs font-medium leading-relaxed">{pushStatusMessage.text}</div>
           </div>
           <button
+            type="button"
             onClick={() => setPushStatusMessage(null)}
-            className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/60"
+            className="min-h-[44px] min-w-[44px] lg:min-h-[28px] lg:min-w-[28px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/60 shrink-0 cursor-pointer"
+            aria-label="Tutup pemberitahuan"
           >
             <X className="w-4 h-4" />
           </button>
@@ -759,7 +761,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           <button
             type="button"
             onClick={() => setFetchFallbackNotice(null)}
-            className="text-amber-300/80 hover:text-white p-1 rounded-lg hover:bg-amber-900/50 shrink-0"
+            className="min-h-[44px] min-w-[44px] lg:min-h-[28px] lg:min-w-[28px] inline-flex items-center justify-center text-amber-300/80 hover:text-white p-1 rounded-lg hover:bg-amber-900/50 shrink-0 cursor-pointer"
             aria-label="Tutup pemberitahuan"
           >
             <X className="w-4 h-4" />
@@ -773,7 +775,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveSubTab('transaksi')}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] lg:min-h-[38px] rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeSubTab === 'transaksi'
                 ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
                 : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700'
@@ -786,7 +788,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveSubTab('analisis')}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] lg:min-h-[38px] rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeSubTab === 'analisis'
                 ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
                 : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700'
@@ -802,7 +804,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           <button
             type="button"
             onClick={toggleAutoDispatch}
-            className={`inline-flex items-center gap-2 px-3 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3 py-2 min-h-[44px] lg:min-h-[38px] rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
               isAutoDispatch
                 ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500/50 shadow-md shadow-emerald-950/30'
                 : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
@@ -826,7 +828,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             <button
               type="button"
               onClick={() => onNavigateToTab('analisis-deviasi')}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold border border-slate-700 hover:border-cyan-500/50 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] lg:min-h-[38px] rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-semibold border border-slate-700 hover:border-cyan-500/50 transition-colors cursor-pointer"
             >
               <Scale className="w-3.5 h-3.5 text-cyan-400" />
               <span>Buka Evaluasi Bulanan & Acuan</span>
@@ -1400,7 +1402,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       key={s.sesi}
                       type="button"
                       onClick={() => setSelectedDryerSesiTab(s.sesi)}
-                      className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
+                      className={`min-h-[44px] lg:min-h-[32px] px-2.5 py-1 text-[11px] font-semibold rounded-md transition-colors cursor-pointer ${
                         selectedDryerSesiTab === s.sesi
                           ? 'bg-orange-500 text-white shadow-xs font-bold'
                           : 'text-slate-400 hover:text-white'
@@ -1758,7 +1760,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <button
                     type="button"
                     onClick={handleCopyRowForPaste}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-amber-500/40 text-xs font-bold transition-all shadow-sm cursor-pointer"
+                    className="min-h-[44px] lg:min-h-[38px] inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-amber-500/40 text-xs font-bold transition-all shadow-sm cursor-pointer"
                     title="Salin data 1 baris partai ini dalam format Tab-Separated. Anda bisa langsung klik Cell B247 di Google Sheets lalu tekan Ctrl+V untuk input instan!"
                   >
                     {isCopiedRowPaste ? (
@@ -1782,7 +1784,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                         onOpenGasCenter('script');
                       }
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 border border-cyan-500/40 text-xs font-semibold transition-all cursor-pointer"
+                    className="min-h-[44px] lg:min-h-[38px] inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 border border-cyan-500/40 text-xs font-semibold transition-all cursor-pointer"
                     title="Buka kode skrip resmi Kode.gs dan panduan deployment"
                   >
                     <FileCode className="w-4 h-4 text-cyan-400" />
@@ -1798,7 +1800,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       activePartai.physicsValidation?.quarantined ||
                       activePartai.status === 'berjalan'
                     }
-                    className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 text-xs font-bold transition-all shadow-md cursor-pointer ${
+                    className={`min-h-[44px] lg:min-h-[38px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 text-xs font-bold transition-all shadow-md cursor-pointer ${
                       isPushing || activePartai.status === 'kosong' || activePartai.physicsValidation?.quarantined || activePartai.status === 'berjalan' 
                         ? 'opacity-50 cursor-not-allowed' 
                         : ''
@@ -1870,7 +1872,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       text: `Audit Trail diperiksa: ${cleaned.length} transaksi unik tersimpan. Seluruh duplikasi telah dibersihkan.`
                     });
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-[32px] rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-semibold border border-slate-700 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-semibold border border-slate-700 transition-colors cursor-pointer"
                   title="Hapus baris kembar dan simpan hanya transaksi unik"
                 >
                   <RefreshCw className="w-3 h-3 text-cyan-400" />
@@ -1889,7 +1891,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       });
                     }
                   }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-[32px] rounded-lg bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 text-[11px] font-semibold border border-rose-800/60 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-lg bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 text-[11px] font-semibold border border-rose-800/60 transition-colors cursor-pointer"
                   title="Kosongkan seluruh riwayat log pengiriman lokal"
                 >
                   <Trash2 className="w-3 h-3 text-rose-400" />
@@ -1951,7 +1953,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                             removeDhpSyncLog(log.id);
                             setSyncLogs(getDhpSyncLogs());
                           }}
-                          className="min-h-[44px] min-w-[44px] sm:min-h-[30px] sm:min-w-[30px] inline-flex items-center justify-center rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                          className="min-h-[44px] min-w-[44px] lg:min-h-[30px] lg:min-w-[30px] inline-flex items-center justify-center rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
                           title="Hapus baris riwayat ini"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -1973,7 +1975,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     type="button"
                     disabled={safeSyncLogPage <= 1}
                     onClick={() => setSyncLogPage((p) => Math.max(1, p - 1))}
-                    className="min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] px-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 disabled:opacity-40 inline-flex items-center justify-center cursor-pointer"
+                    className="min-h-[44px] min-w-[44px] lg:min-h-[32px] lg:min-w-[32px] px-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 disabled:opacity-40 inline-flex items-center justify-center cursor-pointer"
                     title="Halaman sebelumnya"
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -1985,7 +1987,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     type="button"
                     disabled={safeSyncLogPage >= syncLogTotalPages}
                     onClick={() => setSyncLogPage((p) => Math.min(syncLogTotalPages, p + 1))}
-                    className="min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] px-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 disabled:opacity-40 inline-flex items-center justify-center cursor-pointer"
+                    className="min-h-[44px] min-w-[44px] lg:min-h-[32px] lg:min-w-[32px] px-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 disabled:opacity-40 inline-flex items-center justify-center cursor-pointer"
                     title="Halaman berikutnya"
                   >
                     <ChevronRight className="w-4 h-4" />
@@ -2267,7 +2269,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                                   setEditingNotePartaiId(item.id);
                                   setTempNoteText(item.customNote || '');
                                 }}
-                                className="text-blue-600 hover:text-blue-800 underline ml-2 font-semibold cursor-pointer"
+                                className="min-h-[44px] lg:min-h-[28px] inline-flex items-center px-2 text-blue-600 hover:text-blue-800 underline ml-1 font-semibold cursor-pointer shrink-0"
                               >
                                 Edit
                               </button>
@@ -2279,7 +2281,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                                 setEditingNotePartaiId(item.id);
                                 setTempNoteText('');
                               }}
-                              className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                              className="mt-1.5 min-h-[44px] lg:min-h-[28px] inline-flex items-center gap-1 px-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                             >
                               <Edit3 className="w-3 h-3" />
                               <span>+ Tandai Alasan Lapangan</span>
@@ -2304,7 +2306,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveSubTab('transaksi')}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="min-h-[44px] lg:min-h-[38px] px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <Layers className="w-3.5 h-3.5" />
                   <span>Pratinjau & Sinkronisasi</span>
@@ -2317,7 +2319,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
       {/* Modal Tandai Alasan Lapangan */}
       {editingNotePartaiId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 md:backdrop-blur-xs animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 lg:backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -2326,7 +2328,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </h3>
               <button
                 onClick={() => setEditingNotePartaiId(null)}
-                className="min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+                className="min-h-[44px] min-w-[44px] lg:min-h-[32px] lg:min-w-[32px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2350,7 +2352,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     key={tag}
                     type="button"
                     onClick={() => setTempNoteText(tag)}
-                    className="min-h-[44px] sm:min-h-[30px] px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 transition-colors text-left cursor-pointer"
+                    className="min-h-[44px] lg:min-h-[30px] px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 transition-colors text-left cursor-pointer"
                   >
                     + {tag}
                   </button>
@@ -2376,7 +2378,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   localStorage.setItem('_REKAP_CKH_DHP_FIELD_NOTES', JSON.stringify(updated));
                   setEditingNotePartaiId(null);
                 }}
-                className="min-h-[44px] sm:min-h-[34px] px-2 text-xs text-rose-400 hover:text-rose-300 cursor-pointer"
+                className="min-h-[44px] lg:min-h-[34px] px-2 text-xs text-rose-400 hover:text-rose-300 cursor-pointer"
               >
                 Hapus Catatan
               </button>
@@ -2385,7 +2387,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingNotePartaiId(null)}
-                  className="min-h-[44px] sm:min-h-[34px] px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer"
+                  className="min-h-[44px] lg:min-h-[34px] px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
@@ -2397,7 +2399,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     localStorage.setItem('_REKAP_CKH_DHP_FIELD_NOTES', JSON.stringify(updated));
                     setEditingNotePartaiId(null);
                   }}
-                  className="min-h-[44px] sm:min-h-[34px] px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer"
+                  className="min-h-[44px] lg:min-h-[34px] px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer"
                 >
                   Simpan Catatan
                 </button>
@@ -2409,7 +2411,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
       {/* ================= MODAL 1: KONFIGURASI ID DHP ================= */}
       {isConfigModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 md:backdrop-blur-xs animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 lg:backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -2418,7 +2420,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </h3>
               <button
                 onClick={() => setIsConfigModalOpen(false)}
-                className="min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+                className="min-h-[44px] min-w-[44px] lg:min-h-[32px] lg:min-w-[32px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2433,7 +2435,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   type="text"
                   value={tempDhpId}
                   onChange={(e) => setTempDhpId(e.target.value)}
-                  className="w-full px-3 py-2 min-h-[44px] sm:min-h-[38px] bg-slate-800 border border-slate-700 rounded-xl text-slate-200 font-mono text-xs focus:outline-hidden focus:border-amber-500"
+                  className="w-full px-3 py-2 min-h-[44px] lg:min-h-[38px] bg-slate-800 border border-slate-700 rounded-xl text-slate-200 font-mono text-xs focus:outline-hidden focus:border-amber-500"
                   placeholder="ID Spreadsheet DHP Cengkeh"
                 />
                 <span className="text-[11px] text-slate-500 mt-1 block">
@@ -2450,13 +2452,13 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
               <button
                 onClick={() => setTempDhpId(DEFAULT_DHP_SPREADSHEET_ID)}
-                className="min-h-[44px] sm:min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                className="min-h-[44px] lg:min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
               >
                 Reset Default
               </button>
               <button
                 onClick={handleSaveDhpId}
-                className="min-h-[44px] sm:min-h-[36px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold cursor-pointer"
+                className="min-h-[44px] lg:min-h-[36px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold cursor-pointer"
               >
                 Simpan & Muat Ulang
               </button>
@@ -2469,7 +2471,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
       {/* ================= MODAL 3: KONFIRMASI PUSH DATA KE MASTER ================= */}
       {isConfirmPushOpen && activePartai && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 md:backdrop-blur-xs animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 lg:backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
@@ -2478,7 +2480,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </h3>
               <button
                 onClick={() => setIsConfirmPushOpen(false)}
-                className="min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
+                className="min-h-[44px] min-w-[44px] lg:min-h-[32px] lg:min-w-[32px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2543,14 +2545,14 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
               <button
                 onClick={() => setIsConfirmPushOpen(false)}
-                className="min-h-[44px] sm:min-h-[38px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                className="min-h-[44px] lg:min-h-[38px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
               >
                 Batal
               </button>
               <button
                 onClick={handleExecutePush}
                 disabled={isPushing}
-                className="min-h-[44px] sm:min-h-[38px] flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold shadow-sm cursor-pointer"
+                className="min-h-[44px] lg:min-h-[38px] flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold shadow-sm cursor-pointer"
               >
                 {isPushing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                 <span>{isPushing ? 'Mengirim...' : 'Ya, Kirim Sekarang'}</span>

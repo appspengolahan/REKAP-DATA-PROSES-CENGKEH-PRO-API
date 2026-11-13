@@ -49,7 +49,7 @@ export const PwaInstallModalRekapCengkeh: React.FC<PwaInstallModalProps> = ({ is
 
   return (
     <div 
-      className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 md:backdrop-blur-md animate-in fade-in duration-200"
+      className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 lg:backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div 
@@ -76,7 +76,7 @@ export const PwaInstallModalRekapCengkeh: React.FC<PwaInstallModalProps> = ({ is
           </div>
           <button
             onClick={onClose}
-            className="min-h-[44px] min-w-[44px] sm:min-h-[36px] sm:min-w-[36px] inline-flex items-center justify-center p-1.5 text-blue-200 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer shrink-0"
+            className="min-h-[44px] min-w-[44px] lg:min-h-[36px] lg:min-w-[36px] inline-flex items-center justify-center p-1.5 text-blue-200 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -198,7 +198,7 @@ export const PwaInstallModalRekapCengkeh: React.FC<PwaInstallModalProps> = ({ is
                 <button
                   type="button"
                   onClick={handleCopyLink}
-                  className="min-h-[44px] sm:min-h-[34px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors cursor-pointer"
+                  className="min-h-[44px] lg:min-h-[34px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors cursor-pointer"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   <span>{copied ? '✅ Tersalin!' : 'Salin Tautan'}</span>
@@ -216,7 +216,7 @@ export const PwaInstallModalRekapCengkeh: React.FC<PwaInstallModalProps> = ({ is
           </div>
           <button
             onClick={onClose}
-            className="min-h-[44px] sm:min-h-[32px] px-4 py-1 text-slate-700 hover:text-slate-900 font-semibold cursor-pointer rounded-lg hover:bg-slate-200/70 transition-colors"
+            className="min-h-[44px] lg:min-h-[32px] px-4 py-1 text-slate-700 hover:text-slate-900 font-semibold cursor-pointer rounded-lg hover:bg-slate-200/70 transition-colors"
           >
             Tutup
           </button>

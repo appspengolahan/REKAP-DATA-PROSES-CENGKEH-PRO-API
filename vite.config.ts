@@ -15,7 +15,7 @@ export default defineConfig(() => {
         manifest: {
           id: '/',
           name: 'Monitoring Board — Rekap Data Proses Cengkeh',
-          short_name: 'Rekap Cengkeh',
+          short_name: 'RekapCengkeh',
           description: 'Dashboard dan rekapitulasi data kesusutan proses cengkeh Divisi Produksi I PT Batu Karang.',
           theme_color: '#0d3a8a',
           background_color: '#0f172a',

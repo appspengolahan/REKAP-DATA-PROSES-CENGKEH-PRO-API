@@ -324,7 +324,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
 
   return (
     <div 
-      className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 md:backdrop-blur-md animate-in fade-in duration-200"
+      className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 lg:backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div 
@@ -353,22 +353,22 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={handleStartAdd}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 min-h-[44px] min-w-[44px] sm:min-h-[34px] sm:min-w-0 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 min-h-[44px] min-w-[44px] lg:min-h-[34px] lg:min-w-0 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               title="Tambah Modul / Link URL Baru"
             >
-              <Plus className="w-4 h-4 sm:w-3.5 sm:h-3.5" />
-              <span className="hidden sm:inline">Tambah Modul</span>
+              <Plus className="w-4 h-4 lg:w-3.5 lg:h-3.5" />
+              <span className="hidden lg:inline">Tambah Modul</span>
             </button>
             <button
               onClick={() => setShowResetConfirm(true)}
-              className="min-h-[44px] min-w-[44px] sm:min-h-[34px] sm:min-w-[34px] inline-flex items-center justify-center p-2 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              className="min-h-[44px] min-w-[44px] lg:min-h-[34px] lg:min-w-[34px] inline-flex items-center justify-center p-2 text-slate-400 hover:text-amber-300 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
               title="Reset Semua ke URL Default"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
             <button
               onClick={onClose}
-              className="min-h-[44px] min-w-[44px] sm:min-h-[34px] sm:min-w-[34px] inline-flex items-center justify-center p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
+              className="min-h-[44px] min-w-[44px] lg:min-h-[34px] lg:min-w-[34px] inline-flex items-center justify-center p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -397,14 +397,16 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
             </div>
             <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
               <button
+                type="button"
                 onClick={() => setShowResetConfirm(false)}
-                className="px-3 py-1 rounded-lg bg-white border border-amber-300 text-slate-700 hover:bg-amber-100 transition-colors font-medium"
+                className="min-h-[44px] lg:min-h-[34px] px-3.5 py-1.5 rounded-lg bg-white border border-amber-300 text-slate-700 hover:bg-amber-100 transition-colors font-medium cursor-pointer"
               >
                 Batal
               </button>
               <button
+                type="button"
                 onClick={handleResetToDefault}
-                className="px-3 py-1 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors font-semibold"
+                className="min-h-[44px] lg:min-h-[34px] px-3.5 py-1.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors font-semibold cursor-pointer"
               >
                 Ya, Reset Sekarang
               </button>
@@ -429,7 +431,8 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                     setIsAddingNew(false);
                     setEditingItem(null);
                   }}
-                  className="text-slate-400 hover:text-slate-600 p-1"
+                  className="min-h-[44px] min-w-[44px] lg:min-h-[32px] lg:min-w-[32px] inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200/70 p-1 cursor-pointer"
+                  aria-label="Tutup formulir"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -446,7 +449,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                     value={formName}
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="Contoh: Rekap Proses Cengkeh"
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-xs"
+                    className="w-full px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-xs"
                   />
                 </div>
 
@@ -461,9 +464,9 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                       value={formUrl}
                       onChange={(e) => setFormUrl(e.target.value)}
                       placeholder="https://..."
-                      className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-xs font-mono"
+                      className="w-full pl-8 pr-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-xs font-mono"
                     />
-                    <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    <Globe className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   </div>
                 </div>
 
@@ -476,7 +479,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                     value={formDesc}
                     onChange={(e) => setFormDesc(e.target.value)}
                     placeholder="Keterangan fungsi atau cakupan modul operasional"
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-xs"
+                    className="w-full px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-xs"
                   />
                 </div>
 
@@ -487,7 +490,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                   <select
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value as 'komoditas' | 'enterprise')}
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-xs cursor-pointer"
+                    className="w-full px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-xs cursor-pointer"
                   >
                     <option value="komoditas">Monitoring Board Komoditas Utama</option>
                     <option value="enterprise">Modul Enterprise & Sistem Operasional</option>
@@ -503,7 +506,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                     value={formBadge}
                     onChange={(e) => setFormBadge(e.target.value)}
                     placeholder="Contoh: Live App, Sedang Dibuka, Modul PP1"
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-xs"
+                    className="w-full px-3 py-1.5 min-h-[44px] lg:min-h-[36px] rounded-lg border border-slate-300 bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500 text-xs"
                   />
                 </div>
 
@@ -517,9 +520,9 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                         key={em}
                         type="button"
                         onClick={() => setFormIcon(em)}
-                        className={`w-7 h-7 rounded-md text-sm flex items-center justify-center transition-all ${
+                        className={`min-h-[44px] min-w-[44px] lg:min-h-[30px] lg:min-w-[30px] lg:w-7 lg:h-7 rounded-md text-sm flex items-center justify-center transition-all cursor-pointer ${
                           formIcon === em 
-                            ? 'bg-blue-600 text-white shadow-xs scale-110' 
+                            ? 'bg-blue-600 text-white shadow-xs scale-105' 
                             : 'bg-white border border-slate-200 hover:bg-slate-100'
                         }`}
                       >
@@ -529,13 +532,13 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                   </div>
                 </div>
 
-                <div className="flex items-center pt-5">
-                  <label className="inline-flex items-center gap-2 cursor-pointer select-none">
+                <div className="flex items-center pt-2 lg:pt-5">
+                  <label className="inline-flex items-center gap-2 min-h-[44px] cursor-pointer select-none">
                     <input
                       type="checkbox"
                       checked={formIsActive}
                       onChange={(e) => setFormIsActive(e.target.checked)}
-                      className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                      className="rounded border-slate-300 text-amber-600 focus:ring-amber-500 w-5 h-5 lg:w-4 lg:h-4 cursor-pointer"
                     />
                     <span className="font-semibold text-slate-700">Tandai sebagai Aplikasi Aktif ("Sedang Dibuka")</span>
                   </label>
@@ -549,13 +552,13 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                     setIsAddingNew(false);
                     setEditingItem(null);
                   }}
-                  className="px-3.5 py-1.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors"
+                  className="min-h-[44px] lg:min-h-[34px] px-4 py-1.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition-colors cursor-pointer"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                  className="min-h-[44px] lg:min-h-[34px] inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>Simpan Perubahan</span>
@@ -628,7 +631,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                         {/* Tombol Edit */}
                         <button
                           onClick={() => handleStartEdit(app)}
-                          className="min-h-[44px] min-w-[44px] sm:min-h-[30px] sm:min-w-[30px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          className="min-h-[44px] min-w-[44px] lg:min-h-[30px] lg:min-w-[30px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                           title="Edit Nama & URL Modul"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -638,7 +641,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                         {app.isCustom && (
                           <button
                             onClick={() => handleDeleteItem(app.id, app.name)}
-                            className="min-h-[44px] min-w-[44px] sm:min-h-[30px] sm:min-w-[30px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            className="min-h-[44px] min-w-[44px] lg:min-h-[30px] lg:min-w-[30px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Hapus Modul"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -651,7 +654,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                             href={app.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="min-h-[44px] sm:min-h-[30px] inline-flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800 transition-colors ml-1"
+                            className="min-h-[44px] lg:min-h-[30px] inline-flex items-center gap-1 px-3 py-1 rounded-lg text-[11px] font-semibold bg-slate-900 text-white hover:bg-slate-800 transition-colors ml-1"
                           >
                             <span>Buka</span>
                             <ArrowRight className="w-3 h-3" />
@@ -717,7 +720,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                         {/* Edit Button */}
                         <button
                           onClick={() => handleStartEdit(mod)}
-                          className="min-h-[44px] min-w-[44px] sm:min-h-[30px] sm:min-w-[30px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                          className="min-h-[44px] min-w-[44px] lg:min-h-[30px] lg:min-w-[30px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                           title="Edit Modul Ini"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
@@ -727,7 +730,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                         {mod.isCustom && (
                           <button
                             onClick={() => handleDeleteItem(mod.id, mod.name)}
-                            className="min-h-[44px] min-w-[44px] sm:min-h-[30px] sm:min-w-[30px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            className="min-h-[44px] min-w-[44px] lg:min-h-[30px] lg:min-w-[30px] inline-flex items-center justify-center p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Hapus Modul"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -740,7 +743,7 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
                             href={mod.url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="shrink-0 min-h-[44px] sm:min-h-[30px] inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap ml-1"
+                            className="shrink-0 min-h-[44px] lg:min-h-[30px] inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors whitespace-nowrap ml-1"
                           >
                             <span>Akses</span>
                             <ExternalLink className="w-3 h-3" />
@@ -770,14 +773,14 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
           <div className="flex items-center gap-2">
             <button
               onClick={handleStartAdd}
-              className="inline-flex sm:hidden min-h-[44px] items-center gap-1 px-3.5 py-2 rounded-xl bg-blue-600 text-white font-semibold cursor-pointer"
+              className="inline-flex lg:hidden min-h-[44px] items-center gap-1 px-3.5 py-2 rounded-xl bg-blue-600 text-white font-semibold cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Tambah</span>
             </button>
             <button
               onClick={onClose}
-              className="min-h-[44px] sm:min-h-[34px] px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold transition-colors cursor-pointer"
+              className="min-h-[44px] lg:min-h-[34px] px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-semibold transition-colors cursor-pointer"
             >
               Tutup
             </button>

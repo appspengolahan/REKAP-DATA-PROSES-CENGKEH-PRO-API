@@ -3,7 +3,7 @@
  * File: Cards[RekapCengkeh].tsx
  * Reference: https://rekap-dataproses-tembakau-pro.vercel.app/
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { SummaryKpiCengkeh, PeriodeRentang, RekapItemCengkeh } from './types[RekapCengkeh]';
 import { formatKg, formatPct, formatInt } from './Code[RekapCengkeh]';
 import { TrendingUp, TrendingDown, Scale, CheckCircle2, AlertTriangle, Layers } from 'lucide-react';
@@ -113,10 +113,14 @@ export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySection
   onPeriodeChange,
   onApplyPeriode
 }) => {
-  // Highlight statistics
-  const sortedBySusut = [...rekapBulan].sort((a, b) => b.totalSusutPct - a.totalSusutPct);
-  const bulanTertinggi = sortedBySusut.length > 0 ? sortedBySusut[0] : null;
-  const bulanOptimal = sortedBySusut.length > 0 ? sortedBySusut[sortedBySusut.length - 1] : null;
+  // Highlight statistics (memoized to prevent redundant sort per render)
+  const { bulanTertinggi, bulanOptimal } = useMemo(() => {
+    const sorted = [...rekapBulan].sort((a, b) => b.totalSusutPct - a.totalSusutPct);
+    return {
+      bulanTertinggi: sorted.length > 0 ? sorted[0] : null,
+      bulanOptimal: sorted.length > 0 ? sorted[sorted.length - 1] : null,
+    };
+  }, [rekapBulan]);
 
   return (
     <div className="space-y-4 mb-5">
@@ -196,7 +200,7 @@ export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySection
       </div>
 
       {/* 2 Kolom Grid: Rekap Tahunan & Rekap Bulanan */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* 1. Rekap Tahunan */}
         <div className="bg-white border border-[#e1e5ec] rounded-[12px] p-4 shadow-2xs">
           <div className="flex justify-between items-center mb-3 flex-wrap gap-2">
@@ -219,7 +223,7 @@ export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySection
             <select
               value={bulanRingkasan}
               onChange={(e) => onBulanRingkasanChange(e.target.value)}
-              className="no-print px-2.5 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white text-[#1f2937] cursor-pointer"
+              className="no-print px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white text-[#1f2937] cursor-pointer"
             >
               <option value="Semua">Semua</option>
               {monthsList.map((b) => (
@@ -245,14 +249,14 @@ export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySection
             <select
               value={periodeAwal.bulan}
               onChange={(e) => onPeriodeChange({ ...periodeAwal, bulan: e.target.value }, periodeAkhir)}
-              className="px-2.5 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
+              className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
             >
               {monthsList.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
             <select
               value={periodeAwal.tahun}
               onChange={(e) => onPeriodeChange({ ...periodeAwal, tahun: e.target.value }, periodeAkhir)}
-              className="px-2.5 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
+              className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
             >
               {yearsList.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
@@ -261,21 +265,21 @@ export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySection
             <select
               value={periodeAkhir.bulan}
               onChange={(e) => onPeriodeChange(periodeAwal, { ...periodeAkhir, bulan: e.target.value })}
-              className="px-2.5 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
+              className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
             >
               {monthsList.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
             <select
               value={periodeAkhir.tahun}
               onChange={(e) => onPeriodeChange(periodeAwal, { ...periodeAkhir, tahun: e.target.value })}
-              className="px-2.5 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
+              className="px-2.5 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
             >
               {yearsList.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
 
             <button
               onClick={onApplyPeriode}
-              className="bg-[#1a56c4] hover:bg-[#0d3a8a] text-white px-4 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md text-[12px] font-medium transition-colors cursor-pointer"
+              className="bg-[#1a56c4] hover:bg-[#0d3a8a] text-white px-4 py-1.5 min-h-[44px] lg:min-h-[34px] rounded-md text-[12px] font-medium transition-colors cursor-pointer"
             >
               Terapkan
             </button>
