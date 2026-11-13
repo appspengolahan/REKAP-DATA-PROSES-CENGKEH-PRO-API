@@ -31,16 +31,25 @@ export interface SwitchAppItem {
   isCustom?: boolean;
 }
 
+const OLD_CENGKEH_VERCEL_URL = 'https://rekap-data-proses-cengkeh-pro-api-l.vercel.app/';
+
+const getCurrentAppUrl = (): string => {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}/`;
+  }
+  return '/';
+};
+
 export const DEFAULT_SWITCH_APPS: SwitchAppItem[] = [
-  // 4 Komoditas Utama (sesuai instruksi default)
+  // 4 Komoditas Utama
   {
     id: 'cengkeh',
     name: 'Rekap Proses Cengkeh',
     desc: 'Kesusutan Sortasi, Rendaman & Hasil Dryer Cengkeh',
-    url: 'https://rekap-data-proses-cengkeh-pro-api-l.vercel.app/',
+    url: getCurrentAppUrl(),
     category: 'komoditas',
-    status: 'external',
-    badge: 'Live App',
+    status: 'active',
+    badge: 'Sedang Dibuka',
     icon: '🌿'
   },
   {
@@ -49,8 +58,8 @@ export const DEFAULT_SWITCH_APPS: SwitchAppItem[] = [
     desc: 'Dashboard Kesusutan Proses Tembakau (SKT & SKM) 54 Varian',
     url: 'https://rekap-dataproses-tembakau-pro.vercel.app/',
     category: 'komoditas',
-    status: 'active',
-    badge: 'Sedang Dibuka',
+    status: 'external',
+    badge: 'Live App',
     icon: '🍂'
   },
   {
@@ -82,7 +91,7 @@ export const DEFAULT_SWITCH_APPS: SwitchAppItem[] = [
     url: 'https://monitoring-stock-pp-1-pro-api.vercel.app/',
     category: 'enterprise',
     status: 'external',
-    badge: 'Vercel Live',
+    badge: 'Live App',
     icon: '📊'
   },
   {
@@ -126,6 +135,35 @@ interface SwitchBoardModalProps {
   onClose: () => void;
 }
 
+function normalizeSwitchApps(items: SwitchAppItem[]): SwitchAppItem[] {
+  const currentUrl = getCurrentAppUrl();
+  return items.map((item) => {
+    if (item.id === 'cengkeh') {
+      const hasOldDefaultUrl = !item.url || item.url === OLD_CENGKEH_VERCEL_URL || item.url === '#';
+      return {
+        ...item,
+        url: hasOldDefaultUrl ? currentUrl : item.url,
+        status: 'active',
+        badge: 'Sedang Dibuka'
+      };
+    }
+    if (item.id === 'tembakau' && item.status === 'active' && item.badge === 'Sedang Dibuka') {
+      return {
+        ...item,
+        status: 'external',
+        badge: 'Live App'
+      };
+    }
+    if (item.id === 'stock-pp1' && item.badge === 'Vercel Live') {
+      return {
+        ...item,
+        badge: 'Live App'
+      };
+    }
+    return item;
+  });
+}
+
 export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ isOpen, onClose }) => {
   const [apps, setApps] = useState<SwitchAppItem[]>(() => {
     try {
@@ -133,13 +171,13 @@ export const SwitchBoardModalRekapCengkeh: React.FC<SwitchBoardModalProps> = ({ 
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+          return normalizeSwitchApps(parsed);
         }
       }
     } catch {
       // ignore
     }
-    return DEFAULT_SWITCH_APPS;
+    return normalizeSwitchApps(DEFAULT_SWITCH_APPS);
   });
 
   // State dialog Edit / Tambah

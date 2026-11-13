@@ -22,7 +22,7 @@ import {
   Zap
 } from 'lucide-react';
 import { GasConfig } from './types[RekapCengkeh]';
-import { saveGasConfig, DEFAULT_EXEC_URL, DEFAULT_SPREADSHEET_ID, DEFAULT_SHEET_NAME, testGasPayload } from './Code[RekapCengkeh]';
+import { saveGasConfig, DEFAULT_EXEC_URL, DEFAULT_SPREADSHEET_ID, DEFAULT_SHEET_NAME, testGasPayload, isHtmlResponse } from './Code[RekapCengkeh]';
 
 const GAS_TEMPLATE_CODE = String.raw`/**
  * =========================================================================
@@ -587,10 +587,18 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
       const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
       const res = await fetch(gvizUrl);
       if (res.ok) {
-        setTestResult({
-          status: 'success',
-          message: `Koneksi Google Sheets berhasil! HTTP Status 200 OK. Sumber sheet "${sheetName}" siap dibaca.`
-        });
+        const bodyText = await res.text();
+        if (isHtmlResponse(res, bodyText)) {
+          setTestResult({
+            status: 'error',
+            message: `Google Sheets mengembalikan halaman HTML (kemungkinan akses sheet belum disetel publik: "Anyone with link can view").`
+          });
+        } else {
+          setTestResult({
+            status: 'success',
+            message: `Koneksi Google Sheets berhasil! HTTP Status 200 OK. Sumber sheet "${sheetName}" siap dibaca.`
+          });
+        }
       } else {
         setTestResult({
           status: 'error',

@@ -63,7 +63,7 @@ import {
   getCachedDhpPartai,
   formatHariTanggalAdmoist
 } from './dhpService[RekapCengkeh]';
-import { formatKg, formatPct, round1, round2, exportToPdf, formatTanggalIndo } from './Code[RekapCengkeh]';
+import { formatKg, formatPct, round1, round2, exportToPdf, formatTanggalIndo, isHtmlResponse } from './Code[RekapCengkeh]';
 
 interface IntegrasiDhpViewProps {
   userRole: UserRole;
@@ -437,16 +437,18 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         const verifyRes = await fetch(verifyUrl);
         if (verifyRes.ok) {
           const verifyCsv = await verifyRes.text();
-          // Jika baris 247 masih kosong di Google Sheets asli
-          const cols = verifyCsv.split(',');
-          if (cols[1] && (cols[1] === '""' || cols[1].trim() === '')) {
+          if (!isHtmlResponse(verifyRes, verifyCsv)) {
+            // Jika baris 247 masih kosong di Google Sheets asli
+            const cols = verifyCsv.split(',');
+            if (cols[1] && (cols[1] === '""' || cols[1].trim() === '')) {
             setPushStatusMessage({
               type: 'error',
               text: `⚠️ PERHATIAN: Endpoint server merespons sukses, tetapi baris fisik #247 di Google Sheet Rekap masih kosong. Ini membuktikan script Apps Script Anda saat ini belum dideploy di dalam Spreadsheet Rekap (belum memiliki izin tulis). Silakan ikuti 'Panduan Update GAS' di bawah atau gunakan tombol 'Salin Baris #247' untuk input langsung.`
             });
             setIsConfirmPushOpen(false);
-            setSyncLogs(getDhpSyncLogs());
-            return;
+              setSyncLogs(getDhpSyncLogs());
+              return;
+            }
           }
         }
       } catch (verifyErr) {

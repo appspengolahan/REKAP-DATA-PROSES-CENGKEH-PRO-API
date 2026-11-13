@@ -5,7 +5,18 @@
  */
 
 import { DhpPartaiData, DhpSesiDryer, DhpQcParams, DhpDryerMachineParams, DhpSyncLog, RawRowCengkeh } from './types[RekapCengkeh]';
-import { round1, round2, formatTanggalIndo, cleanDate, DEFAULT_EXEC_URL, parseCsvLine } from './Code[RekapCengkeh]';
+import {
+  round1,
+  round2,
+  formatTanggalIndo,
+  cleanDate,
+  DEFAULT_EXEC_URL,
+  parseCsvLine,
+  isHtmlResponse,
+  markStaticHostingMode,
+  resolveStaticSafeGasUrl,
+  formatWibDateTime
+} from './Code[RekapCengkeh]';
 export const DEFAULT_DHP_SPREADSHEET_ID = '1ZEJjMQMBkE8k3NIeHA32P2SooIpvXIfnq_f-pruCelQ';
 export const DEFAULT_MASTER_SPREADSHEET_ID = '1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M';
 export const DEFAULT_MASTER_SHEET_NAME = 'DATA PROSES CKH';
@@ -147,8 +158,8 @@ export function formatHariTanggalAdmoist(tanggalAdmoist?: string, partaiId?: str
     const month = parseInt(slashMatch[2], 10);
     let year = parseInt(slashMatch[3], 10);
     if (year < 100) year += 2000;
-    const dObj = new Date(year, month - 1, day);
-    const dayName = dayNames[dObj.getDay()];
+    const dObj = new Date(Date.UTC(year, month - 1, day));
+    const dayName = dayNames[dObj.getUTCDay()];
     const monthName = monthNames[month - 1] || 'November';
     const dayPadded = day < 10 ? `0${day}` : `${day}`;
     return `${dayName}, ${dayPadded} ${monthName} ${year}`;
@@ -160,8 +171,8 @@ export function formatHariTanggalAdmoist(tanggalAdmoist?: string, partaiId?: str
     const year = parseInt(isoMatch[1], 10);
     const month = parseInt(isoMatch[2], 10);
     const day = parseInt(isoMatch[3], 10);
-    const dObj = new Date(year, month - 1, day);
-    const dayName = dayNames[dObj.getDay()];
+    const dObj = new Date(Date.UTC(year, month - 1, day));
+    const dayName = dayNames[dObj.getUTCDay()];
     const monthName = monthNames[month - 1] || 'November';
     const dayPadded = day < 10 ? `0${day}` : `${day}`;
     return `${dayName}, ${dayPadded} ${monthName} ${year}`;
@@ -437,7 +448,10 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       const rangeParam = range ? `&range=${encodeURIComponent(range)}` : '';
       const url = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}${rangeParam}&t=${Date.now()}`;
       const res = await fetch(url);
-      return res.ok ? await res.text() : '';
+      if (!res.ok) return '';
+      const text = await res.text();
+      if (isHtmlResponse(res, text)) return '';
+      return text;
     } catch {
       return '';
     }
@@ -1307,6 +1321,7 @@ export async function fetchSourceHasilDryerStatus(
     if (!res.ok) return result;
 
     const csvText = await res.text();
+    if (isHtmlResponse(res, csvText)) return result;
     const lines = csvText.split('\n');
 
     lines.forEach((l) => {
@@ -1564,11 +1579,9 @@ export async function pushDhpToMasterSheet(
   };
 
   try {
-    let targetUrl = execUrl;
-    const isInternalApi = !targetUrl.startsWith('http://') && !targetUrl.startsWith('https://');
-    if (isInternalApi) {
-      console.warn(`[Cloudflare Fallback] Endpoint internal (${targetUrl}) terdeteksi pada pushDhpToMasterSheet. Dialihkan ke direct DEFAULT_EXEC_URL.`);
-      targetUrl = DEFAULT_EXEC_URL;
+    const { targetUrl, usedProxyBypass } = resolveStaticSafeGasUrl(execUrl);
+    if (usedProxyBypass) {
+      markStaticHostingMode();
     }
 
     let res = await fetch(targetUrl, {
@@ -1581,18 +1594,20 @@ export async function pushDhpToMasterSheet(
 
     let resText = await res.text();
 
-    // Deteksi jika respon berupa HTML (misal proxy /api pada Cloudflare Pages SPA merender index.html)
-    const isHtml = resText.trim().startsWith('<!DOCTYPE') || resText.includes('<html') || (res.headers.get('content-type') || '').includes('text/html');
-    if (isHtml && targetUrl !== DEFAULT_EXEC_URL) {
-      console.warn('[Cloudflare Fallback] pushDhpToMasterSheet menerima respon HTML dari endpoint proxy. Melakukan direct fallback POST ke DEFAULT_EXEC_URL...');
-      res = await fetch(DEFAULT_EXEC_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8'
-        },
-        body: JSON.stringify(payload)
-      });
-      resText = await res.text();
+    // Deteksi jika respon berupa HTML (proxy /api pada Cloudflare Static Assets merender index.html)
+    if (isHtmlResponse(res, resText)) {
+      markStaticHostingMode();
+      if (targetUrl !== DEFAULT_EXEC_URL) {
+        console.warn('[Cloudflare Fallback] pushDhpToMasterSheet menerima respon text/html dari endpoint proxy. Melakukan direct fallback POST ke DEFAULT_EXEC_URL...');
+        res = await fetch(DEFAULT_EXEC_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+          },
+          body: JSON.stringify(payload)
+        });
+        resText = await res.text();
+      }
     }
 
     let resJson: any = null;
@@ -1627,7 +1642,7 @@ export async function pushDhpToMasterSheet(
       rjKering: partai.totalRjKering,
       totalSusutKg: partai.totalSusutKg,
       totalSusutPct: partai.totalSusutPct,
-      waktuKirim: new Date().toLocaleString('id-ID'),
+      waktuKirim: formatWibDateTime(),
       pengirim: userRole,
       status: 'sukses',
       pesan: resJson?.message || 'Data partai berhasil dibukukan ke Rekap Master.'
@@ -1651,7 +1666,7 @@ export async function pushDhpToMasterSheet(
       rjKering: partai.totalRjKering,
       totalSusutKg: partai.totalSusutKg,
       totalSusutPct: partai.totalSusutPct,
-      waktuKirim: new Date().toLocaleString('id-ID'),
+      waktuKirim: formatWibDateTime(),
       pengirim: userRole,
       status: 'gagal',
       pesan: err.message || 'Gagal mengirim ke endpoint GAS'

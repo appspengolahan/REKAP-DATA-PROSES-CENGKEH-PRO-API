@@ -3,7 +3,7 @@
  * File: Index[RekapCengkeh].tsx
  * Reference: https://rekap-dataproses-tembakau-pro.vercel.app/
  */
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { 
   RawRowCengkeh, 
   PeriodeRentang, 
@@ -37,6 +37,7 @@ import {
   formatPct,
   cleanDate,
   formatTanggalIndo,
+  formatWibTime,
   MONTH_ORDER
 } from './Code[RekapCengkeh]';
 import { HeaderRekapCengkeh } from './Header[RekapCengkeh]';
@@ -102,6 +103,11 @@ export const IndexRekapCengkeh: React.FC = () => {
     const cfg = getGasConfig();
     return cfg.autoSync !== undefined ? cfg.autoSync : true;
   });
+
+  const rowsRef = useRef<RawRowCengkeh[]>(rows);
+  const gasConfigRef = useRef<GasConfig>(gasConfig);
+  rowsRef.current = rows;
+  gasConfigRef.current = gasConfig;
 
   // Self-Healing Auto-Recovery: Jika rows kosong (misal akibat copy-paste kode salah),
   // pulihkan secara otomatis dari snapshot data riil dan perbaiki konfigurasi sheet
@@ -371,7 +377,7 @@ export const IndexRekapCengkeh: React.FC = () => {
         const updatedConfig = {
           ...gasConfig,
           sheetName: targetSheet,
-          lastSyncedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB'
+          lastSyncedAt: formatWibTime()
         };
         setGasConfig(updatedConfig);
         saveGasConfig(updatedConfig);
@@ -389,37 +395,39 @@ export const IndexRekapCengkeh: React.FC = () => {
     }
   };
 
-  // Sync background via REST / GViz
+  // Sync background via REST / GViz (menggunakan ref agar stabil & tidak memicu re-run loop saat state berubah)
   const syncWithCloud = useCallback(async (isManual = false) => {
+    const activeCfg = gasConfigRef.current;
+    const currentRows = rowsRef.current;
     setIsSyncing(true);
     setSyncNotice(null);
     try {
       let freshRows: RawRowCengkeh[] | null = null;
-      if (gasConfig.execUrl && gasConfig.execUrl.includes('/exec')) {
+      if (activeCfg.execUrl && (activeCfg.execUrl.includes('/exec') || activeCfg.execUrl.includes('/api/'))) {
         try {
-          freshRows = await fetchFromGasRest(gasConfig.execUrl);
+          freshRows = await fetchFromGasRest(activeCfg.execUrl);
         } catch (gasErr) {
           console.warn('Tier 1 GAS REST pull error, trying Tier 2 GViz CSV:', gasErr);
         }
       }
       if (!freshRows || freshRows.length === 0) {
-        const targetSheet = (gasConfig.sheetName && gasConfig.sheetName !== 'FILTER DATA') ? gasConfig.sheetName : 'DATA PROSES CKH';
-        freshRows = await fetchFromGVizCsv(gasConfig.spreadsheetId, targetSheet, rows);
+        const targetSheet = (activeCfg.sheetName && activeCfg.sheetName !== 'FILTER DATA') ? activeCfg.sheetName : 'DATA PROSES CKH';
+        freshRows = await fetchFromGVizCsv(activeCfg.spreadsheetId, targetSheet, currentRows);
       }
       if (freshRows && freshRows.length > 0) {
         setRows(freshRows);
         saveCachedDataset(freshRows);
         const updatedConfig = {
-          ...gasConfig,
+          ...activeCfg,
           sheetName: 'DATA PROSES CKH',
-          lastSyncedAt: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' WIB'
+          lastSyncedAt: formatWibTime()
         };
         setGasConfig(updatedConfig);
         saveGasConfig(updatedConfig);
         if (isManual) {
           setSyncNotice(`✅ Data berhasil diperbarui (${freshRows.length} baris)!`);
         }
-      } else if (rows.length === 0) {
+      } else if (currentRows.length === 0) {
         setRows(INITIAL_SNAPSHOT_DATA);
         saveCachedDataset(INITIAL_SNAPSHOT_DATA);
       }
@@ -431,8 +439,9 @@ export const IndexRekapCengkeh: React.FC = () => {
       setIsSyncing(false);
       if (isManual) setTimeout(() => setSyncNotice(null), 4000);
     }
-  }, [gasConfig, rows]);
+  }, []);
 
+  // Jalankan sync awal 1x setelah mount agar render pertama 0.01s tanpa blocking main thread
   useEffect(() => {
     const timer = setTimeout(() => syncWithCloud(false), 1200);
     return () => clearTimeout(timer);

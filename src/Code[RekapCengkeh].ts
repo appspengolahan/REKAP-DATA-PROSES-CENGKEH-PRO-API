@@ -26,6 +26,104 @@ export const MONTH_ORDER = [
 
 const LOCAL_STORAGE_CACHE_KEY = '_REKAP_CKH_DATA_CACHE_V2';
 const LOCAL_STORAGE_CONFIG_KEY = '_REKAP_CKH_CONFIG_V1';
+const STATIC_HOSTING_FLAG_KEY = '_REKAP_CKH_STATIC_HOST_V1';
+const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
+
+// Singleton formatter & bounded memoization cache (anti-freeze pada loop tabel/rekonsiliasi besar)
+const NUMBER_FMT_KG = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const NUMBER_FMT_PCT = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const cleanDateCache = new Map<string, string>();
+const formatTanggalIndoCache = new Map<string, string>();
+
+function setBoundedCache(cache: Map<string, string>, key: string, value: string, maxEntries = 2000): void {
+  if (cache.size >= maxEntries) {
+    cache.clear();
+  }
+  cache.set(key, value);
+}
+
+let cachedStaticHostingMode: boolean | null = null;
+
+/** Cek apakah aplikasi berjalan dalam mode static hosting (request /api/* pernah mengembalikan text/html) */
+export function getIsStaticHostingMode(): boolean {
+  if (cachedStaticHostingMode !== null) return cachedStaticHostingMode;
+  try {
+    cachedStaticHostingMode = sessionStorage.getItem(STATIC_HOSTING_FLAG_KEY) === '1';
+  } catch {
+    cachedStaticHostingMode = false;
+  }
+  return cachedStaticHostingMode;
+}
+
+/** Tandai bahwa host saat ini adalah static hosting (Cloudflare Workers Static Assets) */
+export function markStaticHostingMode(): void {
+  cachedStaticHostingMode = true;
+  try {
+    sessionStorage.setItem(STATIC_HOSTING_FLAG_KEY, '1');
+  } catch {
+    // ignore storage errors
+  }
+}
+
+/** Deteksi apakah respon HTTP berupa dokumen HTML (SPA fallback atau halaman error) */
+export function isHtmlResponse(res: Response, bodyText: string): boolean {
+  const ct = (res.headers.get('content-type') || '').toLowerCase();
+  const trimmed = bodyText.trimStart();
+  return ct.includes('text/html') || trimmed.startsWith('<');
+}
+
+/** Deteksi apakah URL mengarah ke rute internal /api/* atau path relatif */
+export function isInternalApiUrl(url: string): boolean {
+  const trimmed = String(url || '').trim();
+  if (!trimmed) return true;
+  if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://')) {
+    return true;
+  }
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    try {
+      const parsed = new URL(trimmed);
+      if (parsed.origin === window.location.origin && parsed.pathname.startsWith('/api/')) {
+        return true;
+      }
+    } catch {
+      // ignore invalid URL
+    }
+  }
+  return false;
+}
+
+/** Resolusi URL GAS yang aman pada Static Hosting (melewati proxy /api/* jika static mode sudah terdeteksi) */
+export function resolveStaticSafeGasUrl(execUrl: string): { targetUrl: string; usedProxyBypass: boolean } {
+  const raw = String(execUrl || '').trim();
+  if (!raw || isInternalApiUrl(raw)) {
+    return { targetUrl: DEFAULT_EXEC_URL, usedProxyBypass: true };
+  }
+  if (getIsStaticHostingMode() && /\/api\//i.test(raw)) {
+    return { targetUrl: DEFAULT_EXEC_URL, usedProxyBypass: true };
+  }
+  return { targetUrl: raw, usedProxyBypass: false };
+}
+
+/** Format waktu WIB (UTC+7) berbasis aritmatika permanen tanpa membuat Intl.DateTimeFormat berulang */
+export function formatWibTime(date: Date = new Date()): string {
+  const wib = new Date(date.getTime() + WIB_OFFSET_MS);
+  const hh = String(wib.getUTCHours()).padStart(2, '0');
+  const mm = String(wib.getUTCMinutes()).padStart(2, '0');
+  const ss = String(wib.getUTCSeconds()).padStart(2, '0');
+  return `${hh}:${mm}:${ss} WIB`;
+}
+
+/** Format tanggal + jam WIB (UTC+7) berbasis aritmatika permanen */
+export function formatWibDateTime(date: Date = new Date()): string {
+  const wib = new Date(date.getTime() + WIB_OFFSET_MS);
+  const dd = String(wib.getUTCDate()).padStart(2, '0');
+  const mo = String(wib.getUTCMonth() + 1).padStart(2, '0');
+  const yyyy = wib.getUTCFullYear();
+  const hh = String(wib.getUTCHours()).padStart(2, '0');
+  const mm = String(wib.getUTCMinutes()).padStart(2, '0');
+  const ss = String(wib.getUTCSeconds()).padStart(2, '0');
+  return `${dd}/${mo}/${yyyy}, ${hh}:${mm}:${ss} WIB`;
+}
 
 export function round1(n: number): number {
   return Math.round(n * 10) / 10;
@@ -41,7 +139,7 @@ export function round2(n: number): number {
  */
 export function formatKg(n: number | null | undefined): string {
   if (n === null || n === undefined || isNaN(n)) return '-';
-  return Number(n).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' Kg';
+  return NUMBER_FMT_KG.format(Number(n)) + ' Kg';
 }
 
 /**
@@ -50,16 +148,18 @@ export function formatKg(n: number | null | undefined): string {
  */
 export function formatPct(n: number | null | undefined): string {
   if (n === null || n === undefined || isNaN(n)) return '-';
-  return Number(n).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+  return NUMBER_FMT_PCT.format(Number(n)) + '%';
 }
 
 /**
- * Format tanggal panjang Indonesia (Zona Waktu Indonesia Barat / Asia/Jakarta)
+ * Format tanggal panjang Indonesia (Zona Waktu Indonesia Barat / WIB UTC+7)
  * Contoh: '22 September 2026'
  */
 export function formatTanggalIndo(isoDateStr: string): string {
   if (!isoDateStr) return '-';
   if (isoDateStr === 'Belum Tercatat' || isoDateStr.toLowerCase().includes('belum')) return 'Belum Tercatat';
+  const cached = formatTanggalIndoCache.get(isoDateStr);
+  if (cached !== undefined) return cached;
   try {
     // Normalisasi jika masih mengandung komponen waktu/zona waktu UTC (misal dari Google Apps Script getValues())
     const normalized = cleanDate(isoDateStr);
@@ -69,7 +169,9 @@ export function formatTanggalIndo(isoDateStr: string): string {
       const blnIdx = parseInt(parts[1], 10) - 1;
       const tgl = parseInt(parts[2], 10);
       if (blnIdx >= 0 && blnIdx < 12) {
-        return `${tgl} ${MONTH_ORDER[blnIdx]} ${thn}`;
+        const result = `${tgl} ${MONTH_ORDER[blnIdx]} ${thn}`;
+        setBoundedCache(formatTanggalIndoCache, isoDateStr, result);
+        return result;
       }
     }
   } catch {
@@ -713,6 +815,9 @@ async function doFetchGvizSheet(spreadsheetId: string, sheetName: string): Promi
   }
 
   const csvText = await res.text();
+  if (isHtmlResponse(res, csvText)) {
+    throw new Error('GViz mengembalikan dokumen HTML (bukan CSV valid)');
+  }
   const lines = csvText.split('\n');
   if (lines.length < 6) {
     throw new Error('Format CSV tidak memiliki cukup baris header data');
@@ -796,52 +901,64 @@ async function doFetchGvizSheet(spreadsheetId: string, sheetName: string): Promi
 
 export function cleanDate(d: string, fallbackYear = '2026'): string {
   if (!d) return `${fallbackYear}-05-04`;
-  d = String(d).replace(/['"]/g, '').trim();
-  
+  const rawInput = String(d).replace(/['"]/g, '').trim();
+  const cacheKey = `${rawInput}|${fallbackYear}`;
+  const cached = cleanDateCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let result = rawInput;
+
   // 1. Kasus ISO Date UTC (misal: "2026-09-21T17:00:00.000Z" dari Google Apps Script Date Object)
-  // Konversi presisi ke Zona Waktu Indonesia Barat (WIB, Asia/Jakarta, GMT+7)
-  if (d.includes('T') || d.endsWith('Z')) {
-    const dt = new Date(d);
+  // Konversi presisi via aritmatika WIB permanen (UTC+7) — bebas konstruksi Intl.DateTimeFormat di loop
+  if (rawInput.includes('T') || rawInput.endsWith('Z')) {
+    const dt = new Date(rawInput);
     if (!isNaN(dt.getTime())) {
-      const formatter = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Jakarta',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-      });
-      return formatter.format(dt); // Format: "YYYY-MM-DD" di waktu Indonesia
+      const wib = new Date(dt.getTime() + WIB_OFFSET_MS);
+      const y = wib.getUTCFullYear();
+      const m = String(wib.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(wib.getUTCDate()).padStart(2, '0');
+      result = `${y}-${m}-${day}`;
+      setBoundedCache(cleanDateCache, cacheKey, result);
+      return result;
     }
   }
 
   // 2. Format Indonesia: "Selasa, 22 September 2026" atau "22 September 2026"
-  const matchIndo = d.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  const matchIndo = rawInput.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
   if (matchIndo) {
     const day = matchIndo[1].padStart(2, '0');
     const mIdx = MONTH_ORDER.findIndex((m) => m.toLowerCase() === matchIndo[2].toLowerCase());
     const month = (mIdx !== -1 ? mIdx + 1 : 5).toString().padStart(2, '0');
     const year = matchIndo[3];
-    return `${year}-${month}-${day}`;
+    result = `${year}-${month}-${day}`;
+    setBoundedCache(cleanDateCache, cacheKey, result);
+    return result;
   }
 
   // 3. Format Date Slash "22/09/2026" atau "2026/09/22"
-  if (d.includes('/')) {
-    const parts = d.split('/');
+  if (rawInput.includes('/')) {
+    const parts = rawInput.split('/');
     if (parts.length === 3) {
       if (parts[0].length === 4) {
-        return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        result = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
       } else {
-        return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        result = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
       }
+      setBoundedCache(cleanDateCache, cacheKey, result);
+      return result;
     }
   }
 
   // 4. Format ISO Date Murni "2026-09-22"
-  const matchIso = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  const matchIso = rawInput.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (matchIso) {
-    return `${matchIso[1]}-${matchIso[2].padStart(2, '0')}-${matchIso[3].padStart(2, '0')}`;
+    result = `${matchIso[1]}-${matchIso[2].padStart(2, '0')}-${matchIso[3].padStart(2, '0')}`;
+    setBoundedCache(cleanDateCache, cacheKey, result);
+    return result;
   }
 
-  return d;
+  setBoundedCache(cleanDateCache, cacheKey, result);
+  return result;
 }
 
 export function parseCsvLine(line: string): string[] {
@@ -947,13 +1064,9 @@ export function parse2DArrayToRows(values: any[][]): RawRowCengkeh[] {
  * Dilengkapi proteksi Cloudflare SPA: Jika endpoint /api mengembalikan HTML, otomatis fallback direct fetch ke GAS.
  */
 export async function fetchFromGasRest(execUrl: string): Promise<RawRowCengkeh[]> {
-  let targetUrl = execUrl;
-  
-  // Deteksi jika rute berupa endpoint proxy internal /api atau rute relatif tanpa protokol http(s)
-  const isInternalApi = !targetUrl.startsWith('http://') && !targetUrl.startsWith('https://');
-  if (isInternalApi) {
-    console.warn(`[Cloudflare Fallback] Endpoint internal terdeteksi (${targetUrl}). Di Cloudflare Pages SPA, rute internal tanpa server proxy akan merender HTML. Mengalihkan ke DEFAULT_EXEC_URL.`);
-    targetUrl = DEFAULT_EXEC_URL;
+  const { targetUrl, usedProxyBypass } = resolveStaticSafeGasUrl(execUrl);
+  if (usedProxyBypass) {
+    markStaticHostingMode();
   }
 
   const separator = targetUrl.includes('?') ? '&' : '?';
@@ -962,17 +1075,17 @@ export async function fetchFromGasRest(execUrl: string): Promise<RawRowCengkeh[]
   let res = await fetch(fullUrl, { mode: 'cors' });
   let resText = await res.text();
 
-  // Deteksi apakah response mengembalikan dokumen HTML (misal SPA router Cloudflare Pages / 404 fallback)
-  const isHtml = resText.trim().startsWith('<!DOCTYPE') || resText.includes('<html') || (res.headers.get('content-type') || '').includes('text/html');
+  // Deteksi apakah response mengembalikan dokumen HTML (SPA fallback text/html atau body diawali '<')
+  if (isHtmlResponse(res, resText)) {
+    markStaticHostingMode();
+    if (targetUrl !== DEFAULT_EXEC_URL) {
+      console.warn('[Cloudflare Fallback] Endpoint merespons text/html (static SPA fallback). Melakukan direct fetch ke DEFAULT_EXEC_URL...');
+      const directUrl = `${DEFAULT_EXEC_URL}${DEFAULT_EXEC_URL.includes('?') ? '&' : '?'}action=getData&t=${Date.now()}`;
+      res = await fetch(directUrl, { mode: 'cors' });
+      resText = await res.text();
+    }
 
-  if (isHtml) {
-    console.warn('[Cloudflare Fallback] Endpoint merespons dengan HTML (kemungkinan proxy internal /api pada Cloudflare SPA). Melakukan direct fetch langsung ke GAS Web App...');
-    const directUrl = `${DEFAULT_EXEC_URL}${DEFAULT_EXEC_URL.includes('?') ? '&' : '?'}action=getData&t=${Date.now()}`;
-    res = await fetch(directUrl, { mode: 'cors' });
-    resText = await res.text();
-    
-    // Cek ulang apakah direct fetch masih mengembalikan HTML
-    if (resText.trim().startsWith('<!DOCTYPE') || resText.includes('<html') || (res.headers.get('content-type') || '').includes('text/html')) {
+    if (isHtmlResponse(res, resText)) {
       throw new Error('Endpoint GAS mengembalikan halaman HTML. Pastikan deployment Web App disetel hak akses: "Siapa saja (Anyone)".');
     }
   }
@@ -1029,13 +1142,11 @@ export async function testGasPayload(
   payloadString: string
 ): Promise<{ status: number; statusText: string; latencyMs: number; data: any; rawText: string }> {
   const startTime = Date.now();
-  let targetUrl = execUrl;
-
-  const isInternalApi = !targetUrl.startsWith('http://') && !targetUrl.startsWith('https://');
-  if (isInternalApi) {
-    console.warn(`[Cloudflare Fallback] Pengujian endpoint internal (${targetUrl}) dialihkan ke DEFAULT_EXEC_URL.`);
-    targetUrl = DEFAULT_EXEC_URL;
+  const { targetUrl: resolvedUrl, usedProxyBypass } = resolveStaticSafeGasUrl(execUrl);
+  if (usedProxyBypass) {
+    markStaticHostingMode();
   }
+  let targetUrl = resolvedUrl;
 
   let requestInit: RequestInit = {
     mode: 'cors'
@@ -1065,16 +1176,18 @@ export async function testGasPayload(
   let res = await fetch(targetUrl, requestInit);
   let rawText = await res.text();
 
-  // Jika mengembalikan HTML (misal proxy /api di Cloudflare Pages SPA mengembalikan index.html)
-  const isHtml = rawText.trim().startsWith('<!DOCTYPE') || rawText.includes('<html') || (res.headers.get('content-type') || '').includes('text/html');
-  if (isHtml && targetUrl !== DEFAULT_EXEC_URL) {
-    console.warn('[Cloudflare Fallback] Pengujian mengembalikan HTML. Mencoba direct fetch ke DEFAULT_EXEC_URL...');
-    let directUrl = DEFAULT_EXEC_URL;
-    if (method === 'GET') {
-      directUrl += (directUrl.includes('?') ? '&' : '?') + `action=getData&t=${Date.now()}`;
+  // Jika mengembalikan HTML (proxy /api pada Cloudflare Static Assets mengembalikan index.html)
+  if (isHtmlResponse(res, rawText)) {
+    markStaticHostingMode();
+    if (!targetUrl.startsWith(DEFAULT_EXEC_URL)) {
+      console.warn('[Cloudflare Fallback] Pengujian mengembalikan text/html. Mencoba direct fetch ke DEFAULT_EXEC_URL...');
+      let directUrl = DEFAULT_EXEC_URL;
+      if (method === 'GET') {
+        directUrl += (directUrl.includes('?') ? '&' : '?') + `action=getData&t=${Date.now()}`;
+      }
+      res = await fetch(directUrl, requestInit);
+      rawText = await res.text();
     }
-    res = await fetch(directUrl, requestInit);
-    rawText = await res.text();
   }
 
   const latencyMs = Date.now() - startTime;
