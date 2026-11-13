@@ -36,6 +36,8 @@ import {
   MessageSquare,
   Edit3,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Scissors,
   Zap,
   Trash2
@@ -63,7 +65,7 @@ import {
   getCachedDhpPartai,
   formatHariTanggalAdmoist
 } from './dhpService[RekapCengkeh]';
-import { formatKg, formatPct, round1, round2, exportToPdf, formatTanggalIndo, isHtmlResponse } from './Code[RekapCengkeh]';
+import { formatKg, formatPct, formatInt, formatDec1, round1, round2, exportToPdf, formatTanggalIndo, isHtmlResponse } from './Code[RekapCengkeh]';
 
 interface IntegrasiDhpViewProps {
   userRole: UserRole;
@@ -90,6 +92,8 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   const [isPushing, setIsPushing] = useState<boolean>(false);
   const [pushStatusMessage, setPushStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [syncLogs, setSyncLogs] = useState<DhpSyncLog[]>(() => getDhpSyncLogs());
+  const [syncLogPage, setSyncLogPage] = useState<number>(1);
+  const SYNC_LOG_PAGE_SIZE = 15;
 
   // Field notes state per partai
   const [fieldNotes, setFieldNotes] = useState<Record<string, string>>(() => {
@@ -114,15 +118,15 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   const actionsMenuRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: PointerEvent) => {
       if (actionsMenuRef.current && !actionsMenuRef.current.contains(e.target as Node)) {
         setIsActionsMenuOpen(false);
       }
     };
     if (isActionsMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('pointerdown', handleClickOutside);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, [isActionsMenuOpen]);
 
   // Headless Auto-Dispatch State (Persisted in localStorage)
@@ -160,6 +164,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
       // HEADLESS AUTO-DISPATCH CHECKER (Unattended Mode)
       if (isAutoDispatch && data.length > 0 && !isPushing) {
+        const currentSyncLogs = getDhpSyncLogs();
         for (const p of data) {
           if (
             p.status === 'selesai' && 
@@ -191,7 +196,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             });
 
             // Cegah auto-dispatch ganda jika sudah ada log sukses di browser
-            const isAlreadyDispatchedInLogs = getDhpSyncLogs().some((l) => 
+            const isAlreadyDispatchedInLogs = currentSyncLogs.some((l) => 
               l.partai === p.namaTab && 
               l.status === 'sukses' && 
               Math.abs(Number(l.gldKering || 0) - Number(p.gldKering || 0)) < 0.8
@@ -204,7 +209,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 await onRefreshMaster();
                 setPushStatusMessage({
                   type: 'success',
-                  text: `[AUTO-DISPATCH] Berhasil membukukan otomatis ${p.namaTab} (${p.jenis}, ${p.gldKering.toLocaleString('id-ID')} Kg) ke Sheet Master Rekap!`
+                  text: `[AUTO-DISPATCH] Berhasil membukukan otomatis ${p.namaTab} (${p.jenis}, ${formatInt(p.gldKering)} Kg) ke Sheet Master Rekap!`
                 });
                 setSyncLogs(getDhpSyncLogs());
               } catch (pushErr: any) {
@@ -253,6 +258,20 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
       }
     }
   }, [activePartai, selectedDryerSesiTab]);
+
+  // Pagination & clamp halaman untuk Audit Trail Log DHP
+  const syncLogTotalPages = Math.max(1, Math.ceil(syncLogs.length / SYNC_LOG_PAGE_SIZE));
+  const safeSyncLogPage = Math.min(syncLogPage, syncLogTotalPages);
+  const pagedSyncLogs = useMemo(() => {
+    const start = (safeSyncLogPage - 1) * SYNC_LOG_PAGE_SIZE;
+    return syncLogs.slice(start, start + SYNC_LOG_PAGE_SIZE);
+  }, [syncLogs, safeSyncLogPage]);
+
+  useEffect(() => {
+    if (syncLogPage > syncLogTotalPages) {
+      setSyncLogPage(syncLogTotalPages);
+    }
+  }, [syncLogPage, syncLogTotalPages]);
 
   // Cek apakah data partai ini sudah pernah ada di Master Rows (Layer 3 Idempotency Key Guard)
   const duplicateInMaster = useMemo(() => {
@@ -492,9 +511,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     }
 
     const kaGld = activePartai.kaGld ? `${activePartai.kaGld.toFixed(2).replace('.', ',')} Mc` : '';
-    const gld = activePartai.gldKering ? activePartai.gldKering.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '';
-    const rjB = activePartai.totalRjBasah ? activePartai.totalRjBasah.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '';
-    const rjK = activePartai.totalRjKering ? activePartai.totalRjKering.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '';
+    const gld = activePartai.gldKering ? formatDec1(activePartai.gldKering) : '';
+    const rjB = activePartai.totalRjBasah ? formatDec1(activePartai.totalRjBasah) : '';
+    const rjK = activePartai.totalRjKering ? formatDec1(activePartai.totalRjKering) : '';
     const kaDry = activePartai.kaDryRata ? `${activePartai.kaDryRata.toFixed(2).replace('.', ',')} Mc` : '';
     
     const jalur = activePartai.jalurSilo || (activePartai.id === 'PARTAI 3' ? 'Silo' : 'Manual');
@@ -537,12 +556,12 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         </div>
 
         {/* Action Buttons: Primary Quick Action + Unified Dynamic Dropdown */}
-        <div className="flex items-center gap-2 relative">
+        <div className="flex flex-wrap items-center gap-2 relative">
           {/* Tombol Utama: Tarik Data Kertas Kerja */}
           <button
             onClick={() => loadAllPartai()}
             disabled={isLoading}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-all shadow-sm cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold transition-all shadow-sm cursor-pointer ${
               isLoading ? 'opacity-70 cursor-not-allowed' : ''
             }`}
             title="Tarik / Refresh Kertas Kerja DHP Cengkeh dari Google Sheet"
@@ -556,7 +575,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             <button
               type="button"
               onClick={() => setIsActionsMenuOpen((prev) => !prev)}
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition-colors cursor-pointer"
               title="Menu Pengaturan, Skrip GAS & Export PDF"
             >
               <Settings2 className="w-3.5 h-3.5 text-slate-400" />
@@ -669,11 +688,11 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
       {/* Sub-Tab Navigation Bar (Pratinjau & Transaksi vs Analisis Harian) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-2.5 rounded-2xl">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => setActiveSubTab('transaksi')}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeSubTab === 'transaksi'
                 ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
                 : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700'
@@ -686,7 +705,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           <button
             type="button"
             onClick={() => setActiveSubTab('analisis')}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-bold transition-all cursor-pointer ${
               activeSubTab === 'analisis'
                 ? 'bg-blue-600 text-white shadow-sm ring-1 ring-blue-400/50'
                 : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-700'
@@ -702,7 +721,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           <button
             type="button"
             onClick={toggleAutoDispatch}
-            className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-3 py-2 min-h-[44px] sm:min-h-[38px] rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
               isAutoDispatch
                 ? 'bg-emerald-950/90 border-emerald-500 text-emerald-300 ring-1 ring-emerald-500/50 shadow-md shadow-emerald-950/30'
                 : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white hover:bg-slate-700'
@@ -1757,7 +1776,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {syncLogs.length > 0 && (
               <>
                 <button
@@ -1770,7 +1789,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       text: `Audit Trail diperiksa: ${cleaned.length} transaksi unik tersimpan. Seluruh duplikasi telah dibersihkan.`
                     });
                   }}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-semibold border border-slate-700 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-[32px] rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-semibold border border-slate-700 transition-colors cursor-pointer"
                   title="Hapus baris kembar dan simpan hanya transaksi unik"
                 >
                   <RefreshCw className="w-3 h-3 text-cyan-400" />
@@ -1789,7 +1808,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       });
                     }
                   }}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 text-[11px] font-semibold border border-rose-800/60 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-[32px] rounded-lg bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 text-[11px] font-semibold border border-rose-800/60 transition-colors cursor-pointer"
                   title="Kosongkan seluruh riwayat log pengiriman lokal"
                 >
                   <Trash2 className="w-3 h-3 text-rose-400" />
@@ -1805,61 +1824,94 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             Belum ada riwayat pengiriman DHP yang tersimpan di browser ini.
           </div>
         ) : (
-          <div className="overflow-x-auto border border-slate-800 rounded-xl">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-800 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
-                <tr>
-                  <th className="px-3 py-2.5">Waktu Kirim</th>
-                  <th className="px-3 py-2.5">Partai</th>
-                  <th className="px-3 py-2.5">No. Laporan</th>
-                  <th className="px-3 py-2.5">Tanggal Proses</th>
-                  <th className="px-3 py-2.5">Varian</th>
-                  <th className="px-3 py-2.5 text-right">Gld Kering</th>
-                  <th className="px-3 py-2.5 text-right">Susut Total</th>
-                  <th className="px-3 py-2.5">Operator</th>
-                  <th className="px-3 py-2.5 text-center">Status</th>
-                  <th className="px-2 py-2.5 text-center w-10">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-300">
-                {syncLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="px-3 py-2 font-mono text-[11px] text-slate-400">{log.waktuKirim}</td>
-                    <td className="px-3 py-2 font-bold text-white">{log.partai}</td>
-                    <td className="px-3 py-2 text-slate-300">{log.noLaporan}</td>
-                    <td className="px-3 py-2">{log.tanggalProses}</td>
-                    <td className="px-3 py-2 text-amber-300 font-medium">{log.jenis}</td>
-                    <td className="px-3 py-2 text-right font-mono">{formatKg(log.gldKering)}</td>
-                    <td className="px-3 py-2 text-right font-mono text-rose-300 font-bold">
-                      {formatKg(log.totalSusutKg)} ({formatPct(log.totalSusutPct)})
-                    </td>
-                    <td className="px-3 py-2 text-slate-400 text-[11px]">{log.pengirim}</td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        log.status === 'sukses'
-                          ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                          : 'bg-rose-950 text-rose-300 border border-rose-800'
-                      }`}>
-                        {log.status === 'sukses' ? 'Sukses' : 'Gagal'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 text-center">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          removeDhpSyncLog(log.id);
-                          setSyncLogs(getDhpSyncLogs());
-                        }}
-                        className="p-1 rounded text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
-                        title="Hapus baris riwayat ini"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
+          <div className="space-y-3">
+            <div className="overflow-x-auto border border-slate-800 rounded-xl">
+              <table className="w-full text-left text-xs min-w-[760px]">
+                <thead className="bg-slate-800 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="px-3 py-2.5">Waktu Kirim</th>
+                    <th className="px-3 py-2.5">Partai</th>
+                    <th className="px-3 py-2.5">No. Laporan</th>
+                    <th className="px-3 py-2.5">Tanggal Proses</th>
+                    <th className="px-3 py-2.5">Varian</th>
+                    <th className="px-3 py-2.5 text-right">Gld Kering</th>
+                    <th className="px-3 py-2.5 text-right">Susut Total</th>
+                    <th className="px-3 py-2.5">Operator</th>
+                    <th className="px-3 py-2.5 text-center">Status</th>
+                    <th className="px-2 py-2.5 text-center w-12">Aksi</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-800 text-slate-300">
+                  {pagedSyncLogs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="px-3 py-2 font-mono text-[11px] text-slate-400">{log.waktuKirim}</td>
+                      <td className="px-3 py-2 font-bold text-white">{log.partai}</td>
+                      <td className="px-3 py-2 text-slate-300">{log.noLaporan}</td>
+                      <td className="px-3 py-2">{log.tanggalProses}</td>
+                      <td className="px-3 py-2 text-amber-300 font-medium">{log.jenis}</td>
+                      <td className="px-3 py-2 text-right font-mono">{formatKg(log.gldKering)}</td>
+                      <td className="px-3 py-2 text-right font-mono text-rose-300 font-bold">
+                        {formatKg(log.totalSusutKg)} ({formatPct(log.totalSusutPct)})
+                      </td>
+                      <td className="px-3 py-2 text-slate-400 text-[11px]">{log.pengirim}</td>
+                      <td className="px-3 py-2 text-center">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          log.status === 'sukses'
+                            ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                            : 'bg-rose-950 text-rose-300 border border-rose-800'
+                        }`}>
+                          {log.status === 'sukses' ? 'Sukses' : 'Gagal'}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5 text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            removeDhpSyncLog(log.id);
+                            setSyncLogs(getDhpSyncLogs());
+                          }}
+                          className="min-h-[44px] min-w-[44px] sm:min-h-[30px] sm:min-w-[30px] inline-flex items-center justify-center rounded-lg text-slate-500 hover:text-rose-400 hover:bg-slate-800 transition-colors cursor-pointer"
+                          title="Hapus baris riwayat ini"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {syncLogTotalPages > 1 && (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-400 pt-1">
+                <span>
+                  Menampilkan <strong className="text-slate-200">{(safeSyncLogPage - 1) * SYNC_LOG_PAGE_SIZE + 1}</strong>–<strong className="text-slate-200">{Math.min(safeSyncLogPage * SYNC_LOG_PAGE_SIZE, syncLogs.length)}</strong> dari <strong className="text-slate-200">{syncLogs.length}</strong> log
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={safeSyncLogPage <= 1}
+                    onClick={() => setSyncLogPage((p) => Math.max(1, p - 1))}
+                    className="min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] px-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 disabled:opacity-40 inline-flex items-center justify-center cursor-pointer"
+                    title="Halaman sebelumnya"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <span className="px-2 font-mono text-slate-300">
+                    Hal {safeSyncLogPage} / {syncLogTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={safeSyncLogPage >= syncLogTotalPages}
+                    onClick={() => setSyncLogPage((p) => Math.min(syncLogTotalPages, p + 1))}
+                    className="min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] px-2.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-200 hover:bg-slate-700 disabled:opacity-40 inline-flex items-center justify-center cursor-pointer"
+                    title="Halaman berikutnya"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2184,8 +2236,8 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
       {/* Modal Tandai Alasan Lapangan */}
       {editingNotePartaiId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 md:backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-amber-400" />
@@ -2193,7 +2245,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </h3>
               <button
                 onClick={() => setEditingNotePartaiId(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                className="min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2217,7 +2269,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     key={tag}
                     type="button"
                     onClick={() => setTempNoteText(tag)}
-                    className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 transition-colors text-left"
+                    className="min-h-[44px] sm:min-h-[30px] px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] border border-slate-700 transition-colors text-left cursor-pointer"
                   >
                     + {tag}
                   </button>
@@ -2233,7 +2285,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               />
             </div>
 
-            <div className="flex items-center justify-between pt-2 border-t border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
               <button
                 type="button"
                 onClick={() => {
@@ -2243,7 +2295,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   localStorage.setItem('_REKAP_CKH_DHP_FIELD_NOTES', JSON.stringify(updated));
                   setEditingNotePartaiId(null);
                 }}
-                className="text-xs text-rose-400 hover:text-rose-300 cursor-pointer"
+                className="min-h-[44px] sm:min-h-[34px] px-2 text-xs text-rose-400 hover:text-rose-300 cursor-pointer"
               >
                 Hapus Catatan
               </button>
@@ -2252,7 +2304,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingNotePartaiId(null)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer"
+                  className="min-h-[44px] sm:min-h-[34px] px-3 py-1.5 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold cursor-pointer"
                 >
                   Batal
                 </button>
@@ -2264,7 +2316,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     localStorage.setItem('_REKAP_CKH_DHP_FIELD_NOTES', JSON.stringify(updated));
                     setEditingNotePartaiId(null);
                   }}
-                  className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer"
+                  className="min-h-[44px] sm:min-h-[34px] px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold cursor-pointer"
                 >
                   Simpan Catatan
                 </button>
@@ -2276,8 +2328,8 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
       {/* ================= MODAL 1: KONFIGURASI ID DHP ================= */}
       {isConfigModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-lg w-full p-5 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 md:backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-lg w-full max-h-[90dvh] overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Settings2 className="w-4 h-4 text-amber-400" />
@@ -2285,7 +2337,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </h3>
               <button
                 onClick={() => setIsConfigModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                className="min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2300,11 +2352,11 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   type="text"
                   value={tempDhpId}
                   onChange={(e) => setTempDhpId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-200 font-mono text-xs focus:outline-hidden focus:border-amber-500"
+                  className="w-full px-3 py-2 min-h-[44px] sm:min-h-[38px] bg-slate-800 border border-slate-700 rounded-xl text-slate-200 font-mono text-xs focus:outline-hidden focus:border-amber-500"
                   placeholder="ID Spreadsheet DHP Cengkeh"
                 />
                 <span className="text-[11px] text-slate-500 mt-1 block">
-                  Default Resmi: <code className="text-amber-300 font-mono">{DEFAULT_DHP_SPREADSHEET_ID}</code>
+                  Default Resmi: <code className="text-amber-300 font-mono break-all">{DEFAULT_DHP_SPREADSHEET_ID}</code>
                 </span>
               </div>
 
@@ -2317,13 +2369,13 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
               <button
                 onClick={() => setTempDhpId(DEFAULT_DHP_SPREADSHEET_ID)}
-                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                className="min-h-[44px] sm:min-h-[36px] px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
               >
                 Reset Default
               </button>
               <button
                 onClick={handleSaveDhpId}
-                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold"
+                className="min-h-[44px] sm:min-h-[36px] px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold cursor-pointer"
               >
                 Simpan & Muat Ulang
               </button>
@@ -2336,8 +2388,8 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
       {/* ================= MODAL 3: KONFIRMASI PUSH DATA KE MASTER ================= */}
       {isConfirmPushOpen && activePartai && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 md:backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-md w-full max-h-[90dvh] overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] space-y-4 shadow-2xl">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
                 <Send className="w-4 h-4 text-emerald-400" />
@@ -2345,7 +2397,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </h3>
               <button
                 onClick={() => setIsConfirmPushOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+                className="min-h-[44px] min-w-[44px] sm:min-h-[32px] sm:min-w-[32px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -2357,27 +2409,27 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </p>
 
               <div className="p-3.5 bg-slate-800/80 rounded-xl border border-slate-700 space-y-2 text-[11px]">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="text-slate-400">Partai & Laporan:</span>
-                  <span className="font-bold text-white">{activePartai.namaTab} ({activePartai.noLaporan})</span>
+                  <span className="font-bold text-white text-right">{activePartai.namaTab} ({activePartai.noLaporan})</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="text-slate-400">Tanggal Admoist (Kolom B):</span>
-                  <span className="font-bold text-cyan-300">{formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id)}</span>
+                  <span className="font-bold text-cyan-300 text-right">{formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="text-slate-400">Jenis Cengkeh:</span>
-                  <span className="font-bold text-amber-300">{activePartai.jenis}</span>
+                  <span className="font-bold text-amber-300 text-right">{activePartai.jenis}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="text-slate-400">Gelondong Kering:</span>
                   <span className="font-bold text-white">{formatKg(activePartai.gldKering)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="text-slate-400">Rajang Kering Akhir:</span>
                   <span className="font-bold text-emerald-300">{formatKg(activePartai.totalRjKering)}</span>
                 </div>
-                <div className="flex justify-between pt-1 border-t border-slate-700">
+                <div className="flex justify-between gap-2 pt-1 border-t border-slate-700">
                   <span className="text-slate-400">Total Susut Akhir:</span>
                   <span className="font-bold text-rose-400">{formatKg(activePartai.totalSusutKg)} ({formatPct(activePartai.totalSusutPct)})</span>
                 </div>
@@ -2410,14 +2462,14 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
               <button
                 onClick={() => setIsConfirmPushOpen(false)}
-                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+                className="min-h-[44px] sm:min-h-[38px] px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
               >
                 Batal
               </button>
               <button
                 onClick={handleExecutePush}
                 disabled={isPushing}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold shadow-sm"
+                className="min-h-[44px] sm:min-h-[38px] flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-slate-950 text-xs font-bold shadow-sm cursor-pointer"
               >
                 {isPushing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                 <span>{isPushing ? 'Mengirim...' : 'Ya, Kirim Sekarang'}</span>

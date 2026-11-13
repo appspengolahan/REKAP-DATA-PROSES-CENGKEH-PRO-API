@@ -183,6 +183,7 @@ export const IndexRekapCengkeh: React.FC = () => {
   const [selectedTrendJenis, setSelectedTrendJenis] = useState<string>('Semua');
 
   // 7. Modals & PWA
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSwitchBoardOpen, setIsSwitchBoardOpen] = useState(false);
   const [isGasCenterOpen, setIsGasCenterOpen] = useState(false);
@@ -482,7 +483,7 @@ export const IndexRekapCengkeh: React.FC = () => {
   const highestSusutVariant = sortedByYield[sortedByYield.length - 1];
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
+    <div className="h-[100dvh] w-full overflow-hidden bg-slate-50 text-slate-800 flex flex-col font-sans selection:bg-amber-100 selection:text-amber-900">
       {/* 1. Global Full-Width Header - Pinned across full screen width */}
       <HeaderRekapCengkeh
         entriTerkini={entriTerkini}
@@ -506,18 +507,20 @@ export const IndexRekapCengkeh: React.FC = () => {
           else if (activeTab === 'rekap-jenis') exportToPdf('RekapJenis');
           else exportToPdf('DataBatch');
         }}
-        onToggleSidebar={toggleSidebar}
+        onToggleSidebar={() => setIsMobileDrawerOpen((prev) => !prev)}
         isSidebarCollapsed={isSidebarCollapsed}
       />
 
       {/* 2. Workspace Body (Horizontal): Sidebar on left, Content on right */}
       <div className="flex-1 flex flex-row min-h-0 w-full overflow-hidden">
-        {/* Industrial Dark Sidebar (Under Header, Fixed Height) */}
+        {/* Industrial Dark Sidebar (Desktop + Slide-Over Drawer Mobile/Tablet) */}
         <SidebarRekapCengkeh
           activeTab={activeTab}
           onTabChange={setActiveTab}
           isCollapsed={isSidebarCollapsed}
           onToggleCollapse={toggleSidebar}
+          isMobileOpen={isMobileDrawerOpen}
+          onCloseMobile={() => setIsMobileDrawerOpen(false)}
           userRole={userRole}
           onOpenGasCenter={() => setIsGasCenterOpen(true)}
           onOpenInstallPwa={() => setIsPwaModalOpen(true)}
@@ -528,10 +531,11 @@ export const IndexRekapCengkeh: React.FC = () => {
         {/* Main Column Wrapper */}
         <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
           {/* Tablet & Mobile Quick Nav Bar */}
-          <nav role="navigation" aria-label="Navigasi Cepat Tablet & Mobile" className="lg:hidden bg-slate-900 border-b border-slate-800 px-3 py-2 flex items-center gap-1.5 overflow-x-auto no-print shrink-0 z-20">
+          <nav role="navigation" aria-label="Navigasi Cepat Tablet & Mobile" className="lg:hidden bg-slate-900 border-b border-slate-800 px-2.5 py-1.5 flex items-center gap-1.5 overflow-x-auto no-print shrink-0 z-20">
             {[
               { id: 'dashboard' as const, label: 'Dashboard', icon: LayoutDashboard },
               { id: 'rekap-bulan' as const, label: 'Rekap Bulan', icon: Calendar },
+              { id: 'analisis-deviasi' as const, label: 'Deviasi', icon: Scale },
               { id: 'rekap-jenis' as const, label: 'Rekap Jenis', icon: Layers },
               { id: 'data-explorer' as const, label: 'Log Harian', icon: Table },
               { id: 'integrasi-dhp' as const, label: 'Integrasi DHP', icon: GitFork }
@@ -541,22 +545,24 @@ export const IndexRekapCengkeh: React.FC = () => {
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`no-print flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
+                className={`no-print flex items-center gap-1.5 px-3 min-h-[44px] rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer shrink-0 ${
                   isAct
                     ? 'bg-blue-600 text-white shadow-xs'
-                    : 'text-slate-400 hover:text-white bg-slate-800'
+                    : 'text-slate-300 hover:text-white bg-slate-800'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span>{tab.label}</span>
               </button>
             );
           })}
             {/* Tablet & Mobile Switch App Shortcut */}
             <button
+              type="button"
               onClick={() => setIsSwitchBoardOpen(true)}
-              className="no-print flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer text-amber-300 bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 ml-auto"
+              className="no-print flex items-center gap-1.5 px-3 min-h-[44px] rounded-xl text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer text-amber-300 bg-amber-500/15 border border-amber-500/30 hover:bg-amber-500/25 ml-auto shrink-0"
               title="Buka Switch App Board PP1"
             >
               <Layers className="w-3.5 h-3.5 text-amber-400" />
@@ -567,7 +573,11 @@ export const IndexRekapCengkeh: React.FC = () => {
         {/* 3. Dedicated Scrollable Viewport for Data Content & Footer */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 flex flex-col">
           {/* Main Content Area */}
-          <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
+          <main className={`flex-1 max-w-7xl w-full mx-auto p-3.5 sm:p-6 lg:p-8 space-y-6 ${
+            !isInstalled && !dismissMobileBanner
+              ? 'pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-8'
+              : 'pb-[calc(1.5rem+env(safe-area-inset-bottom))] md:pb-8'
+          }`}>
           {/* Notification Banner */}
           {syncNotice && (
             <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs flex items-center justify-between no-print animate-in fade-in duration-150">
@@ -1631,23 +1641,23 @@ export const IndexRekapCengkeh: React.FC = () => {
 
       {/* Floating Mobile 1-Tap Install Prompt (Dismissible) */}
       {!isInstalled && !dismissMobileBanner && (
-        <div className="no-print md:hidden fixed bottom-4 left-3 right-3 z-40 animate-in slide-in-from-bottom-3 duration-200">
-          <div className="bg-slate-900/95 backdrop-blur-md border border-slate-700/90 text-white rounded-2xl p-3 shadow-2xl flex items-center justify-between gap-2.5">
+        <div className="no-print md:hidden fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 right-3 z-40 animate-in slide-in-from-bottom-3 duration-200">
+          <div className="bg-slate-900 border border-slate-700/90 text-white rounded-2xl p-2.5 sm:p-3 shadow-2xl flex items-center justify-between gap-2">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 font-bold shrink-0 shadow-sm">
                 <Download className="w-4 h-4 text-slate-950" />
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-slate-100 truncate flex items-center gap-1.5">
-                  <span>Pasang Aplikasi di HP</span>
-                  <span className="text-[9px] px-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">1-Klik</span>
+                  <span className="truncate">Pasang Aplikasi di HP</span>
+                  <span className="text-[9px] px-1 rounded bg-emerald-950 text-emerald-400 border border-emerald-800 shrink-0">1-Klik</span>
                 </div>
                 <div className="text-[10px] text-slate-400 truncate">
                   Akses instan tanpa buka menu browser
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
                 onClick={async () => {
@@ -1657,15 +1667,16 @@ export const IndexRekapCengkeh: React.FC = () => {
                     setIsPwaModalOpen(true);
                   }
                 }}
-                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-xs font-bold shadow-xs hover:from-amber-400 hover:to-amber-500 transition-all cursor-pointer"
+                className="px-3 min-h-[44px] rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 text-xs font-bold shadow-xs hover:from-amber-400 hover:to-amber-500 transition-all cursor-pointer"
               >
                 ⚡ Pasang
               </button>
               <button
                 type="button"
                 onClick={() => setDismissMobileBanner(true)}
-                className="p-1 text-slate-400 hover:text-slate-200 rounded-lg cursor-pointer text-xs"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-200 rounded-xl cursor-pointer text-sm"
                 title="Tutup banner"
+                aria-label="Tutup banner instalasi"
               >
                 ✕
               </button>

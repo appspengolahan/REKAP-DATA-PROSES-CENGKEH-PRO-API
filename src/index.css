@@ -6,6 +6,16 @@
 }
 
 @layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body,
+  #root {
+    overscroll-behavior-y: contain;
+  }
+
   html,
   body {
     font-family: var(--font-sans);
@@ -15,11 +25,29 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
+  button,
+  [role="button"],
+  a,
+  select,
+  input,
+  textarea,
+  label {
+    touch-action: manipulation;
+  }
+
   pre,
   code,
   kbd {
     font-family: "B612 Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-variant-numeric: tabular-nums;
+  }
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 }
 

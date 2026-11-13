@@ -5,7 +5,7 @@
  */
 import React from 'react';
 import { SummaryKpiCengkeh, PeriodeRentang, RekapItemCengkeh } from './types[RekapCengkeh]';
-import { formatKg, formatPct } from './Code[RekapCengkeh]';
+import { formatKg, formatPct, formatInt } from './Code[RekapCengkeh]';
 import { TrendingUp, TrendingDown, Scale, CheckCircle2, AlertTriangle, Layers } from 'lucide-react';
 
 interface KpiItemProps {
@@ -34,7 +34,7 @@ const KpiCard: React.FC<KpiItemProps> = ({ label, value, sub }) => {
   );
 };
 
-export const SummaryKpiGrid: React.FC<{ data: SummaryKpiCengkeh | null }> = ({ data }) => {
+export const SummaryKpiGrid: React.FC<{ data: SummaryKpiCengkeh | null }> = React.memo(({ data }) => {
   if (!data) {
     return <div className="text-center py-6 text-[#6b7280] text-xs">Memuat data KPI...</div>;
   }
@@ -43,7 +43,7 @@ export const SummaryKpiGrid: React.FC<{ data: SummaryKpiCengkeh | null }> = ({ d
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2.5">
       <KpiCard
         label="Jumlah Data"
-        value={`${data.jumlahData.toLocaleString('id-ID')} entri`}
+        value={`${formatInt(data.jumlahData)} entri`}
       />
       <KpiCard
         label="Gld. Kering"
@@ -82,7 +82,7 @@ export const SummaryKpiGrid: React.FC<{ data: SummaryKpiCengkeh | null }> = ({ d
       />
     </div>
   );
-};
+});
 
 interface ExecutiveSummarySectionProps {
   ringkasanTahunan: SummaryKpiCengkeh | null;
@@ -99,7 +99,7 @@ interface ExecutiveSummarySectionProps {
   onApplyPeriode: () => void;
 }
 
-export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySectionProps> = ({
+export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySectionProps> = React.memo(({
   ringkasanTahunan,
   ringkasanBulanan,
   ringkasanPeriode,
@@ -219,7 +219,7 @@ export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySection
             <select
               value={bulanRingkasan}
               onChange={(e) => onBulanRingkasanChange(e.target.value)}
-              className="no-print px-2 py-1 rounded-md border border-[#e1e5ec] text-[12px] bg-white text-[#1f2937] cursor-pointer"
+              className="no-print px-2.5 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white text-[#1f2937] cursor-pointer"
             >
               <option value="Semua">Semua</option>
               {monthsList.map((b) => (
@@ -245,14 +245,14 @@ export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySection
             <select
               value={periodeAwal.bulan}
               onChange={(e) => onPeriodeChange({ ...periodeAwal, bulan: e.target.value }, periodeAkhir)}
-              className="px-2 py-1 rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
+              className="px-2.5 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
             >
               {monthsList.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
             <select
               value={periodeAwal.tahun}
               onChange={(e) => onPeriodeChange({ ...periodeAwal, tahun: e.target.value }, periodeAkhir)}
-              className="px-2 py-1 rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
+              className="px-2.5 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
             >
               {yearsList.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
@@ -261,21 +261,21 @@ export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySection
             <select
               value={periodeAkhir.bulan}
               onChange={(e) => onPeriodeChange(periodeAwal, { ...periodeAkhir, bulan: e.target.value })}
-              className="px-2 py-1 rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
+              className="px-2.5 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
             >
               {monthsList.map((m) => <option key={m} value={m}>{m}</option>)}
             </select>
             <select
               value={periodeAkhir.tahun}
               onChange={(e) => onPeriodeChange(periodeAwal, { ...periodeAkhir, tahun: e.target.value })}
-              className="px-2 py-1 rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
+              className="px-2.5 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] text-[12px] bg-white cursor-pointer"
             >
               {yearsList.map((y) => <option key={y} value={y}>{y}</option>)}
             </select>
 
             <button
               onClick={onApplyPeriode}
-              className="bg-[#1a56c4] hover:bg-[#0d3a8a] text-white px-3.5 py-1 rounded-md text-[12px] font-medium transition-colors cursor-pointer"
+              className="bg-[#1a56c4] hover:bg-[#0d3a8a] text-white px-4 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md text-[12px] font-medium transition-colors cursor-pointer"
             >
               Terapkan
             </button>
@@ -293,4 +293,4 @@ export const ExecutiveSummaryCardsRekapCengkeh: React.FC<ExecutiveSummarySection
       </div>
     </div>
   );
-};
+});

@@ -71,7 +71,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
   const jalurMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: PointerEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setIsUserMenuOpen(false);
       }
@@ -80,9 +80,9 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
       }
     };
     if (isUserMenuOpen || isJalurMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('pointerdown', handleClickOutside);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, [isUserMenuOpen, isJalurMenuOpen]);
 
   // Esc key closes menus
@@ -99,16 +99,17 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
 
   return (
     <header className="no-print bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-30 shadow-md shrink-0 select-none">
-      <div className="w-full px-3 sm:px-4 lg:px-5">
-        <div className="flex items-center justify-between h-16 gap-3">
+      <div className="w-full px-2.5 sm:px-4 lg:px-5">
+        <div className="flex items-center justify-between min-h-16 py-1.5 gap-2 sm:gap-3">
           {/* Sisi Kiri: Logo PP1 & Identitas Pabrik */}
-          <div className="flex items-center gap-3 min-w-0 shrink-0">
-            {/* Mobile Sidebar Toggle */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            {/* Mobile & Tablet Drawer Toggle */}
             <button
               type="button"
               onClick={onToggleSidebar}
-              className="lg:hidden p-1.5 rounded-xl border border-slate-700 bg-slate-800 text-slate-300 hover:text-white"
-              title="Toggle Menu"
+              className="lg:hidden min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-slate-200 hover:text-white hover:bg-slate-700 transition-colors shrink-0 cursor-pointer"
+              title="Buka Menu Navigasi"
+              aria-label="Buka Menu Navigasi"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -119,9 +120,9 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
             </div>
 
             {/* Identitas Teks */}
-            <div className="min-w-0 flex flex-col justify-center">
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm sm:text-base lg:text-lg font-bold tracking-tight text-slate-100 whitespace-nowrap">
+            <div className="min-w-0 flex-1 flex flex-col justify-center">
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="text-xs sm:text-base lg:text-lg font-bold tracking-tight text-slate-100 truncate">
                   <span className="hidden sm:inline">Monitoring Board — </span>Rekap Data Proses Cengkeh
                 </h1>
 
@@ -132,16 +133,16 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-slate-400 mt-0.5 whitespace-nowrap">
-                <span className="text-slate-300 font-medium">PT Batu Karang</span>
+              <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-slate-400 mt-0.5 min-w-0 truncate">
+                <span className="text-slate-300 font-medium hidden sm:inline shrink-0">PT Batu Karang</span>
+                <span className="text-slate-600 hidden md:inline">·</span>
+                <span className="hidden md:inline shrink-0">Divisi Produksi I</span>
                 <span className="text-slate-600 hidden sm:inline">·</span>
-                <span className="hidden sm:inline">Divisi Produksi I</span>
-                <span className="text-slate-600">·</span>
-                <span className="inline-flex items-center gap-1 text-amber-300/90 font-medium text-[11px]">
-                  <span>📅 Entri: {entriTerkini}</span>
+                <span className="inline-flex items-center gap-1 text-amber-300/90 font-medium text-[11px] truncate">
+                  <span className="truncate">📅 Entri: {entriTerkini}</span>
                 </span>
-                <span className="text-slate-600">·</span>
-                <span className="inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
+                <span className="text-slate-600 hidden sm:inline">·</span>
+                <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   <span>Live Data</span>
                 </span>
@@ -150,13 +151,13 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
           </div>
 
           {/* Sisi Kanan: Action Buttons & RBAC Popover */}
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {/* 1. Selector Jalur (Semua / SKT / SKM) */}
             <div className="relative hidden md:block" ref={jalurMenuRef}>
               <button
                 type="button"
                 onClick={() => setIsJalurMenuOpen((prev) => !prev)}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all select-none shadow-xs ${
+                className={`flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[44px] lg:min-h-[36px] rounded-xl border text-xs font-semibold transition-all select-none shadow-xs ${
                   jalurProses === 'SKT'
                     ? 'bg-amber-950/70 border-amber-600/80 text-amber-300 ring-1 ring-amber-500/30'
                     : jalurProses === 'SKM'
@@ -173,7 +174,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
 
               {/* Jalur Menu Dropdown */}
               {isJalurMenuOpen && (
-                <div className="absolute right-0 mt-2 w-52 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl z-50 overflow-hidden p-1.5 space-y-1 animate-in fade-in duration-150">
+                <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-1rem)] bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl z-50 overflow-hidden p-1.5 space-y-1 animate-in fade-in duration-150">
                   <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                     Pilih Jalur Proses
                   </div>
@@ -182,11 +183,12 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                     return (
                       <button
                         key={j}
+                        type="button"
                         onClick={() => {
                           onJalurProsesChange(j);
                           setIsJalurMenuOpen(false);
                         }}
-                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                        className={`w-full flex items-center justify-between px-3 py-2 min-h-[44px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                           isSelected
                             ? j === 'SKT'
                               ? 'bg-amber-600 text-white shadow-xs'
@@ -210,15 +212,16 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
 
             {/* 2. Tarik Datasheet Langsung Button */}
             <button
+              type="button"
               onClick={onPullDatasheet}
               disabled={isPullingDatasheet}
-              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer ${
+              className={`flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] lg:min-h-[36px] lg:min-w-0 px-2.5 sm:px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer ${
                 isPullingDatasheet ? 'opacity-70 cursor-not-allowed' : ''
               }`}
               title="Tarik Data Langsung dari Datasheet Google Sheet (DATA PROSES CKH)"
             >
-              <TableProperties className={`w-3.5 h-3.5 ${isPullingDatasheet ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{isPullingDatasheet ? 'Menarik...' : 'Tarik Datasheet'}</span>
+              <TableProperties className={`w-4 h-4 sm:w-3.5 sm:h-3.5 ${isPullingDatasheet ? 'animate-spin' : ''}`} />
+              <span className="hidden md:inline">{isPullingDatasheet ? 'Menarik...' : 'Tarik Datasheet'}</span>
             </button>
 
             {/* 2.5. Auto-Sync Toggle Button (Logo terus berputar saat aktif sesuai Blueprint) */}
@@ -226,7 +229,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onToggleAutoSync}
-                className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-xs transition-all select-none cursor-pointer ${
+                className={`hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 min-h-[44px] lg:min-h-[36px] rounded-xl border text-xs font-semibold shadow-xs transition-all select-none cursor-pointer ${
                   autoSync
                     ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300 ring-1 ring-emerald-500/30'
                     : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-400 hover:text-slate-200 border-slate-700'
@@ -234,7 +237,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                 title={autoSync ? 'Auto-Sync Aktif: Logo terus berputar & sinkronisasi otomatis berjalan berkala' : 'Aktifkan Auto-Sync Otomatis'}
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${autoSync ? 'animate-spin text-emerald-400' : 'text-slate-400'}`} />
-                <span className="hidden sm:inline">Auto-Sync</span>
+                <span className="hidden xl:inline">Auto-Sync</span>
                 <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold font-mono ${
                   autoSync ? 'bg-emerald-900 text-emerald-300' : 'bg-slate-900 text-slate-500'
                 }`}>
@@ -245,24 +248,27 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
 
             {/* 3. Refresh Data Button */}
             <button
+              type="button"
               onClick={onRefresh}
               disabled={isSyncing}
-              className={`p-1.5 sm:p-2 rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors flex items-center justify-center cursor-pointer ${
+              className={`min-h-[44px] min-w-[44px] lg:min-h-[36px] lg:min-w-[36px] rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white transition-colors flex items-center justify-center cursor-pointer ${
                 isSyncing ? 'opacity-70 cursor-not-allowed' : ''
               }`}
               title="Refresh / Sinkronisasi Data Manual Cepat"
+              aria-label="Refresh Data"
             >
-              <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin text-amber-400' : ''}`} />
             </button>
 
             {/* 4. Export PDF Button */}
             <button
+              type="button"
               onClick={onExportPdf}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+              className="hidden sm:flex items-center justify-center gap-1.5 min-h-[44px] lg:min-h-[36px] px-2.5 sm:px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               title="Cetak / Unduh Laporan PDF Resmi"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Export PDF</span>
+              <span className="hidden md:inline">Export PDF</span>
             </button>
 
             {/* 5. RBAC & App Suite Popover Menu */}
@@ -270,16 +276,16 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => setIsUserMenuOpen((prev) => !prev)}
-                className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all select-none shadow-xs cursor-pointer ${
+                className={`flex items-center justify-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 min-h-[44px] lg:min-h-[36px] rounded-xl border text-xs font-semibold transition-all select-none shadow-xs cursor-pointer ${
                   isUserMenuOpen
                     ? 'bg-slate-800 text-white border-blue-500 shadow-blue-900/40 ring-2 ring-blue-500/30'
                     : 'bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 border-slate-700 hover:border-slate-600'
                 }`}
                 title="Pilih Peran Pengguna (RBAC), Profil, Switch App & GAS Center"
               >
-                <UserCheck className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <UserCheck className="w-4 h-4 sm:w-3.5 sm:h-3.5 text-blue-400 shrink-0" />
                 <span className="text-slate-400 font-normal hidden lg:inline">Peran:</span>
-                <span className="font-semibold text-slate-100 truncate max-w-[110px] sm:max-w-none">
+                <span className="font-semibold text-slate-100 truncate max-w-[72px] sm:max-w-[120px] md:max-w-none">
                   {userRole}
                 </span>
                 <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isUserMenuOpen ? 'rotate-180 text-white' : 'text-slate-400'}`} />
@@ -287,7 +293,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
 
               {/* Popover Content */}
               {isUserMenuOpen && (
-                <div className="absolute right-0 mt-2 w-76 sm:w-84 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl z-50 overflow-hidden divide-y divide-slate-800 animate-in fade-in duration-150">
+                <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] max-h-[82dvh] overflow-y-auto bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl z-50 divide-y divide-slate-800 animate-in fade-in duration-150">
                   {/* Bagian 1: Role-Based Access Control (RBAC) Selector Sesuai Blueprint */}
                   <div className="p-3.5 bg-slate-800/60 space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -312,7 +318,7 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                               onRoleChange(r as UserRole);
                               setIsUserMenuOpen(false);
                             }}
-                            className={`w-full flex items-center justify-between px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                            className={`w-full flex items-center justify-between px-3 py-2 min-h-[44px] sm:min-h-[36px] rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-blue-600 text-white shadow-xs'
                                 : 'text-slate-300 hover:text-white hover:bg-slate-800/90 bg-slate-900/60'
@@ -326,6 +332,59 @@ export const HeaderRekapCengkeh: React.FC<HeaderProps> = ({
                           </button>
                         );
                       })}
+                    </div>
+
+                    {/* Akses Jalur Proses & Export/Auto-Sync untuk layar ponsel (< md) */}
+                    <div className="md:hidden pt-2 border-t border-slate-800/80 space-y-2">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Jalur Proses (SKT / SKM)
+                      </div>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {(['Semua', 'SKT', 'SKM'] as const).map((j) => (
+                          <button
+                            key={j}
+                            type="button"
+                            onClick={() => {
+                              onJalurProsesChange(j);
+                              setIsUserMenuOpen(false);
+                            }}
+                            className={`min-h-[44px] rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                              jalurProses === j
+                                ? 'bg-blue-600 border-blue-500 text-white'
+                                : 'bg-slate-900 border-slate-700 text-slate-300'
+                            }`}
+                          >
+                            {j}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 pt-1">
+                        {onToggleAutoSync && (
+                          <button
+                            type="button"
+                            onClick={onToggleAutoSync}
+                            className={`sm:hidden min-h-[44px] rounded-xl text-xs font-semibold border flex items-center justify-center gap-1.5 cursor-pointer ${
+                              autoSync
+                                ? 'bg-emerald-950/80 border-emerald-500/80 text-emerald-300'
+                                : 'bg-slate-900 border-slate-700 text-slate-300'
+                            }`}
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${autoSync ? 'animate-spin' : ''}`} />
+                            <span>Sync: {autoSync ? 'ON' : 'OFF'}</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsUserMenuOpen(false);
+                            onExportPdf();
+                          }}
+                          className="sm:hidden min-h-[44px] rounded-xl text-xs font-semibold bg-blue-600 text-white flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                          <span>Export PDF</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between pt-1 border-t border-slate-800/80 text-[11px]">

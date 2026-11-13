@@ -15,7 +15,10 @@ import {
   isHtmlResponse,
   markStaticHostingMode,
   resolveStaticSafeGasUrl,
-  formatWibDateTime
+  formatWibDateTime,
+  formatDec1,
+  formatDec2,
+  formatInt
 } from './Code[RekapCengkeh]';
 export const DEFAULT_DHP_SPREADSHEET_ID = '1ZEJjMQMBkE8k3NIeHA32P2SooIpvXIfnq_f-pruCelQ';
 export const DEFAULT_MASTER_SPREADSHEET_ID = '1bYUgDYlb3PcVSWLlkqeh-Rh23tpXDL1bV-8F6Sur-9M';
@@ -26,6 +29,12 @@ export const DHP_TABS = ['PARTAI 1', 'PARTAI 2', 'PARTAI 3', 'PARTAI 4'] as cons
 const LOCAL_STORAGE_DHP_ID_KEY = '_REKAP_CKH_DHP_SPREADSHEET_ID_V1';
 const LOCAL_STORAGE_DHP_LOGS_KEY = '_REKAP_CKH_DHP_SYNC_LOGS_V1';
 const LOCAL_STORAGE_DHP_CACHE_KEY = '_REKAP_CKH_DHP_PARTAI_CACHE_V1';
+
+// In-memory cache agar JSON.parse & deduplikasi tidak berulang pada main thread
+let cachedDhpSyncLogsMem: DhpSyncLog[] | null = null;
+let cachedDhpSyncLogsRaw: string | null = null;
+let cachedDhpPartaiMem: DhpPartaiData[] | null = null;
+let cachedDhpPartaiRawLen = -1;
 
 export function getDhpSpreadsheetId(): string {
   try {
@@ -49,6 +58,9 @@ export function getDhpSyncLogs(): DhpSyncLog[] {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_DHP_LOGS_KEY);
     if (raw) {
+      if (cachedDhpSyncLogsMem && raw === cachedDhpSyncLogsRaw) {
+        return cachedDhpSyncLogsMem;
+      }
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         // Otomatis bersihkan duplikasi berdasarkan kunci komposit: partai + tanggalProses + gldKering + totalSusutKg
@@ -62,12 +74,16 @@ export function getDhpSyncLogs(): DhpSyncLog[] {
             uniqueLogs.push(log);
           }
         }
+        cachedDhpSyncLogsMem = uniqueLogs;
+        cachedDhpSyncLogsRaw = raw;
         return uniqueLogs;
       }
     }
   } catch (e) {
     console.error('Gagal membaca log sinkronisasi DHP:', e);
   }
+  cachedDhpSyncLogsMem = [];
+  cachedDhpSyncLogsRaw = null;
   return [];
 }
 
@@ -81,13 +97,18 @@ export function saveDhpSyncLog(log: DhpSyncLog): void {
       return itemKey !== key;
     });
     const updated = [log, ...filtered].slice(0, 50); // Simpan 50 log terbaru unik
-    localStorage.setItem(LOCAL_STORAGE_DHP_LOGS_KEY, JSON.stringify(updated));
+    const serialized = JSON.stringify(updated);
+    localStorage.setItem(LOCAL_STORAGE_DHP_LOGS_KEY, serialized);
+    cachedDhpSyncLogsMem = updated;
+    cachedDhpSyncLogsRaw = serialized;
   } catch (e) {
     console.error('Gagal menulis log sinkronisasi DHP:', e);
   }
 }
 
 export function clearDhpSyncLogs(): void {
+  cachedDhpSyncLogsMem = [];
+  cachedDhpSyncLogsRaw = null;
   try {
     localStorage.removeItem(LOCAL_STORAGE_DHP_LOGS_KEY);
   } catch (e) {
@@ -99,7 +120,10 @@ export function removeDhpSyncLog(logId: string): void {
   try {
     const existing = getDhpSyncLogs();
     const filtered = existing.filter((l) => l.id !== logId);
-    localStorage.setItem(LOCAL_STORAGE_DHP_LOGS_KEY, JSON.stringify(filtered));
+    const serialized = JSON.stringify(filtered);
+    localStorage.setItem(LOCAL_STORAGE_DHP_LOGS_KEY, serialized);
+    cachedDhpSyncLogsMem = filtered;
+    cachedDhpSyncLogsRaw = serialized;
   } catch (e) {
     console.error('Gagal menghapus entri log DHP:', e);
   }
@@ -253,9 +277,12 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_DHP_CACHE_KEY);
     if (raw) {
+      if (cachedDhpPartaiMem && raw.length === cachedDhpPartaiRawLen) {
+        return cachedDhpPartaiMem;
+      }
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map((p) => {
+        const enriched = parsed.map((p) => {
           let tglMulai = p.tanggalMulai;
           let tglSelesai = p.tanggalSelesai;
           let tanggalAdmoist = p.tanggalAdmoist;
@@ -397,6 +424,9 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
             jalurSilo: p.jalurSilo || (p.namaTab === 'PARTAI 3' ? 'Silo' : 'Manual')
           };
         });
+        cachedDhpPartaiMem = enriched;
+        cachedDhpPartaiRawLen = raw.length;
+        return enriched;
       }
     }
   } catch (e) {
@@ -407,7 +437,10 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
 
 export function saveCachedDhpPartai(list: DhpPartaiData[]): void {
   try {
-    localStorage.setItem(LOCAL_STORAGE_DHP_CACHE_KEY, JSON.stringify(list));
+    const serialized = JSON.stringify(list);
+    localStorage.setItem(LOCAL_STORAGE_DHP_CACHE_KEY, serialized);
+    cachedDhpPartaiMem = list;
+    cachedDhpPartaiRawLen = serialized.length;
   } catch (e) {
     console.error('Gagal menyimpan cache partai DHP:', e);
   }
@@ -457,13 +490,24 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     }
   };
 
+  // Bagi 12 permintaan range menjadi 2 gelombang (6 + 6) agar browser HP tidak tersedak batas koneksi per host
   const [
-    csvText, 
-    r22Csv, 
-    s1RangeCsv, 
-    s2RangeCsv, 
+    csvText,
+    r22Csv,
+    s1RangeCsv,
+    s2RangeCsv,
     totalRangeCsv,
-    s1StatusCsv,
+    s1StatusCsv
+  ] = await Promise.all([
+    fetchCsv(),
+    fetchCsv('Q20:R24'),
+    fetchCsv('Q154:R158'),
+    fetchCsv('Q219:R223'),
+    fetchCsv('Q295:R299'),
+    fetchCsv('Q188:R188') // Sesi 1: Operator status Cell R188 & checkbox Q188
+  ]);
+
+  const [
     s2StatusCsv,
     s3StatusCsv,
     s3RangeCsv,
@@ -471,12 +515,6 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
     siloRangeCsv,
     r11RangeCsv
   ] = await Promise.all([
-    fetchCsv(),
-    fetchCsv('Q20:R24'),
-    fetchCsv('Q154:R158'),
-    fetchCsv('Q219:R223'),
-    fetchCsv('Q295:R299'),
-    fetchCsv('Q188:R188'), // Sesi 1: Operator status Cell R188 & checkbox Q188
     fetchCsv('Q253:R253'), // Sesi 2: Operator status Cell R253 & checkbox Q253
     fetchCsv('Q318:R318'), // Sesi 3 (jika ada): Operator status Cell R318 & checkbox Q318
     fetchCsv('Q283:R287'), // Sesi 3 (jika ada): Rj. Basah (Q285) & Hasil Dryer (R285)
@@ -1217,7 +1255,7 @@ export async function fetchDhpPartai(spreadsheetId: string, tabName: string): Pr
       catatanStatus = `Seluruh proses pengeringan tuntas. Siap dikirim ke Rekap Susut (${totalSusutPct}% total susut).`;
     } else {
       status = 'berjalan';
-      catatanStatus = `Proses sedang berjalan. Gelondong Kering: ${gldKering.toLocaleString('id-ID')} Kg tercatat, menunggu sesi dryer tuntas.`;
+      catatanStatus = `Proses sedang berjalan. Gelondong Kering: ${formatInt(gldKering)} Kg tercatat, menunggu sesi dryer tuntas.`;
     }
   }
 
@@ -1361,58 +1399,75 @@ export async function fetchSourceHasilDryerStatus(
  * Fetch seluruh Tab Partai (Partai 1 s/d 4) secara paralel dengan Logika Hybrid 3-State
  */
 export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadsheetId()): Promise<DhpPartaiData[]> {
-  // Ambil tab SOURCE HASIL DRYER dan tab masing-masing partai secara paralel
-  const [sourceStatusMap, ...partaiDataList] = await Promise.all([
+  const makeFallbackPartai = (tab: string): DhpPartaiData => ({
+    id: tab,
+    namaTab: tab,
+    noLaporan: '-',
+    tanggalMulai: '-',
+    tanggalSelesai: '-',
+    jenis: '-',
+    mesin: '-',
+    gldKering: 0,
+    koliGld: 0,
+    kaGld: null,
+    totalRjBasah: 0,
+    totalRjKering: 0,
+    kaDryRata: null,
+    selisihKg: 0,
+    selisihPct: 0,
+    susutDryerKg: 0,
+    susutDryerPct: 0,
+    totalSusutKg: 0,
+    totalSusutPct: 0,
+    status: 'kosong' as const,
+    catatanStatus: 'Tab tidak ditemukan atau belum terisi.',
+    statusDropdownKertasKerja: '',
+    isSusutAkhir: false,
+    sourceDryerStatus: 'OFF' as const,
+    dryerParams: {
+      rpmInput: null,
+      putaranCylinder: null,
+      tekananUap: null,
+      suhuCylinder: null,
+      anginHe: null
+    },
+    sesiList: [],
+    qc: {
+      uapBar: null,
+      admoistRpm: null,
+      airLpm: null,
+      kaPraRendam: null,
+      mesin: '-',
+      pengering: '-'
+    },
+    rawFetchedAt: new Date().toISOString()
+  });
+
+  // Batching 2 tab per gelombang agar CPU & jaringan HP tetap responsif (menghindari 49 koneksi serentak)
+  const [sourceStatusMap, p1, p2] = await Promise.all([
     fetchSourceHasilDryerStatus(spreadsheetId),
-    ...DHP_TABS.map((tab) => 
-      fetchDhpPartai(spreadsheetId, tab).catch((err): DhpPartaiData => {
-        console.warn(`Gagal memuat ${tab}:`, err);
-        return {
-          id: tab,
-          namaTab: tab,
-          noLaporan: '-',
-          tanggalMulai: '-',
-          tanggalSelesai: '-',
-          jenis: '-',
-          mesin: '-',
-          gldKering: 0,
-          koliGld: 0,
-          kaGld: null,
-          totalRjBasah: 0,
-          totalRjKering: 0,
-          kaDryRata: null,
-          selisihKg: 0,
-          selisihPct: 0,
-          susutDryerKg: 0,
-          susutDryerPct: 0,
-          totalSusutKg: 0,
-          totalSusutPct: 0,
-          status: 'kosong' as const,
-          catatanStatus: 'Tab tidak ditemukan atau belum terisi.',
-          statusDropdownKertasKerja: '',
-          isSusutAkhir: false,
-          sourceDryerStatus: 'OFF' as const,
-          dryerParams: {
-            rpmInput: null,
-            putaranCylinder: null,
-            tekananUap: null,
-            suhuCylinder: null,
-            anginHe: null
-          },
-          sesiList: [],
-          qc: {
-            uapBar: null,
-            admoistRpm: null,
-            airLpm: null,
-            kaPraRendam: null,
-            mesin: '-',
-            pengering: '-'
-          },
-          rawFetchedAt: new Date().toISOString()
-        };
-      })
-    )
+    fetchDhpPartai(spreadsheetId, DHP_TABS[0]).catch((err) => {
+      console.warn(`Gagal memuat ${DHP_TABS[0]}:`, err);
+      return makeFallbackPartai(DHP_TABS[0]);
+    }),
+    fetchDhpPartai(spreadsheetId, DHP_TABS[1]).catch((err) => {
+      console.warn(`Gagal memuat ${DHP_TABS[1]}:`, err);
+      return makeFallbackPartai(DHP_TABS[1]);
+    })
   ]);
+
+  const [p3, p4] = await Promise.all([
+    fetchDhpPartai(spreadsheetId, DHP_TABS[2]).catch((err) => {
+      console.warn(`Gagal memuat ${DHP_TABS[2]}:`, err);
+      return makeFallbackPartai(DHP_TABS[2]);
+    }),
+    fetchDhpPartai(spreadsheetId, DHP_TABS[3]).catch((err) => {
+      console.warn(`Gagal memuat ${DHP_TABS[3]}:`, err);
+      return makeFallbackPartai(DHP_TABS[3]);
+    })
+  ]);
+
+  const partaiDataList = [p1, p2, p3, p4];
 
   // Evaluasi Logika Hybrid 3-State dengan Indikator Dropdown Kolom Q/R ("Susut Akhir")
   const hybridResults = partaiDataList.map((p) => {
@@ -1431,7 +1486,7 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
       } else if (isSusutSementara) {
         status = 'berjalan';
         if (isTodayActive) {
-          catatanStatus = `Proses sedang berjalan aktif hari ini (Kolom Q: "${p.statusDropdownKertasKerja}" · SOURCE HASIL DRYER: "Proses"). Gld Kering: ${p.gldKering.toLocaleString('id-ID')} Kg.`;
+          catatanStatus = `Proses sedang berjalan aktif hari ini (Kolom Q: "${p.statusDropdownKertasKerja}" · SOURCE HASIL DRYER: "Proses"). Gld Kering: ${formatInt(p.gldKering)} Kg.`;
         } else {
           catatanStatus = `Proses sedang berjalan (Multi-day dryer · Kolom Q: "${p.statusDropdownKertasKerja}"). Belum dinyatakan habis oleh operator.`;
         }
@@ -1441,9 +1496,9 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
       } else {
         status = 'berjalan';
         if (isTodayActive) {
-          catatanStatus = `Sedang berjalan aktif hari ini (Tercatat "Proses" di SOURCE HASIL DRYER). Gld Kering: ${p.gldKering.toLocaleString('id-ID')} Kg tercatat.`;
+          catatanStatus = `Sedang berjalan aktif hari ini (Tercatat "Proses" di SOURCE HASIL DRYER). Gld Kering: ${formatInt(p.gldKering)} Kg tercatat.`;
         } else {
-          catatanStatus = `Proses sedang berjalan (Multi-day dryer / menunggu sesi berikutnya tuntas). Gld Kering: ${p.gldKering.toLocaleString('id-ID')} Kg.`;
+          catatanStatus = `Proses sedang berjalan (Multi-day dryer / menunggu sesi berikutnya tuntas). Gld Kering: ${formatInt(p.gldKering)} Kg.`;
         }
       }
     } else if (isTodayActive) {
@@ -1518,10 +1573,10 @@ export async function pushDhpToMasterSheet(
     tahun = parts[3];
   }
 
-  // Format angka ke format lokal Indonesia sesuai standar Google Sheets Master
-  const formatKgSheet = (n: number) => Number(n).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  const formatPctSheet = (n: number) => Number(n).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
-  const formatMcSheet = (n: number | null) => (n !== null ? Number(n).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Mc' : '');
+  // Format angka ke format lokal Indonesia sesuai standar Google Sheets Master (singleton)
+  const formatKgSheet = (n: number) => formatDec1(n);
+  const formatPctSheet = (n: number) => `${formatDec2(n)}%`;
+  const formatMcSheet = (n: number | null) => (n !== null ? `${formatDec2(n)} Mc` : '');
 
   // 16 Kolom Baris Resmi DATA PROSES CKH
   const rowData = [

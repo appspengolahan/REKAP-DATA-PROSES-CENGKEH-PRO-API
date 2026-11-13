@@ -3,9 +3,9 @@
  * File: Tables[RekapCengkeh].tsx
  * Styling: Exact Divisi Produksi I Visual Standard (Consistent with Index[RekapCengkeh].html)
  */
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { RekapItemCengkeh, RawRowCengkeh } from './types[RekapCengkeh]';
-import { formatKg, formatPct, getPctClass, formatTanggalIndo, MONTH_ORDER, cleanDate } from './Code[RekapCengkeh]';
+import { formatKg, formatPct, formatDec1, formatDec2, getPctClass, formatTanggalIndo, MONTH_ORDER, cleanDate } from './Code[RekapCengkeh]';
 import { cleanJenisCengkeh } from './dhpService[RekapCengkeh]';
 import { Search, ChevronLeft, ChevronRight, CheckCircle2, ArrowUpDown } from 'lucide-react';
 
@@ -15,8 +15,10 @@ interface TableBulanProps {
   initialSort?: 'desc' | 'asc';
 }
 
-export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = ({ data, initialSort = 'desc' }) => {
+export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = React.memo(({ data, initialSort = 'desc' }) => {
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>(initialSort);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
 
   const sortedData = useMemo(() => {
     if (!data || data.length === 0) return [];
@@ -34,6 +36,16 @@ export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = ({ data, initia
     });
   }, [data, sortOrder]);
 
+  const totalPages = Math.ceil(sortedData.length / pageSize) || 1;
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(1);
+  }, [totalPages, currentPage]);
+
+  const pagedData = useMemo(
+    () => sortedData.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [sortedData, currentPage]
+  );
+
   if (!sortedData || sortedData.length === 0) {
     return (
       <div className="text-center py-8 text-[#6b7280] text-xs bg-white">
@@ -44,17 +56,20 @@ export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = ({ data, initia
 
   return (
     <div className="w-full space-y-2">
-      <div className="flex items-center justify-between text-xs text-slate-500 no-print">
+      <div className="flex items-center justify-between gap-2 flex-wrap text-xs text-slate-500 no-print">
         <span className="text-[11px]">
           Menampilkan <strong className="text-slate-800">{sortedData.length}</strong> periode bulan
         </span>
         <button
           type="button"
-          onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
-          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#1a56c4] bg-[#eef3fd] hover:bg-blue-100 px-2.5 py-1 rounded-lg cursor-pointer transition-colors border border-blue-200"
+          onClick={() => {
+            setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+            setCurrentPage(1);
+          }}
+          className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[#1a56c4] bg-[#eef3fd] hover:bg-blue-100 px-3 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-lg cursor-pointer transition-colors border border-blue-200"
           title="Klik untuk mengubah urutan periode bulan"
         >
-          <ArrowUpDown className="w-3 h-3" />
+          <ArrowUpDown className="w-3.5 h-3.5" />
           <span>Urutan: {sortOrder === 'desc' ? 'Terbaru ↓ Terlama' : 'Terlama ↑ Terbaru'}</span>
         </button>
       </div>
@@ -79,34 +94,34 @@ export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = ({ data, initia
             </tr>
           </thead>
           <tbody>
-            {sortedData.map((r, i) => {
+            {pagedData.map((r, i) => {
               const pClass = getPctClass(r.totalSusutPct);
               return (
-                <tr key={i} className="hover:bg-[#f8fafc] transition-colors">
-                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937] font-semibold">{r.label}</td>
+                <tr key={r.label || i} className="hover:bg-[#f8fafc] transition-colors">
+                  <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937] font-semibold whitespace-nowrap">{r.label}</td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{r.jumlahData}</td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
-                    {Number(r.gldKering).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    {formatDec1(r.gldKering)}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
-                    {Number(r.rjKering).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    {formatDec1(r.rjKering)}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
-                    {Number(r.selisihPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatDec2(r.selisihPct)}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
-                    {Number(r.susutDryerPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatDec2(r.susutDryerPct)}
                   </td>
                   <td className={`py-2 px-2.5 text-right border-b border-[#e1e5ec] font-mono font-medium ${
                     pClass === 'pct-high' ? 'text-[#c0392b] font-bold' : pClass === 'pct-low' ? 'text-[#1b8a5a] font-bold' : 'text-[#1f2937]'
                   }`}>
-                    {Number(r.totalSusutPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatDec2(r.totalSusutPct)}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">
-                    {Number(r.minPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatDec2(r.minPct)}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">
-                    {Number(r.maxPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatDec2(r.maxPct)}
                   </td>
                 </tr>
               );
@@ -114,54 +129,102 @@ export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = ({ data, initia
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs text-[#6b7280] pt-1 no-print">
+          <div>
+            Halaman {currentPage} dari {totalPages}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-[#e1e5ec] disabled:opacity-40 hover:bg-[#eef3fd] cursor-pointer"
+              aria-label="Halaman Sebelumnya"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-[#e1e5ec] disabled:opacity-40 hover:bg-[#eef3fd] cursor-pointer"
+              aria-label="Halaman Berikutnya"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
+});
 
 // ===== 2. TABEL REKAP PER JENIS CENGKEH =====
 interface TableJenisProps {
   data: RekapItemCengkeh[];
 }
 
-export const TableJenisRekapCengkeh: React.FC<TableJenisProps> = ({ data }) => {
+export const TableJenisRekapCengkeh: React.FC<TableJenisProps> = React.memo(({ data }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState<'volume' | 'susut'>('volume');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 25;
 
-  const filtered = data
-    .filter((d) => d.label.toLowerCase().includes(searchTerm.toLowerCase()))
-    .sort((a, b) => {
-      if (sortBy === 'volume') return b.gldKering - a.gldKering;
-      return b.totalSusutPct - a.totalSusutPct;
-    });
+  const filtered = useMemo(() => {
+    const q = searchTerm.toLowerCase();
+    return data
+      .filter((d) => d.label.toLowerCase().includes(q))
+      .sort((a, b) => {
+        if (sortBy === 'volume') return b.gldKering - a.gldKering;
+        return b.totalSusutPct - a.totalSusutPct;
+      });
+  }, [data, searchTerm, sortBy]);
+
+  const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(1);
+  }, [totalPages, currentPage]);
+
+  const pagedRows = useMemo(
+    () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filtered, currentPage]
+  );
 
   return (
     <div className="space-y-3">
       {/* Sub-filter Controls */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs no-print">
-        <div className="relative min-w-[220px]">
+        <div className="relative min-w-[220px] flex-1 sm:flex-initial">
           <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6b7280]" />
           <input
             type="text"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             placeholder="Cari jenis cengkeh..."
-            className="pl-7 pr-3 py-1 rounded-md border border-[#e1e5ec] text-xs bg-white text-[#1f2937] placeholder-[#6b7280]"
+            className="w-full pl-8 pr-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-md border border-[#e1e5ec] text-xs bg-white text-[#1f2937] placeholder-[#6b7280]"
           />
         </div>
 
-        <div className="flex items-center gap-1.5 text-xs text-[#6b7280]">
+        <div className="flex items-center gap-1.5 text-xs text-[#6b7280] flex-wrap">
           <span>Urutkan:</span>
           <button
-            onClick={() => setSortBy('volume')}
-            className={`px-2 py-0.5 rounded border border-[#e1e5ec] cursor-pointer ${
+            type="button"
+            onClick={() => { setSortBy('volume'); setCurrentPage(1); }}
+            className={`px-3 py-1.5 min-h-[44px] sm:min-h-[34px] rounded border border-[#e1e5ec] cursor-pointer ${
               sortBy === 'volume' ? 'bg-[#1a56c4] text-white font-semibold' : 'bg-white text-[#1f2937]'
             }`}
           >
             Volume (Kg)
           </button>
           <button
-            onClick={() => setSortBy('susut')}
-            className={`px-2 py-0.5 rounded border border-[#e1e5ec] cursor-pointer ${
+            type="button"
+            onClick={() => { setSortBy('susut'); setCurrentPage(1); }}
+            className={`px-3 py-1.5 min-h-[44px] sm:min-h-[34px] rounded border border-[#e1e5ec] cursor-pointer ${
               sortBy === 'susut' ? 'bg-[#1a56c4] text-white font-semibold' : 'bg-white text-[#1f2937]'
             }`}
           >
@@ -185,31 +248,31 @@ export const TableJenisRekapCengkeh: React.FC<TableJenisProps> = ({ data }) => {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r, i) => {
+            {pagedRows.map((r, i) => {
               const pClass = getPctClass(r.totalSusutPct);
               return (
-                <tr key={i} className="hover:bg-[#f8fafc] transition-colors">
+                <tr key={r.label || i} className="hover:bg-[#f8fafc] transition-colors">
                   <td className="py-2 px-2.5 text-left border-b border-[#e1e5ec] text-[#1f2937] font-medium">{r.label}</td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">{r.jumlahData}</td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
-                    {Number(r.gldKering).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    {formatDec1(r.gldKering)}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
-                    {Number(r.rjKering).toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}
+                    {formatDec1(r.rjKering)}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
-                    {Number(r.selisihPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatDec2(r.selisihPct)}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono">
-                    {Number(r.susutDryerPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatDec2(r.susutDryerPct)}
                   </td>
                   <td className={`py-2 px-2.5 text-right border-b border-[#e1e5ec] font-mono font-medium ${
                     pClass === 'pct-high' ? 'text-[#c0392b] font-bold' : pClass === 'pct-low' ? 'text-[#1b8a5a] font-bold' : 'text-[#1f2937]'
                   }`}>
-                    {Number(r.totalSusutPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatDec2(r.totalSusutPct)}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">
-                    {Number(r.kapasitasPct).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {formatDec2(r.kapasitasPct)}
                   </td>
                 </tr>
               );
@@ -217,9 +280,37 @@ export const TableJenisRekapCengkeh: React.FC<TableJenisProps> = ({ data }) => {
           </tbody>
         </table>
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-xs text-[#6b7280] pt-1 no-print">
+          <div>
+            Menampilkan {pagedRows.length} dari {filtered.length} varian · Halaman {currentPage} / {totalPages}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage <= 1}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-[#e1e5ec] disabled:opacity-40 hover:bg-[#eef3fd] cursor-pointer"
+              aria-label="Halaman Sebelumnya"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-[#e1e5ec] disabled:opacity-40 hover:bg-[#eef3fd] cursor-pointer"
+              aria-label="Halaman Berikutnya"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
+});
 
 // ===== 3. DATA EXPLORER BATCH TABLE =====
 interface BatchExplorerProps {
@@ -227,7 +318,7 @@ interface BatchExplorerProps {
   onToggleVerify?: (srcRow: number) => void;
 }
 
-export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ rows, onToggleVerify }) => {
+export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = React.memo(({ rows, onToggleVerify }) => {
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
@@ -287,7 +378,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs no-print">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="relative min-w-[240px]">
+          <div className="relative min-w-[220px] flex-1 sm:flex-initial">
             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-[#6b7280]" />
             <input
               type="text"
@@ -297,16 +388,16 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
                 setCurrentPage(1);
               }}
               placeholder="Cari nomor partai, tanggal, jenis cengkeh..."
-              className="pl-7 pr-3 py-1.5 rounded-md border border-[#e1e5ec] text-xs bg-white text-[#1f2937] placeholder-[#6b7280]"
+              className="w-full pl-8 pr-3 py-1.5 min-h-[44px] sm:min-h-[36px] rounded-md border border-[#e1e5ec] text-xs bg-white text-[#1f2937] placeholder-[#6b7280]"
             />
           </div>
 
           {/* Filter Sumber Data: Semua, DHP, Master Sheet */}
-          <div className="inline-flex rounded-lg border border-[#e1e5ec] p-0.5 bg-slate-50">
+          <div className="inline-flex flex-wrap rounded-lg border border-[#e1e5ec] p-0.5 bg-slate-50 gap-0.5">
             <button
               type="button"
               onClick={() => { setFilterSumber('semua'); setCurrentPage(1); }}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterSumber === 'semua'
                   ? 'bg-white text-blue-700 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -317,7 +408,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
             <button
               type="button"
               onClick={() => { setFilterSumber('dhp'); setCurrentPage(1); }}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterSumber === 'dhp'
                   ? 'bg-amber-50 text-amber-800 shadow-2xs font-bold border border-amber-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -328,7 +419,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
             <button
               type="button"
               onClick={() => { setFilterSumber('master'); setCurrentPage(1); }}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterSumber === 'master'
                   ? 'bg-white text-blue-700 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -339,11 +430,11 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
           </div>
 
           {/* Filter Jalur: Silo vs Manual */}
-          <div className="inline-flex rounded-lg border border-[#e1e5ec] p-0.5 bg-slate-50">
+          <div className="inline-flex flex-wrap rounded-lg border border-[#e1e5ec] p-0.5 bg-slate-50 gap-0.5">
             <button
               type="button"
               onClick={() => { setFilterJalur('semua'); setCurrentPage(1); }}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterJalur === 'semua'
                   ? 'bg-white text-emerald-800 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -354,7 +445,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
             <button
               type="button"
               onClick={() => { setFilterJalur('silo'); setCurrentPage(1); }}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterJalur === 'silo'
                   ? 'bg-emerald-50 text-emerald-800 shadow-2xs font-bold border border-emerald-200'
                   : 'text-slate-600 hover:text-slate-900'
@@ -365,7 +456,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
             <button
               type="button"
               onClick={() => { setFilterJalur('manual'); setCurrentPage(1); }}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+              className={`px-2.5 py-1.5 min-h-[44px] sm:min-h-[32px] text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 filterJalur === 'manual'
                   ? 'bg-slate-200 text-slate-800 shadow-2xs font-bold'
                   : 'text-slate-600 hover:text-slate-900'
@@ -378,7 +469,7 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
           <button
             type="button"
             onClick={() => setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md border border-[#e1e5ec] bg-white text-[#1f2937] hover:bg-slate-50 transition-colors font-medium text-xs cursor-pointer shadow-2xs"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-[34px] rounded-md border border-[#e1e5ec] bg-white text-[#1f2937] hover:bg-slate-50 transition-colors font-medium text-xs cursor-pointer shadow-2xs"
             title="Ubah urutan tanggal data"
           >
             <ArrowUpDown className="w-3.5 h-3.5 text-blue-600" />
@@ -480,13 +571,13 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
                     <button
                       type="button"
                       onClick={() => onToggleVerify && onToggleVerify(r.srcRow)}
-                      className={`no-print inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium transition-colors cursor-pointer ${
+                      className={`no-print inline-flex items-center justify-center gap-1 px-2.5 py-1.5 min-h-[44px] sm:min-h-[30px] rounded text-[11px] font-medium transition-colors cursor-pointer ${
                         r.verified
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                           : 'bg-slate-100 text-slate-600 border border-slate-200'
                       }`}
                     >
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                       <span>{r.verified ? 'Verified' : 'Check'}</span>
                     </button>
                   </td>
@@ -504,16 +595,20 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
         </div>
         <div className="flex items-center gap-1.5">
           <button
+            type="button"
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage <= 1}
-            className="p-1 rounded border border-[#e1e5ec] disabled:opacity-40 hover:bg-[#eef3fd] cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-[#e1e5ec] disabled:opacity-40 hover:bg-[#eef3fd] cursor-pointer"
+            aria-label="Halaman Sebelumnya"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
+            type="button"
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage >= totalPages}
-            className="p-1 rounded border border-[#e1e5ec] disabled:opacity-40 hover:bg-[#eef3fd] cursor-pointer"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-[#e1e5ec] disabled:opacity-40 hover:bg-[#eef3fd] cursor-pointer"
+            aria-label="Halaman Berikutnya"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -521,4 +616,4 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = ({ r
       </div>
     </div>
   );
-};
+});

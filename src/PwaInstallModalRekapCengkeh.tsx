@@ -49,34 +49,34 @@ export const PwaInstallModalRekapCengkeh: React.FC<PwaInstallModalProps> = ({ is
 
   return (
     <div 
-      className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/75 backdrop-blur-md animate-in fade-in duration-200"
+      className="no-print fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/85 md:backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full max-h-[92vh] overflow-y-auto flex flex-col text-slate-800"
+        className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full max-h-[90dvh] overflow-y-auto flex flex-col text-slate-800"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white px-5 sm:px-6 py-4 flex items-center justify-between border-b border-blue-800 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 text-amber-300">
+        <div className="bg-gradient-to-r from-blue-900 to-indigo-900 text-white px-4 sm:px-6 py-4 flex items-center justify-between gap-2 border-b border-blue-800 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20 text-amber-300 shrink-0">
               <Download className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+            <div className="min-w-0">
+              <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2 flex-wrap">
                 <span>Pasang Aplikasi (PWA)</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold border border-emerald-400/30">
                   Resmi
                 </span>
               </h2>
-              <p className="text-xs text-blue-200">
+              <p className="text-xs text-blue-200 truncate">
                 Akses cepat & offline langsung dari layar utama HP atau desktop
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 text-blue-200 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+            className="min-h-[44px] min-w-[44px] sm:min-h-[36px] sm:min-w-[36px] inline-flex items-center justify-center p-1.5 text-blue-200 hover:text-white hover:bg-white/10 rounded-xl transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
@@ -198,7 +198,7 @@ export const PwaInstallModalRekapCengkeh: React.FC<PwaInstallModalProps> = ({ is
                 <button
                   type="button"
                   onClick={handleCopyLink}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors cursor-pointer"
+                  className="min-h-[44px] sm:min-h-[34px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition-colors cursor-pointer"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   <span>{copied ? '✅ Tersalin!' : 'Salin Tautan'}</span>
@@ -209,14 +209,14 @@ export const PwaInstallModalRekapCengkeh: React.FC<PwaInstallModalProps> = ({ is
         </div>
 
         {/* Footer */}
-        <div className="px-5 sm:px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
+        <div className="px-5 sm:px-6 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] text-slate-500 shrink-0">
           <div className="flex items-center gap-1.5 text-slate-600 font-medium">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
             <span>PWA Standalone Engine · Ringan & Aman</span>
           </div>
           <button
             onClick={onClose}
-            className="px-3 py-1 text-slate-600 hover:text-slate-900 font-semibold cursor-pointer"
+            className="min-h-[44px] sm:min-h-[32px] px-4 py-1 text-slate-700 hover:text-slate-900 font-semibold cursor-pointer rounded-lg hover:bg-slate-200/70 transition-colors"
           >
             Tutup
           </button>

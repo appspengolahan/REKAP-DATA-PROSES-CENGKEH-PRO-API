@@ -4,7 +4,7 @@
  */
 import React, { useState } from 'react';
 import { RekapItemCengkeh } from './types[RekapCengkeh]';
-import { formatKg, formatPct } from './Code[RekapCengkeh]';
+import { formatKg, formatPct, formatInt } from './Code[RekapCengkeh]';
 import { Maximize2, Sparkles, TrendingUp } from 'lucide-react';
 
 // ===== 1. LINE CHART: TREN SUSUT (%) PER BULAN =====
@@ -17,7 +17,7 @@ interface LineChartProps {
   isExpanded?: boolean;
 }
 
-export const TrendLineChartRekapCengkeh: React.FC<LineChartProps> = ({
+export const TrendLineChartRekapCengkeh: React.FC<LineChartProps> = React.memo(({
   data,
   title,
   lineColor = '#1a56c4',
@@ -94,7 +94,7 @@ export const TrendLineChartRekapCengkeh: React.FC<LineChartProps> = ({
                   e.stopPropagation();
                   onExpand();
                 }}
-                className="no-print inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+                className="no-print inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-[32px] rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs"
                 title="Klik untuk memperbesar grafik ke tengah layar"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -284,7 +284,7 @@ export const TrendLineChartRekapCengkeh: React.FC<LineChartProps> = ({
                   : 'translate(-50%, -100%) translateY(-22px)',
               }}
               onClick={(e) => e.stopPropagation()}
-              className="absolute z-30 bg-white/98 text-slate-800 backdrop-blur-md rounded-xl p-3 text-xs shadow-xl shadow-blue-950/15 pointer-events-auto border border-blue-200 animate-in fade-in zoom-in-95 duration-150 min-w-[210px] max-w-[275px]"
+              className="absolute z-30 bg-white md:bg-white/95 text-slate-800 md:backdrop-blur-md rounded-xl p-3 text-xs shadow-xl shadow-blue-950/15 pointer-events-auto border border-blue-200 animate-in fade-in zoom-in-95 duration-150 min-w-[210px] max-w-[275px]"
             >
               {/* Dynamic pointer arrow */}
               {isNearTop ? (
@@ -336,7 +336,7 @@ export const TrendLineChartRekapCengkeh: React.FC<LineChartProps> = ({
       </div>
     </div>
   );
-};
+});
 
 // ===== 2. GROUPED COLUMN CHART: GLD KERING VS RAJANG KERING (KG) =====
 interface CompareChartProps {
@@ -346,7 +346,7 @@ interface CompareChartProps {
   isExpanded?: boolean;
 }
 
-export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({ 
+export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = React.memo(({ 
   data, 
   title, 
   onExpand,
@@ -420,7 +420,7 @@ export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({
                   e.stopPropagation();
                   onExpand();
                 }}
-                className="no-print inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs ml-1"
+                className="no-print inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-[32px] rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs ml-1"
                 title="Klik untuk memperbesar grafik ke tengah layar"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -474,7 +474,7 @@ export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({
                 textAnchor="end"
                 className="text-[10px] fill-slate-400 font-mono font-medium"
               >
-                {Math.round(g.val).toLocaleString('id-ID')}
+                {formatInt(g.val)}
               </text>
             </g>
           ))}
@@ -635,7 +635,7 @@ export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({
                   : 'translate(-50%, -100%) translateY(-22px)',
               }}
               onClick={(e) => e.stopPropagation()}
-              className="absolute z-30 bg-white/98 text-slate-800 backdrop-blur-md rounded-xl p-3 text-xs shadow-xl shadow-blue-950/15 pointer-events-auto border border-blue-200 animate-in fade-in zoom-in-95 duration-150 min-w-[215px] max-w-[280px]"
+              className="absolute z-30 bg-white md:bg-white/95 text-slate-800 md:backdrop-blur-md rounded-xl p-3 text-xs shadow-xl shadow-blue-950/15 pointer-events-auto border border-blue-200 animate-in fade-in zoom-in-95 duration-150 min-w-[215px] max-w-[280px]"
             >
               {/* Dynamic pointer arrow */}
               {isNearTop ? (
@@ -683,7 +683,7 @@ export const CompareColumnChartRekapCengkeh: React.FC<CompareChartProps> = ({
       </div>
     </div>
   );
-};
+});
 
 // ===== 3. HORIZONTAL / VERTICAL BAR CHART: TOTAL SUSUT ANTAR JENIS CENGKEH =====
 interface JenisBarChartProps {
@@ -693,7 +693,7 @@ interface JenisBarChartProps {
   isExpanded?: boolean;
 }
 
-export const JenisBarChartRekapCengkeh: React.FC<JenisBarChartProps> = ({ 
+export const JenisBarChartRekapCengkeh: React.FC<JenisBarChartProps> = React.memo(({ 
   data, 
   title, 
   onExpand,
@@ -754,7 +754,7 @@ export const JenisBarChartRekapCengkeh: React.FC<JenisBarChartProps> = ({
                   e.stopPropagation();
                   onExpand();
                 }}
-                className="no-print inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+                className="no-print inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] sm:min-h-[32px] rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-900 border border-blue-200 transition-colors cursor-pointer shadow-2xs"
                 title="Klik untuk memperbesar grafik ke tengah layar"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -919,7 +919,7 @@ export const JenisBarChartRekapCengkeh: React.FC<JenisBarChartProps> = ({
                   : 'translate(-50%, -100%) translateY(-22px)',
               }}
               onClick={(e) => e.stopPropagation()}
-              className="absolute z-30 bg-white/98 text-slate-800 backdrop-blur-md rounded-xl p-3 text-xs shadow-xl shadow-blue-950/15 pointer-events-auto border border-blue-200 animate-in fade-in zoom-in-95 duration-150 min-w-[215px] max-w-[280px]"
+              className="absolute z-30 bg-white md:bg-white/95 text-slate-800 md:backdrop-blur-md rounded-xl p-3 text-xs shadow-xl shadow-blue-950/15 pointer-events-auto border border-blue-200 animate-in fade-in zoom-in-95 duration-150 min-w-[215px] max-w-[280px]"
             >
               {/* Dynamic pointer arrow */}
               {isNearTop ? (
@@ -967,4 +967,4 @@ export const JenisBarChartRekapCengkeh: React.FC<JenisBarChartProps> = ({
       </div>
     </div>
   );
-};
+});

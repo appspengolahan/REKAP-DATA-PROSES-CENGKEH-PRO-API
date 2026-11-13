@@ -637,24 +637,24 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs no-print animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 md:backdrop-blur-xs no-print animate-in fade-in duration-200"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 sm:p-6 text-slate-800 flex flex-col">
+      <div className="relative w-full max-w-2xl max-h-[90dvh] overflow-y-auto bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 sm:p-6 pb-[calc(1.25rem+env(safe-area-inset-bottom))] text-slate-800 flex flex-col">
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+          className="absolute top-3 right-3 sm:top-4 sm:right-4 min-h-[44px] min-w-[44px] sm:min-h-[36px] sm:min-w-[36px] inline-flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
 
         {/* Modal Header */}
-        <div className="flex items-center gap-3 mb-4 pr-8">
+        <div className="flex items-center gap-3 mb-4 pr-11">
           <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-600 shrink-0">
             <Database className="w-6 h-6" />
           </div>
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2 flex-wrap">
               <span>Headless GAS Center</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono font-bold">
                 REST API
@@ -665,11 +665,11 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-2 mb-4">
+        <div className="flex items-center gap-2 border-b border-slate-200 pb-2 mb-4 overflow-x-auto whitespace-nowrap no-scrollbar shrink-0">
           <button
             type="button"
             onClick={() => setActiveTab('endpoint')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            className={`shrink-0 min-h-[44px] sm:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               activeTab === 'endpoint'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
@@ -681,7 +681,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('payload')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            className={`shrink-0 min-h-[44px] sm:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               activeTab === 'payload'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
@@ -696,7 +696,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('script')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+            className={`shrink-0 min-h-[44px] sm:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
               activeTab === 'script'
                 ? 'bg-blue-50 text-blue-700 border border-blue-200'
                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
@@ -723,7 +723,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                   <button
                     onClick={onManualSync}
                     disabled={isSyncing}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 disabled:opacity-50 transition-colors cursor-pointer shadow-2xs"
+                    className="min-h-[44px] sm:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1.5 disabled:opacity-50 transition-colors cursor-pointer shadow-2xs"
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
                     <span>{isSyncing ? 'Menyinkronkan...' : 'Sinkronkan Sekarang'}</span>
@@ -822,12 +822,12 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
 
             {/* Aksi Konfigurasi */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={handleTestConnection}
                   disabled={isTesting}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="min-h-[44px] sm:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Terminal className="w-3.5 h-3.5" />
                   <span>{isTesting ? 'Menguji...' : 'Uji Koneksi Sheets'}</span>
@@ -836,17 +836,17 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                 <button
                   type="button"
                   onClick={handleResetDefaults}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                  className="min-h-[44px] sm:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
                 >
                   Reset Default
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={onForceRebuildCache}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-amber-700 hover:bg-amber-50 border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
+                  className="min-h-[44px] sm:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-medium text-amber-700 hover:bg-amber-50 border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
                   title="Bangun ulang cache lokal dari snapshot awal"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
@@ -856,7 +856,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                 <button
                   type="button"
                   onClick={handleSave}
-                  className="px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                  className="min-h-[44px] sm:min-h-[34px] px-4 py-1.5 rounded-lg text-xs font-semibold bg-blue-700 hover:bg-blue-800 text-white shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Save className="w-3.5 h-3.5" />
                   <span>Simpan Konfigurasi</span>
@@ -949,15 +949,15 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
             </div>
 
             {/* Action Buttons */}
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] text-slate-400 font-mono truncate max-w-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-400 font-mono truncate max-w-full sm:max-w-sm">
                 Target: {execUrl.substring(0, 48)}...
               </span>
               <button
                 type="button"
                 onClick={handleSendPayloadTest}
                 disabled={isSendingPayload}
-                className="px-4 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs flex items-center gap-1.5 disabled:opacity-60 transition-colors cursor-pointer"
+                className="min-h-[44px] sm:min-h-[34px] px-4 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-xs flex items-center gap-1.5 disabled:opacity-60 transition-colors cursor-pointer"
               >
                 {isSendingPayload ? (
                   <>
@@ -1036,7 +1036,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                     setCopiedScript(true);
                     setTimeout(() => setCopiedScript(false), 2500);
                   }}
-                  className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
+                  className="min-h-[44px] sm:min-h-[36px] px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-md"
                 >
                   {copiedScript ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-white" />}
                   <span>{copiedScript ? 'Tersalin Utuh ke Clipboard!' : 'Salin Seluruh Kode.gs'}</span>

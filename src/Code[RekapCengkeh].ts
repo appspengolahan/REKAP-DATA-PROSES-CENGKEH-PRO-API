@@ -30,10 +30,16 @@ const STATIC_HOSTING_FLAG_KEY = '_REKAP_CKH_STATIC_HOST_V1';
 const WIB_OFFSET_MS = 7 * 60 * 60 * 1000;
 
 // Singleton formatter & bounded memoization cache (anti-freeze pada loop tabel/rekonsiliasi besar)
+const NUMBER_FMT_INT = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 });
 const NUMBER_FMT_KG = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const NUMBER_FMT_PCT = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const cleanDateCache = new Map<string, string>();
 const formatTanggalIndoCache = new Map<string, string>();
+
+// In-memory cache untuk mencegah JSON.parse & filter berulang pada main thread
+let cachedGasConfigMem: GasConfig | null = null;
+let cachedDatasetMem: RawRowCengkeh[] | null = null;
+let cachedDatasetRawLen = -1;
 
 function setBoundedCache(cache: Map<string, string>, key: string, value: string, maxEntries = 2000): void {
   if (cache.size >= maxEntries) {
@@ -134,6 +140,30 @@ export function round2(n: number): number {
 }
 
 /**
+ * Format angka bulat dengan pemisah ribuan Indonesia (singleton)
+ */
+export function formatInt(n: number | null | undefined): string {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return NUMBER_FMT_INT.format(Math.round(Number(n)));
+}
+
+/**
+ * Format desimal 1 digit tanpa suffix unit (singleton)
+ */
+export function formatDec1(n: number | null | undefined): string {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return NUMBER_FMT_KG.format(Number(n));
+}
+
+/**
+ * Format desimal 2 digit tanpa suffix unit (singleton)
+ */
+export function formatDec2(n: number | null | undefined): string {
+  if (n === null || n === undefined || isNaN(n)) return '-';
+  return NUMBER_FMT_PCT.format(Number(n));
+}
+
+/**
  * Format berat / non-persen: 1 desimal (lokal Indonesia)
  * Contoh: 1.450,2 Kg
  */
@@ -189,8 +219,9 @@ export function getPctClass(v: number): 'pct-high' | 'pct-low' | '' {
   return '';
 }
 
-/** Ambil konfigurasi GAS dari LocalStorage */
+/** Ambil konfigurasi GAS dari LocalStorage dengan in-memory cache */
 export function getGasConfig(): GasConfig {
+  if (cachedGasConfigMem) return cachedGasConfigMem;
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_CONFIG_KEY);
     if (raw) {
@@ -199,22 +230,26 @@ export function getGasConfig(): GasConfig {
       if (!parsed.sheetName || parsed.sheetName === 'FILTER DATA') {
         parsed.sheetName = DEFAULT_SHEET_NAME;
       }
+      cachedGasConfigMem = parsed;
       return parsed;
     }
   } catch (e) {
     console.error('Error reading GAS config:', e);
   }
-  return {
+  const fallback: GasConfig = {
     execUrl: DEFAULT_EXEC_URL,
     spreadsheetId: DEFAULT_SPREADSHEET_ID,
     sheetName: DEFAULT_SHEET_NAME,
     lastSyncedAt: null,
     autoSync: true
   };
+  cachedGasConfigMem = fallback;
+  return fallback;
 }
 
-/** Simpan konfigurasi GAS ke LocalStorage */
+/** Simpan konfigurasi GAS ke LocalStorage dan segarkan in-memory cache */
 export function saveGasConfig(cfg: GasConfig): void {
+  cachedGasConfigMem = cfg;
   try {
     localStorage.setItem(LOCAL_STORAGE_CONFIG_KEY, JSON.stringify(cfg));
   } catch (e) {
@@ -224,12 +259,15 @@ export function saveGasConfig(cfg: GasConfig): void {
 
 /**
  * Baca dataset lokal dari Cache LocalStorage (Tier 3) dengan fallback Snapshot (Tier 4)
- * Dilengkapi Filter Validasi Integritas: Menolak data rusak / array kosong / 2D array tanpa tanggal & gldKering
+ * Dilengkapi in-memory cache berbasis panjang string + Filter Validasi Integritas
  */
 export function loadCachedDataset(): RawRowCengkeh[] {
   try {
     const raw = localStorage.getItem(LOCAL_STORAGE_CACHE_KEY);
     if (raw) {
+      if (cachedDatasetMem && raw.length === cachedDatasetRawLen) {
+        return cachedDatasetMem;
+      }
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
         // Validasi struktur setiap baris data
@@ -237,6 +275,8 @@ export function loadCachedDataset(): RawRowCengkeh[] {
           (r) => r && typeof r === 'object' && !Array.isArray(r) && typeof r.tanggal === 'string' && Number(r.gldKering) > 0
         );
         if (validRows.length >= 10) {
+          cachedDatasetMem = validRows;
+          cachedDatasetRawLen = raw.length;
           return validRows;
         }
       }
@@ -256,7 +296,10 @@ export function saveCachedDataset(data: RawRowCengkeh[]): void {
       (r) => r && typeof r === 'object' && !Array.isArray(r) && typeof r.tanggal === 'string' && Number(r.gldKering) > 0
     );
     if (validRows.length === 0) return; // Lindungi cache lokal dari penimpaan data 0
-    localStorage.setItem(LOCAL_STORAGE_CACHE_KEY, JSON.stringify(validRows));
+    const serialized = JSON.stringify(validRows);
+    localStorage.setItem(LOCAL_STORAGE_CACHE_KEY, serialized);
+    cachedDatasetMem = validRows;
+    cachedDatasetRawLen = serialized.length;
   } catch (e) {
     console.error('Gagal menulis cache lokal:', e);
   }

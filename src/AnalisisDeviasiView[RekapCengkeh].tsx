@@ -5,7 +5,7 @@
  * Referensi Desain: image_81c6691c.png
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Scale, 
   CheckCircle2, 
@@ -22,7 +22,9 @@ import {
   ArrowUpDown,
   Search,
   Filter,
-  Sparkles
+  Sparkles,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { 
   RawRowCengkeh, 
@@ -78,6 +80,8 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
   const [filterJalur, setFilterJalur] = useState<'Semua' | 'SKT' | 'SKM'>('Semua');
   const [searchVarian, setSearchVarian] = useState<string>('');
   const [showAllChart, setShowAllChart] = useState<boolean>(true);
+  const [detailPage, setDetailPage] = useState<number>(1);
+  const detailPageSize = 25;
 
   // Handle Simpan Config
   const handleApplyConfig = () => {
@@ -244,6 +248,16 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
       })
       .sort((a, b) => Math.abs(b.deviasiPct) - Math.abs(a.deviasiPct));
   }, [evalRows, acuanPerVarian, config.batasWaspadaPct, config.batasOosPct, filterJalur, searchVarian]);
+
+  const totalDetailPages = Math.ceil(varianKomparasiList.length / detailPageSize) || 1;
+  useEffect(() => {
+    setDetailPage(1);
+  }, [evalBulan, evalTahun, filterJalur, searchVarian]);
+
+  const pagedVarianList = useMemo(
+    () => varianKomparasiList.slice((detailPage - 1) * detailPageSize, detailPage * detailPageSize),
+    [varianKomparasiList, detailPage]
+  );
 
   // 4. KPI Agregat Multi-Varian
   const kpiAgregat = useMemo(() => {
@@ -743,14 +757,14 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
             </div>
 
             <div className="flex items-center gap-2">
-              <div className="relative min-w-[200px]">
+              <div className="relative min-w-[200px] flex-1 sm:flex-initial">
                 <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
                   type="text"
                   value={searchVarian}
                   onChange={(e) => setSearchVarian(e.target.value)}
                   placeholder="Cari varian cengkeh..."
-                  className="w-full pl-7 pr-3 py-1 text-xs rounded-lg border border-slate-300 bg-white text-slate-800"
+                  className="w-full pl-8 pr-3 py-1.5 min-h-[44px] sm:min-h-[36px] text-xs rounded-lg border border-slate-300 bg-white text-slate-800"
                 />
               </div>
             </div>
@@ -772,7 +786,7 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
                 </tr>
               </thead>
               <tbody>
-                {varianKomparasiList.map((v) => (
+                {pagedVarianList.map((v) => (
                   <tr key={v.jenis} className="hover:bg-slate-50/80 transition-colors border-b border-slate-100">
                     <td className="py-2.5 px-3 text-left font-semibold text-slate-900">
                       {v.jenis}
@@ -847,6 +861,34 @@ export const AnalisisDeviasiViewRekapCengkeh: React.FC<AnalisisDeviasiViewProps>
               </tbody>
             </table>
           </div>
+
+          {totalDetailPages > 1 && (
+            <div className="flex items-center justify-between text-xs text-slate-500 pt-3 no-print">
+              <div>
+                Menampilkan {pagedVarianList.length} dari {varianKomparasiList.length} varian · Halaman {detailPage} / {totalDetailPages}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDetailPage((p) => Math.max(1, p - 1))}
+                  disabled={detailPage <= 1}
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-100 cursor-pointer"
+                  aria-label="Halaman Sebelumnya"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDetailPage((p) => Math.min(totalDetailPages, p + 1))}
+                  disabled={detailPage >= totalDetailPages}
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg border border-slate-200 disabled:opacity-40 hover:bg-slate-100 cursor-pointer"
+                  aria-label="Halaman Berikutnya"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
