@@ -22,7 +22,7 @@ import {
   Zap
 } from 'lucide-react';
 import { GasConfig, UserRole } from './types[RekapCengkeh]';
-import { saveGasConfig, DEFAULT_EXEC_URL, DEFAULT_SPREADSHEET_ID, DEFAULT_SHEET_NAME, testGasPayload, isHtmlResponse } from './Code[RekapCengkeh]';
+import { saveGasConfig, DEFAULT_EXEC_URL, DEFAULT_SPREADSHEET_ID, DEFAULT_SHEET_NAME, testGasPayload, isHtmlResponse, resolveStaticSafeGasUrl } from './Code[RekapCengkeh]';
 
 const GAS_TEMPLATE_CODE = String.raw`/**
  * =========================================================================
@@ -58,7 +58,7 @@ function getSheetSafe_(ss, preferredName) {
 }
 
 function findActualLastRow_(sheet) {
-  var maxRows = Math.min(sheet.getLastRow(), 950);
+  var maxRows = Math.min(sheet.getLastRow(), 5000);
   if (maxRows < 11) return 10;
   var bValues = sheet.getRange(11, 2, maxRows - 10, 1).getValues();
   var lastFilled = 10;
@@ -191,13 +191,14 @@ function doPost(e) {
       var targetRow = -1;
       var isDuplicateFound = false;
       
-      var scanStart = Math.max(11, lastRow - 25);
+      var scanStart = Math.max(11, lastRow - 30);
       var scanCount = Math.max(1, lastRow - scanStart + 1);
       if (lastRow >= 11) {
         var existingRange = sheet.getRange(scanStart, 1, scanCount, 12).getValues();
+        var existingDisplayB = sheet.getRange(scanStart, 2, scanCount, 1).getDisplayValues();
         for (var ex = 0; ex < existingRange.length; ex++) {
           var exRowIdx = scanStart + ex;
-          var exTgl = String(existingRange[ex][1] || "").trim(); // Col B (Tanggal Admoist)
+          var exTgl = String(existingDisplayB[ex][0] || existingRange[ex][1] || "").trim(); // Col B (Tanggal Admoist)
           var exGld = Number(existingRange[ex][6] || 0);         // Col G (Gld Kering)
           var exRjK = Number(existingRange[ex][10] || 0);        // Col K (Rj Kering)
           
@@ -205,7 +206,7 @@ function doPost(e) {
           var matchGld = (gld > 0 && exGld > 0 && Math.abs(gld - exGld) < 0.5);
           var matchRjK = (rjK > 0 && exRjK > 0 && Math.abs(rjK - exRjK) < 1.0);
           
-          if (matchTgl || (matchGld && matchRjK) || matchGld) {
+          if ((matchTgl && matchGld) || (matchTgl && matchRjK) || (matchGld && matchRjK)) {
             targetRow = exRowIdx;
             isDuplicateFound = true;
             break;
@@ -563,29 +564,77 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
 
   const handleTestConnection = async () => {
     setIsTesting(true);
-    setTestResult({ status: 'idle', message: 'Menguji konektivitas endpoint...' });
+    setTestResult({ status: 'idle', message: 'Menguji pembacaan Sheets & endpoint tulis GAS...' });
     try {
+      // 1. Uji Baca Google Sheets (GViz CSV)
       const gvizUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
       const res = await fetch(gvizUrl);
-      if (res.ok) {
-        const bodyText = await res.text();
-        if (isHtmlResponse(res, bodyText)) {
-          setTestResult({
-            status: 'error',
-            message: `Google Sheets mengembalikan halaman HTML (kemungkinan akses sheet belum disetel publik: "Anyone with link can view").`
-          });
-        } else {
-          setTestResult({
-            status: 'success',
-            message: `Koneksi Google Sheets berhasil! HTTP Status 200 OK. Sumber sheet "${sheetName}" siap dibaca.`
-          });
-        }
-      } else {
+      if (!res.ok) {
         setTestResult({
           status: 'error',
-          message: `Respon HTTP ${res.status}: ${res.statusText}. Pastikan sheet memiliki akses baca publik (anyone with link can view).`
+          message: `Gagal membaca Google Sheets (HTTP ${res.status}: ${res.statusText}). Pastikan sheet memiliki akses baca publik (Anyone with link can view).`
         });
+        return;
       }
+      const bodyText = await res.text();
+      if (isHtmlResponse(res, bodyText)) {
+        setTestResult({
+          status: 'error',
+          message: `Google Sheets mengembalikan halaman HTML (akses sheet belum publik: "Anyone with link can view").`
+        });
+        return;
+      }
+
+      // 2. Uji Endpoint Tulis GAS Web App (action=ping)
+      const { targetUrl } = resolveStaticSafeGasUrl(execUrl.trim());
+      const sep = targetUrl.includes('?') ? '&' : '?';
+      const pingUrl = `${targetUrl}${sep}action=ping&spreadsheetId=${encodeURIComponent(spreadsheetId.trim())}&sheet=${encodeURIComponent(sheetName.trim())}&t=${Date.now()}`;
+      const gasRes = await fetch(pingUrl, { mode: 'cors' });
+      const gasText = await gasRes.text();
+
+      if (gasRes.status === 404) {
+        setTestResult({
+          status: 'error',
+          message: `Baca Sheets "${sheetName}" OK (200), TETAPI Endpoint Tulis GAS mengembalikan HTTP 404 (Not Found). URL Web App saat ini sudah tidak aktif/belum di-deploy. Buka tab "Template Script GAS", pasang Kode.gs ke Ekstensi > Apps Script, deploy sebagai Web App ("Siapa saja / Anyone"), lalu tempel URL /exec barunya di sini.`
+        });
+        return;
+      }
+
+      if (!gasRes.ok) {
+        setTestResult({
+          status: 'error',
+          message: `Baca Sheets "${sheetName}" OK (200), TETAPI Endpoint GAS merespons HTTP ${gasRes.status} (${gasRes.statusText}). Periksa deployment Web App GAS.`
+        });
+        return;
+      }
+
+      if (isHtmlResponse(gasRes, gasText)) {
+        setTestResult({
+          status: 'error',
+          message: `Baca Sheets "${sheetName}" OK (200), TETAPI Endpoint GAS mengembalikan halaman HTML/Login. Pastikan saat Deploy Web App pilihan "Yang memiliki akses" disetel ke "Siapa saja (Anyone)".`
+        });
+        return;
+      }
+
+      let gasJson: any = null;
+      try {
+        gasJson = JSON.parse(gasText);
+      } catch {
+        gasJson = null;
+      }
+
+      if (!gasJson || gasJson.status === 'error') {
+        setTestResult({
+          status: 'error',
+          message: `Baca Sheets OK, tetapi GAS melaporkan error: ${gasJson?.message || 'Respon bukan JSON valid'}.`
+        });
+        return;
+      }
+
+      setTestResult({
+        status: 'success',
+        message: `Koneksi Baca Sheets "${sheetName}" & Endpoint Tulis GAS aktif sempurna! (${gasJson.message || 'HTTP 200 OK'}, Baris data terdeteksi: ${gasJson.actualDataRows ?? '-'}).`
+      });
     } catch (e: any) {
       setTestResult({
         status: 'error',
@@ -813,7 +862,7 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
                   className="min-h-[44px] lg:min-h-[34px] px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer"
                 >
                   <Terminal className="w-3.5 h-3.5" />
-                  <span>{isTesting ? 'Menguji...' : 'Uji Koneksi Sheets'}</span>
+                  <span>{isTesting ? 'Menguji...' : 'Uji Koneksi Sheets & GAS'}</span>
                 </button>
 
                 <button

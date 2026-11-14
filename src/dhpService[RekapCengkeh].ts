@@ -13,6 +13,7 @@ import {
   DEFAULT_EXEC_URL,
   parseCsvLine,
   isHtmlResponse,
+  isInternalApiUrl,
   markStaticHostingMode,
   resolveStaticSafeGasUrl,
   formatWibDateTime,
@@ -1706,10 +1707,10 @@ export async function pushDhpToMasterSheet(
 
     let resText = await res.text();
 
-    // Deteksi jika respon berupa HTML (proxy /api pada Cloudflare Static Assets merender index.html)
+    // Deteksi jika respon berupa HTML (hanya fallback ke DEFAULT_EXEC_URL jika berasal dari rute proxy internal /api/*)
     if (isHtmlResponse(res, resText)) {
       markStaticHostingMode();
-      if (targetUrl !== DEFAULT_EXEC_URL) {
+      if ((usedProxyBypass || isInternalApiUrl(execUrl)) && targetUrl !== DEFAULT_EXEC_URL) {
         console.warn('[Cloudflare Fallback] pushDhpToMasterSheet menerima respon text/html dari endpoint proxy. Melakukan direct fallback POST ke DEFAULT_EXEC_URL...');
         res = await fetch(DEFAULT_EXEC_URL, {
           method: 'POST',
@@ -1730,6 +1731,11 @@ export async function pushDhpToMasterSheet(
     }
 
     if (!res.ok) {
+      if (res.status === 404) {
+        throw new Error(
+          `HTTP 404 (Endpoint GAS Tidak Ditemukan / Tidak Aktif): URL Web App Google Apps Script (${targetUrl.slice(0, 60)}...) sudah tidak aktif atau belum di-deploy di Spreadsheet Master. Buka Pusat Integrasi GAS -> salin Kode.gs ke Ekstensi > Apps Script -> Deploy sebagai Web App (Siapa saja / Anyone) -> simpan URL /exec barunya.`
+        );
+      }
       throw new Error(`HTTP Error (${res.status} ${res.statusText}): Gagal menghubungi endpoint GAS.`);
     }
 
@@ -1969,17 +1975,18 @@ function handleDhpPost(e) {
     var targetRow = -1;
     if (actualLast >= 11) {
       var scanCount = actualLast - 10;
-      var existingData = targetSheet.getRange(11, 2, scanCount, 6).getValues();
+      var existingData = targetSheet.getRange(11, 2, scanCount, 10).getValues();
+      var existingDisplayB = targetSheet.getRange(11, 2, scanCount, 1).getDisplayValues();
       for (var i = 0; i < existingData.length; i++) {
-        var exTgl = String(existingData[i][0]).trim();
-        var exJenis = String(existingData[i][3]).trim();
-        var exGld = Number(existingData[i][5]) || 0;
+        var exTgl = String(existingDisplayB[i][0] || existingData[i][0] || "").trim();
+        var exGld = Number(existingData[i][5]) || 0;  // Col G (2+5=7)
+        var exRjK = Number(existingData[i][9]) || 0;  // Col K (2+9=11)
         
         var sameTgl = (exTgl && tglBaru && (exTgl.toLowerCase() === tglBaru.toLowerCase()));
-        var sameJenis = (exJenis.toLowerCase() === jenisBaru.toLowerCase());
         var sameGld = (gldKeringNum > 0 && exGld > 0 && Math.abs(exGld - gldKeringNum) < 0.5);
+        var sameRjK = (rjKeringNum > 0 && exRjK > 0 && Math.abs(exRjK - rjKeringNum) < 1.0);
         
-        if ((sameTgl && sameGld) || (sameGld && sameJenis) || sameTgl) {
+        if ((sameTgl && sameGld) || (sameTgl && sameRjK) || (sameGld && sameRjK)) {
           targetRow = i + 11;
           isDuplicate = true;
           break;
@@ -2079,7 +2086,7 @@ function handleDhpPost(e) {
  * Melewati hingga 823 baris formula template yang belum terisi data fisik.
  */
 function findActualLastRow_(sheet) {
-  var maxRows = Math.min(sheet.getLastRow(), 950);
+  var maxRows = Math.min(sheet.getLastRow(), 5000);
   if (maxRows < 11) return 10;
   
   var bValues = sheet.getRange(11, 2, maxRows - 10, 1).getValues();
@@ -2377,7 +2384,7 @@ function getSheetSafe_(ss, preferredName) {
 }
 
 function findActualLastRow_(sheet) {
-  var maxRows = Math.min(sheet.getLastRow(), 950);
+  var maxRows = Math.min(sheet.getLastRow(), 5000);
   if (maxRows < 11) return 10;
   var bValues = sheet.getRange(11, 2, maxRows - 10, 1).getValues();
   var lastFilled = 10;
@@ -2496,18 +2503,6 @@ function doPost(e) {
         })).setMimeType(ContentService.MimeType.JSON);
       }
       
-      var targetRow = Math.max(findActualLastRow_(targetSheet) + 1, 11);
-      
-      // Salin formula jika baris baru belum punya formula di Kolom I
-      var existingFormulaI = targetSheet.getRange(targetRow, 9).getFormula();
-      if (!existingFormulaI && targetRow > 11) {
-        targetSheet.getRange(targetRow - 1, 1, 1, 17).copyTo(
-          targetSheet.getRange(targetRow, 1, 1, 17),
-          SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
-          false
-        );
-      }
-      
       // Ambil data dari payload terstruktur atau array row
       var inputData = body.inputData || {};
       var row = body.row || [];
@@ -2519,8 +2514,49 @@ function doPost(e) {
       var rjB = Number(inputData.colH_rjBasah || row[7] || 0);
       var rjK = Number(inputData.colK_rjKering || row[10] || 0);
       var kaDry = String(inputData.colL_kaDry || row[11] || "").trim();
+      var jalurProses = String(inputData.colQ_jalurProses || row[16] || "Manual").trim();
+
+      var lastRow = findActualLastRow_(targetSheet);
+      var targetRow = -1;
+      var isDuplicateFound = false;
+      var scanStart = Math.max(11, lastRow - 30);
+      var scanCount = Math.max(1, lastRow - scanStart + 1);
+      if (lastRow >= 11) {
+        var existingRange = targetSheet.getRange(scanStart, 1, scanCount, 12).getValues();
+        var existingDisplayB = targetSheet.getRange(scanStart, 2, scanCount, 1).getDisplayValues();
+        for (var ex = 0; ex < existingRange.length; ex++) {
+          var exRowIdx = scanStart + ex;
+          var exTgl = String(existingDisplayB[ex][0] || existingRange[ex][1] || "").trim();
+          var exGld = Number(existingRange[ex][6] || 0);
+          var exRjK = Number(existingRange[ex][10] || 0);
+
+          var matchTgl = (tgl && exTgl && (tgl.toLowerCase() === exTgl.toLowerCase()));
+          var matchGld = (gld > 0 && exGld > 0 && Math.abs(gld - exGld) < 0.5);
+          var matchRjK = (rjK > 0 && exRjK > 0 && Math.abs(rjK - exRjK) < 1.0);
+
+          if ((matchTgl && matchGld) || (matchTgl && matchRjK) || (matchGld && matchRjK)) {
+            targetRow = exRowIdx;
+            isDuplicateFound = true;
+            break;
+          }
+        }
+      }
+
+      if (!isDuplicateFound) {
+        targetRow = Math.max(lastRow + 1, 11);
+      }
+
+      // Salin formula jika baris target belum punya formula di Kolom I
+      var existingFormulaI = targetSheet.getRange(targetRow, 9).getFormula();
+      if (!existingFormulaI && targetRow > 11) {
+        targetSheet.getRange(targetRow - 1, 1, 1, 17).copyTo(
+          targetSheet.getRange(targetRow, 1, 1, 17),
+          SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
+          false
+        );
+      }
       
-      // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L). Kolom C, D, I, J, M, N, O, P aman terjaga!
+      // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L, Q). Kolom C, D, I, J, M, N, O, P aman terjaga!
       if (tgl) targetSheet.getRange(targetRow, 2).setValue(tgl);
       if (jenis) targetSheet.getRange(targetRow, 5).setValue(jenis);
       if (kaGld) targetSheet.getRange(targetRow, 6).setValue(kaGld);
@@ -2528,7 +2564,6 @@ function doPost(e) {
       if (rjB > 0) targetSheet.getRange(targetRow, 8).setValue(rjB);
       if (rjK > 0) targetSheet.getRange(targetRow, 11).setValue(rjK);
       if (kaDry) targetSheet.getRange(targetRow, 12).setValue(kaDry);
-      var jalurProses = String(inputData.colQ_jalurProses || row[16] || "Manual").trim();
       targetSheet.getRange(targetRow, 17).setValue(jalurProses);
       
       SpreadsheetApp.flush(); // Commit fisik ke Google Sheets
@@ -2536,9 +2571,13 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({
         status: "success",
         action: action,
+        targetRow: targetRow,
         appendedRow: targetRow,
+        isUpdate: isDuplicateFound,
         partaiId: body.partaiId || "PARTAI",
-        message: "Sukses: Data " + (body.partaiId || "Partai") + " (" + tgl + ") berhasil dibukukan ke baris #" + targetRow + " Sheet Master. Kolom rumus (C, D, I, J, M, N, O, P) tetap utuh terlindungi."
+        message: isDuplicateFound
+          ? "Sukses (Anti-Duplikat): Data " + (body.partaiId || "Partai") + " sudah tercatat di baris #" + targetRow + ". Baris #" + targetRow + " berhasil DIPERBARUI (Tanggal Admoist: " + tgl + ") tanpa membuat baris duplikat ganda."
+          : "Sukses: Data " + (body.partaiId || "Partai") + " (" + tgl + ") berhasil dibukukan ke baris baru #" + targetRow + " Sheet Master. Kolom rumus (C, D, I, J, M, N, O, P) tetap utuh terlindungi."
       })).setMimeType(ContentService.MimeType.JSON);
     }
 

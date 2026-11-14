@@ -157,17 +157,21 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     }
   };
 
+  const lastAutoDispatchErrorKeyRef = React.useRef<string>('');
+
   const latestCtxRef = React.useRef({
     isAutoDispatch,
     isPushing,
     masterRows,
-    execUrl: gasConfig.execUrl
+    execUrl: gasConfig.execUrl,
+    spreadsheetId: gasConfig.spreadsheetId || DEFAULT_MASTER_SPREADSHEET_ID
   });
   latestCtxRef.current = {
     isAutoDispatch,
     isPushing,
     masterRows,
-    execUrl: gasConfig.execUrl
+    execUrl: gasConfig.execUrl,
+    spreadsheetId: gasConfig.spreadsheetId || DEFAULT_MASTER_SPREADSHEET_ID
   };
 
   // Selalu sync data live terbaru dari Google Sheets saat view dibuka/mount
@@ -240,10 +244,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             p.totalRjKering > 0 && 
             !p.physicsValidation?.quarantined
           ) {
+            const admoistFull = formatHariTanggalAdmoist(p.tanggalAdmoist, p.id);
             const candDates = [
-              p.tanggalRajang,
-              p.tanggalSelesai,
-              p.tanggalMulai,
+              admoistFull,
               p.tanggalAdmoist ? formatTanggalIndo(p.tanggalAdmoist) : null
             ].filter((d): d is string => Boolean(d && d !== '-' && d !== 'Belum Tercatat'));
 
@@ -254,13 +257,13 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 const dLower = d.trim().toLowerCase();
                 return rTgl.includes(dLower) || dLower.includes(rTgl);
               });
-              const rJenis = String(r.jenis || '').trim().toLowerCase();
-              const pJenis = String(p.jenis || '').trim().toLowerCase();
-              const sameJenis = Boolean(rJenis && pJenis && (rJenis.includes(pJenis) || pJenis.includes(rJenis)));
               const rBaku = Number(r.gldKering || 0);
               const pBaku = Number(p.gldKering || 0);
               const sameBaku = pBaku > 0 && Math.abs(rBaku - pBaku) < 0.8;
-              return (sameTanggal && sameJenis) || (sameTanggal && sameBaku);
+              const rHasil = Number(r.rjKering || 0);
+              const pHasil = Number(p.totalRjKering || 0);
+              const sameHasil = pHasil > 0 && Math.abs(rHasil - pHasil) < 1.5;
+              return (sameTanggal && sameBaku) || (sameTanggal && sameHasil) || (sameBaku && sameHasil);
             });
 
             // Cegah auto-dispatch ganda jika sudah ada log sukses di browser
@@ -270,10 +273,20 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               Math.abs(Number(l.gldKering || 0) - Number(p.gldKering || 0)) < 0.8
             );
 
-            if (!isAlreadyInMaster && !isAlreadyDispatchedInLogs) {
+            // Cegah spam log gagal berulang setiap 60 detik untuk endpoint & bobot yang sama persis
+            const attemptKey = `${ctx.execUrl}|${p.namaTab}|${p.gldKering}|${p.totalRjKering}`;
+            const alreadyFailedSameAttempt = lastAutoDispatchErrorKeyRef.current === attemptKey;
+
+            if (!isAlreadyInMaster && !isAlreadyDispatchedInLogs && !alreadyFailedSameAttempt) {
               setIsPushing(true);
               try {
-                await pushDhpToMasterSheet(p, 'Auto-Dispatch (Sistem)', ctx.execUrl);
+                await pushDhpToMasterSheet(
+                  p,
+                  'Auto-Dispatch (Sistem)',
+                  ctx.execUrl,
+                  ctx.spreadsheetId
+                );
+                lastAutoDispatchErrorKeyRef.current = '';
                 await onRefreshMaster();
                 setPushStatusMessage({
                   type: 'success',
@@ -282,6 +295,12 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 setSyncLogs(getDhpSyncLogs());
               } catch (pushErr: any) {
                 console.warn('Auto-dispatch error:', pushErr);
+                lastAutoDispatchErrorKeyRef.current = attemptKey;
+                setSyncLogs(getDhpSyncLogs());
+                setPushStatusMessage({
+                  type: 'error',
+                  text: `[AUTO-DISPATCH GAGAL — ${p.namaTab} (${admoistFull})] ${pushErr?.message || 'Gagal menghubungi endpoint Google Apps Script.'}`
+                });
               } finally {
                 setIsPushing(false);
               }
@@ -348,10 +367,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     const admoistFull = formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id);
     const candDates = [
       admoistFull,
-      activePartai.tanggalAdmoist ? formatTanggalIndo(activePartai.tanggalAdmoist) : null,
-      activePartai.tanggalRajang,
-      activePartai.tanggalSelesai,
-      activePartai.tanggalMulai
+      activePartai.tanggalAdmoist ? formatTanggalIndo(activePartai.tanggalAdmoist) : null
     ].filter((d): d is string => Boolean(d && d !== '-' && d !== 'Belum Tercatat'));
 
     return masterRows.find((r) => {
@@ -369,7 +385,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
       const aHasil = Number(activePartai.totalRjKering || 0);
       const sameHasil = aHasil > 0 && Math.abs(rHasil - aHasil) < 1.5;
 
-      return (sameTanggal && sameBaku) || (sameBaku && sameHasil) || sameTanggal;
+      return (sameTanggal && sameBaku) || (sameTanggal && sameHasil) || (sameBaku && sameHasil);
     });
   }, [activePartai, masterRows]);
 
@@ -532,6 +548,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
       await onRefreshMaster();
     } catch (err: any) {
       console.error('Push DHP gagal:', err);
+      setSyncLogs(getDhpSyncLogs());
       setPushStatusMessage({
         type: 'error',
         text: `Gagal mengirim ke Master: ${err.message || 'Periksa koneksi Google Apps Script'}`
@@ -680,28 +697,40 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
       {/* Push Status Alert Notification */}
       {pushStatusMessage && (
         <div
-          className={`p-4 rounded-xl border flex items-start justify-between gap-3 animate-in fade-in duration-150 ${
+          className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-150 ${
             pushStatusMessage.type === 'success'
               ? 'bg-emerald-950/70 border-emerald-500/80 text-emerald-200'
               : 'bg-rose-950/70 border-rose-500/80 text-rose-200'
           }`}
         >
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-start gap-2.5">
             {pushStatusMessage.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
             ) : (
-              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" />
+              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
             )}
             <div className="text-xs font-medium leading-relaxed">{pushStatusMessage.text}</div>
           </div>
-          <button
-            type="button"
-            onClick={() => setPushStatusMessage(null)}
-            className="min-h-[44px] min-w-[44px] lg:min-h-[28px] lg:min-w-[28px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/60 shrink-0 cursor-pointer"
-            aria-label="Tutup pemberitahuan"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+            {pushStatusMessage.type === 'error' && onOpenGasCenter && (
+              <button
+                type="button"
+                onClick={() => onOpenGasCenter('endpoint')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-lg bg-rose-900/70 hover:bg-rose-800 text-rose-100 text-[11px] font-bold border border-rose-500/50 transition-colors cursor-pointer"
+              >
+                <Settings2 className="w-3.5 h-3.5" />
+                <span>Perbaiki Endpoint GAS</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setPushStatusMessage(null)}
+              className="min-h-[44px] min-w-[44px] lg:min-h-[28px] lg:min-w-[28px] inline-flex items-center justify-center text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800/60 shrink-0 cursor-pointer"
+              aria-label="Tutup pemberitahuan"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
@@ -1788,7 +1817,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         ) : (
           <div className="space-y-3">
             <div className="overflow-x-auto border border-slate-800 rounded-xl">
-              <table className="w-full text-left text-xs min-w-[760px]">
+              <table className="w-full text-left text-xs min-w-[920px]">
                 <thead className="bg-slate-800 text-slate-400 font-semibold uppercase text-[10px] tracking-wider">
                   <tr>
                     <th className="px-3 py-2.5">Waktu Kirim</th>
@@ -1800,23 +1829,24 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <th className="px-3 py-2.5 text-right">Susut Total</th>
                     <th className="px-3 py-2.5">Operator</th>
                     <th className="px-3 py-2.5 text-center">Status</th>
+                    <th className="px-3 py-2.5">Keterangan / Diagnosa Server</th>
                     <th className="px-2 py-2.5 text-center w-12">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800 text-slate-300">
                   {pagedSyncLogs.map((log) => (
-                    <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
-                      <td className="px-3 py-2 font-mono text-[11px] text-slate-400">{log.waktuKirim}</td>
-                      <td className="px-3 py-2 font-bold text-white">{log.partai}</td>
-                      <td className="px-3 py-2 text-slate-300">{log.noLaporan}</td>
-                      <td className="px-3 py-2">{log.tanggalProses}</td>
-                      <td className="px-3 py-2 text-amber-300 font-medium">{log.jenis}</td>
-                      <td className="px-3 py-2 text-right font-mono">{formatKg(log.gldKering)}</td>
-                      <td className="px-3 py-2 text-right font-mono text-rose-300 font-bold">
+                    <tr key={log.id} className="hover:bg-slate-800/40 transition-colors align-top">
+                      <td className="px-3 py-2.5 font-mono text-[11px] text-slate-400 whitespace-nowrap">{log.waktuKirim}</td>
+                      <td className="px-3 py-2.5 font-bold text-white whitespace-nowrap">{log.partai}</td>
+                      <td className="px-3 py-2.5 text-slate-300 whitespace-nowrap">{log.noLaporan}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">{log.tanggalProses}</td>
+                      <td className="px-3 py-2.5 text-amber-300 font-medium whitespace-nowrap">{log.jenis}</td>
+                      <td className="px-3 py-2.5 text-right font-mono whitespace-nowrap">{formatKg(log.gldKering)}</td>
+                      <td className="px-3 py-2.5 text-right font-mono text-rose-300 font-bold whitespace-nowrap">
                         {formatKg(log.totalSusutKg)} ({formatPct(log.totalSusutPct)})
                       </td>
-                      <td className="px-3 py-2 text-slate-400 text-[11px]">{log.pengirim}</td>
-                      <td className="px-3 py-2 text-center">
+                      <td className="px-3 py-2.5 text-slate-400 text-[11px] whitespace-nowrap">{log.pengirim}</td>
+                      <td className="px-3 py-2.5 text-center whitespace-nowrap">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           log.status === 'sukses'
                             ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
@@ -1824,6 +1854,11 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                         }`}>
                           {log.status === 'sukses' ? 'Sukses' : 'Gagal'}
                         </span>
+                      </td>
+                      <td className={`px-3 py-2.5 text-[11px] max-w-[280px] leading-snug ${
+                        log.status === 'sukses' ? 'text-slate-400' : 'text-rose-300/90'
+                      }`}>
+                        {log.pesan || (log.status === 'gagal' ? 'Gagal menghubungi endpoint Google Apps Script' : 'Berhasil dibukukan')}
                       </td>
                       <td className="px-2 py-1.5 text-center">
                         <button

@@ -1121,19 +1121,25 @@ export async function fetchFromGasRest(execUrl: string): Promise<RawRowCengkeh[]
   // Deteksi apakah response mengembalikan dokumen HTML (SPA fallback text/html atau body diawali '<')
   if (isHtmlResponse(res, resText)) {
     markStaticHostingMode();
-    if (targetUrl !== DEFAULT_EXEC_URL) {
-      console.warn('[Cloudflare Fallback] Endpoint merespons text/html (static SPA fallback). Melakukan direct fetch ke DEFAULT_EXEC_URL...');
+    if ((usedProxyBypass || isInternalApiUrl(execUrl)) && targetUrl !== DEFAULT_EXEC_URL) {
+      console.warn('[Cloudflare Fallback] Endpoint proxy merespons text/html. Melakukan direct fetch ke DEFAULT_EXEC_URL...');
       const directUrl = `${DEFAULT_EXEC_URL}${DEFAULT_EXEC_URL.includes('?') ? '&' : '?'}action=getData&t=${Date.now()}`;
       res = await fetch(directUrl, { mode: 'cors' });
       resText = await res.text();
     }
 
     if (isHtmlResponse(res, resText)) {
+      if (res.status === 404) {
+        throw new Error('Endpoint GAS Web App tidak ditemukan (HTTP 404). URL deployment sudah tidak aktif — silakan deploy ulang Kode.gs di Ekstensi > Apps Script dan perbarui URL /exec di Pengaturan GAS.');
+      }
       throw new Error('Endpoint GAS mengembalikan halaman HTML. Pastikan deployment Web App disetel hak akses: "Siapa saja (Anyone)".');
     }
   }
 
   if (!res.ok) {
+    if (res.status === 404) {
+      throw new Error('Endpoint GAS Web App tidak ditemukan (HTTP 404). Silakan deploy ulang Kode.gs dan perbarui URL /exec.');
+    }
     throw new Error(`GAS REST endpoint error: ${res.status} ${res.statusText}`);
   }
 
@@ -1222,8 +1228,8 @@ export async function testGasPayload(
   // Jika mengembalikan HTML (proxy /api pada Cloudflare Static Assets mengembalikan index.html)
   if (isHtmlResponse(res, rawText)) {
     markStaticHostingMode();
-    if (!targetUrl.startsWith(DEFAULT_EXEC_URL)) {
-      console.warn('[Cloudflare Fallback] Pengujian mengembalikan text/html. Mencoba direct fetch ke DEFAULT_EXEC_URL...');
+    if ((usedProxyBypass || isInternalApiUrl(execUrl)) && !targetUrl.startsWith(DEFAULT_EXEC_URL)) {
+      console.warn('[Cloudflare Fallback] Pengujian endpoint proxy mengembalikan text/html. Mencoba direct fetch ke DEFAULT_EXEC_URL...');
       let directUrl = DEFAULT_EXEC_URL;
       if (method === 'GET') {
         directUrl += (directUrl.includes('?') ? '&' : '?') + `action=getData&t=${Date.now()}`;

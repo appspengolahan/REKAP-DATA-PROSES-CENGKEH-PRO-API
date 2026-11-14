@@ -227,9 +227,9 @@ export const IndexRekapCengkeh: React.FC = () => {
     cachedDhp.forEach((p, idx) => {
       if (p.status !== 'kosong') {
         const tglRendam = formatHariTanggalAdmoist(p.tanggalAdmoist, p.id);
-        const cleanTgl = (tglRendam && tglRendam !== 'Belum Tercatat') ? cleanDate(tglRendam) : '2026-11-09';
-        let tahun = '2026';
-        let bulan = 'November';
+        const cleanTgl = (tglRendam && tglRendam !== 'Belum Tercatat') ? cleanDate(tglRendam) : 'Belum Tercatat';
+        let tahun = '';
+        let bulan = '';
         if (cleanTgl !== 'Belum Tercatat') {
           const parts = cleanTgl.split('-');
           if (parts.length === 3) {
@@ -261,7 +261,7 @@ export const IndexRekapCengkeh: React.FC = () => {
           totalSusutPct: p.totalSusutPct,
           sumber: 'DHP',
           dhpPartaiId: p.namaTab,
-          jalurSilo: p.jalurSilo || (p.namaTab === 'PARTAI 3' ? 'Silo' : 'Manual'),
+          jalurSilo: p.jalurSilo || 'Manual',
           verified: p.status === 'selesai'
         });
       }
