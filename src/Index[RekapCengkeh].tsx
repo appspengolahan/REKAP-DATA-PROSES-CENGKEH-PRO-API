@@ -1643,6 +1643,7 @@ export const IndexRekapCengkeh: React.FC = () => {
         isSyncing={isSyncing}
         onToggleAutoSync={handleToggleAutoSync}
         initialTab={gasCenterInitialTab}
+        userRole={userRole}
       />
 
       <PwaInstallModalRekapCengkeh

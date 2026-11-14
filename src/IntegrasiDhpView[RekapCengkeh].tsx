@@ -14,8 +14,6 @@ import {
   Clock, 
   Settings2, 
   FileCode, 
-  Copy, 
-  Check, 
   ExternalLink, 
   Layers, 
   Gauge, 
@@ -66,7 +64,7 @@ import {
   formatHariTanggalAdmoist,
   getLastDhpFetchReport
 } from './dhpService[RekapCengkeh]';
-import { formatKg, formatPct, formatInt, formatDec1, round1, round2, exportToPdf, formatTanggalIndo, isHtmlResponse } from './Code[RekapCengkeh]';
+import { formatKg, formatPct, formatInt, round1, round2, exportToPdf, formatTanggalIndo } from './Code[RekapCengkeh]';
 
 interface IntegrasiDhpViewProps {
   userRole: UserRole;
@@ -123,7 +121,6 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   const [isConfigModalOpen, setIsConfigModalOpen] = useState<boolean>(false);
   const [isConfirmPushOpen, setIsConfirmPushOpen] = useState<boolean>(false);
   const [tempDhpId, setTempDhpId] = useState<string>(getDhpSpreadsheetId());
-  const [isCopiedRowPaste, setIsCopiedRowPaste] = useState<boolean>(false);
 
   // Dynamic Dropdown Opsi & Alat DHP
   const [isActionsMenuOpen, setIsActionsMenuOpen] = useState<boolean>(false);
@@ -410,7 +407,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         const jalur: 'SKT' | 'SKM' = isSkm ? 'SKM' : 'SKT';
 
         // Jalur Silo vs Manual (Cell O8:P8)
-        const jalurSilo: 'Silo' | 'Manual' = p.jalurSilo || (p.namaTab === 'PARTAI 3' ? 'Silo' : 'Manual');
+        const jalurSilo: 'Silo' | 'Manual' = p.jalurSilo || 'Manual';
 
         // Auto-diagnosa 2 tahap ilmiah dengan konteks Silo vs Manual
         let faktorDominan = 'Terkendali Sesuai Acuan';
@@ -453,8 +450,8 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
   // Ringkasan Komparasi Pola: Melewati Silo vs Tanpa Silo (Manual)
   const siloComparisonSummary = useMemo(() => {
     const activeBatches = partaiList.filter((p) => p.status !== 'kosong' && p.gldKering > 0);
-    const siloBatches = activeBatches.filter((p) => (p.jalurSilo || (p.namaTab === 'PARTAI 3' ? 'Silo' : 'Manual')) === 'Silo');
-    const manualBatches = activeBatches.filter((p) => (p.jalurSilo || (p.namaTab === 'PARTAI 3' ? 'Silo' : 'Manual')) !== 'Silo');
+    const siloBatches = activeBatches.filter((p) => (p.jalurSilo || 'Manual') === 'Silo');
+    const manualBatches = activeBatches.filter((p) => (p.jalurSilo || 'Manual') !== 'Silo');
 
     const calcGroup = (list: typeof activeBatches) => {
       const count = list.length;
@@ -522,30 +519,6 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
         gasConfig.spreadsheetId || DEFAULT_MASTER_SPREADSHEET_ID
       );
 
-      // Verifikasi langsung ke Google Sheets (GViz) apakah baris benar-benar terisi secara fisik
-      const verifyUrl = `https://docs.google.com/spreadsheets/d/${gasConfig.spreadsheetId || DEFAULT_MASTER_SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(DEFAULT_MASTER_SHEET_NAME)}&range=${encodeURIComponent('A247:Q247')}&t=${Date.now()}`;
-      try {
-        const verifyRes = await fetch(verifyUrl);
-        if (verifyRes.ok) {
-          const verifyCsv = await verifyRes.text();
-          if (!isHtmlResponse(verifyRes, verifyCsv)) {
-            // Jika baris 247 masih kosong di Google Sheets asli
-            const cols = verifyCsv.split(',');
-            if (cols[1] && (cols[1] === '""' || cols[1].trim() === '')) {
-            setPushStatusMessage({
-              type: 'error',
-              text: `⚠️ PERHATIAN: Endpoint server merespons sukses, tetapi baris fisik #247 di Google Sheet Rekap masih kosong. Ini membuktikan script Apps Script Anda saat ini belum dideploy di dalam Spreadsheet Rekap (belum memiliki izin tulis). Silakan ikuti 'Panduan Update GAS' di bawah atau gunakan tombol 'Salin Baris #247' untuk input langsung.`
-            });
-            setIsConfirmPushOpen(false);
-              setSyncLogs(getDhpSyncLogs());
-              return;
-            }
-          }
-        }
-      } catch (verifyErr) {
-        // Fallback jika network gviz lambat
-      }
-
       setPushStatusMessage({
         type: 'success',
         text: result.message
@@ -567,34 +540,6 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
     } finally {
       setIsPushing(false);
     }
-  };
-
-  const handleCopyRowForPaste = () => {
-    if (!activePartai) return;
-    let tgl = formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id);
-    if (activePartai.id === 'PARTAI 3' && (tgl.includes('12 November') || !tgl.includes('11 November'))) {
-      tgl = 'Rabu, 11 November 2026';
-    } else if (activePartai.id === 'PARTAI 2' && (tgl.includes('11 November') || !tgl.includes('10 November'))) {
-      tgl = 'Selasa, 10 November 2026';
-    } else if (activePartai.id === 'PARTAI 1' && (tgl.includes('10 November') || !tgl.includes('09 November'))) {
-      tgl = 'Senin, 09 November 2026';
-    } else if (activePartai.id === 'PARTAI 4' && (tgl.includes('13 November') || !tgl.includes('12 November'))) {
-      tgl = 'Kamis, 12 November 2026';
-    }
-
-    const kaGld = activePartai.kaGld ? `${activePartai.kaGld.toFixed(2).replace('.', ',')} Mc` : '';
-    const gld = activePartai.gldKering ? formatDec1(activePartai.gldKering) : '';
-    const rjB = activePartai.totalRjBasah ? formatDec1(activePartai.totalRjBasah) : '';
-    const rjK = activePartai.totalRjKering ? formatDec1(activePartai.totalRjKering) : '';
-    const kaDry = activePartai.kaDryRata ? `${activePartai.kaDryRata.toFixed(2).replace('.', ',')} Mc` : '';
-    
-    const jalur = activePartai.jalurSilo || (activePartai.id === 'PARTAI 3' ? 'Silo' : 'Manual');
-    // Tab-delimited TSV untuk di-paste langsung dari Cell B247 ke Kolom B s/d Q
-    // Format: Tanggal(B) \t \t \t Jenis(E) \t KaGld(F) \t Gld(G) \t RjB(H) \t \t \t RjK(K) \t KaDry(L) \t \t \t \t JalurProses(Q)
-    const tsv = `${tgl}\t\t\t${activePartai.jenis}\t${kaGld}\t${gld}\t${rjB}\t\t\t${rjK}\t${kaDry}\t\t\t\t${jalur}`;
-    navigator.clipboard.writeText(tsv);
-    setIsCopiedRowPaste(true);
-    setTimeout(() => setIsCopiedRowPaste(false), 3000);
   };
 
 
@@ -932,7 +877,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   </div>
                   <div className="flex items-center justify-between text-[10px] text-slate-400">
                     <span>Jalur (O8:P8):</span>
-                    {p?.jalurSilo === 'Silo' || p?.namaTab === 'PARTAI 3' ? (
+                    {p?.jalurSilo === 'Silo' ? (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-950/90 text-emerald-300 border border-emerald-700/80">
                         <span>🌿</span>
                         <span>Silo</span>
@@ -1118,7 +1063,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10.5px] text-slate-400">Parameter Kertas Kerja (Cell O8:P8):</span>
-                  {activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3' ? (
+                  {activePartai.jalurSilo === 'Silo' ? (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-bold bg-emerald-950 text-emerald-300 border border-emerald-700/80 shadow-2xs">
                       <span>🌿</span>
                       <span>Silo (Kondisioning Serat Aktif)</span>
@@ -1145,24 +1090,24 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
                 {/* Node 2: Silo vs Manual */}
                 <div className={`p-2.5 rounded-lg border flex items-center gap-2.5 transition-all ${
-                  activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3'
+                  activePartai.jalurSilo === 'Silo'
                     ? 'bg-emerald-950/80 border-emerald-500/80 shadow-sm shadow-emerald-950/40 ring-1 ring-emerald-500/50'
                     : 'bg-amber-950/80 border-amber-500/80 shadow-sm shadow-amber-950/40 ring-1 ring-amber-500/50'
                 }`}>
                   <div className={`w-6 h-6 rounded-full font-bold flex items-center justify-center text-[11px] shrink-0 border ${
-                    activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3'
+                    activePartai.jalurSilo === 'Silo'
                       ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/40'
                       : 'bg-amber-600/30 text-amber-300 border-amber-500/40'
                   }`}>2</div>
                   <div className="min-w-0">
                     <div className={`font-bold text-[11px] flex items-center gap-1 ${
-                      activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3' ? 'text-emerald-200' : 'text-amber-200'
+                      activePartai.jalurSilo === 'Silo' ? 'text-emerald-200' : 'text-amber-200'
                     }`}>
-                      <span>{activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3' ? '🌿 Mesin Silo' : '⚡ Jalur Manual'}</span>
+                      <span>{activePartai.jalurSilo === 'Silo' ? '🌿 Mesin Silo' : '⚡ Jalur Manual'}</span>
                       <span className="text-[9.5px] px-1 py-0.2 rounded bg-slate-800 text-slate-300 font-normal">Cell O8:P8</span>
                     </div>
                     <div className="text-[10px] text-slate-400 truncate">
-                      {activePartai.jalurSilo === 'Silo' || activePartai.id === 'PARTAI 3' ? 'Resting & Serapan Merata' : 'Langsung Tanpa Silo'}
+                      {activePartai.jalurSilo === 'Silo' ? 'Resting & Serapan Merata' : 'Langsung Tanpa Silo'}
                     </div>
                   </div>
                 </div>
@@ -1197,7 +1142,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <div className="text-sm font-bold text-white font-mono">
                   {activePartai.qc.uapBar !== null && activePartai.qc.uapBar > 0 
                     ? `${activePartai.qc.uapBar.toFixed(2).replace('.', ',')} Bar` 
-                    : (activePartai.gldKering > 0 ? '4,00 Bar' : '-')}
+                    : '-'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">Standard: 4.0 - 5.0 Bar</div>
               </div>
@@ -1211,7 +1156,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <div className="text-sm font-bold text-white font-mono">
                   {activePartai.qc.admoistRpm !== null && activePartai.qc.admoistRpm > 0 
                     ? `${activePartai.qc.admoistRpm.toFixed(2).replace('.', ',')} Rpm` 
-                    : (activePartai.gldKering > 0 ? (activePartai.namaTab === 'PARTAI 2' ? '40,00 Rpm' : '38,08 Rpm') : '-')}
+                    : '-'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">Standard: 35.0 - 40.0 Rpm</div>
               </div>
@@ -1225,7 +1170,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <div className="text-sm font-bold text-white font-mono">
                   {activePartai.qc.airLpm !== null && activePartai.qc.airLpm > 0 
                     ? `${activePartai.qc.airLpm.toFixed(1).replace('.', ',')} Lpm` 
-                    : (activePartai.gldKering > 0 ? (activePartai.namaTab === 'PARTAI 2' ? '5,1 Lpm' : '6,4 Lpm') : '-')}
+                    : '-'}
                 </div>
                 <div className="text-[10px] text-slate-400 mt-0.5">Liter per Menit</div>
               </div>
@@ -1374,7 +1319,11 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <div className="p-3 rounded-xl bg-slate-800/60 border border-amber-500/30">
                       <div className="text-[11px] text-amber-300 mb-0.5">KA Pra-Rendam</div>
                       <div className="text-base font-bold text-amber-300 font-mono">
-                        {activePartai.qc.kaPraRendam ? `${activePartai.qc.kaPraRendam.toFixed(2).replace('.', ',')} %Mc` : '19,33 %Mc'}
+                        {activePartai.qc.kaPraRendam
+                          ? `${activePartai.qc.kaPraRendam.toFixed(2).replace('.', ',')} %Mc`
+                          : activePartai.kaGld
+                            ? `${activePartai.kaGld.toFixed(2).replace('.', ',')} %Mc`
+                            : '-'}
                       </div>
                       <div className="text-[10px] text-slate-500 mt-0.5">Kadar Air Bahan</div>
                     </div>
@@ -1755,98 +1704,40 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </div>
             )}
 
-            {/* Action Bar Push & Diagnostic Helper */}
-            <div className="space-y-3 pt-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="text-xs text-slate-400">
-                  Target Sheet: <strong className="text-slate-200">{DEFAULT_MASTER_SHEET_NAME}</strong> pada Spreadsheet Master ({DEFAULT_MASTER_SPREADSHEET_ID.substring(0, 10)}...)
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2">
-                  {/* Tombol Salin Cepat Format Baris #247 Siap Paste */}
-                  <button
-                    type="button"
-                    onClick={handleCopyRowForPaste}
-                    className="min-h-[44px] lg:min-h-[38px] inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-amber-500/40 text-xs font-bold transition-all shadow-sm cursor-pointer"
-                    title="Salin data 1 baris partai ini dalam format Tab-Separated. Anda bisa langsung klik Cell B247 di Google Sheets lalu tekan Ctrl+V untuk input instan!"
-                  >
-                    {isCopiedRowPaste ? (
-                      <>
-                        <Check className="w-4 h-4 text-emerald-400" />
-                        <span className="text-emerald-300">Tersalin! Paste di Cell B247</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 text-amber-400" />
-                        <span>Salin Baris #247 (Siap Paste)</span>
-                      </>
-                    )}
-                  </button>
-
-                  {/* Tombol Buka Modal Kode GAS */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (onOpenGasCenter) {
-                        onOpenGasCenter('script');
-                      }
-                    }}
-                    className="min-h-[44px] lg:min-h-[38px] inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 hover:text-cyan-200 border border-cyan-500/40 text-xs font-semibold transition-all cursor-pointer"
-                    title="Buka kode skrip resmi Kode.gs dan panduan deployment"
-                  >
-                    <FileCode className="w-4 h-4 text-cyan-400" />
-                    <span>Panduan &amp; Kode GAS</span>
-                  </button>
-
-                  {/* Tombol Kirim Otomatis via GAS */}
-                  <button
-                    onClick={() => setIsConfirmPushOpen(true)}
-                    disabled={
-                      isPushing || 
-                      activePartai.status === 'kosong' || 
-                      activePartai.physicsValidation?.quarantined ||
-                      activePartai.status === 'berjalan'
-                    }
-                    className={`min-h-[44px] lg:min-h-[38px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 text-xs font-bold transition-all shadow-md cursor-pointer ${
-                      isPushing || activePartai.status === 'kosong' || activePartai.physicsValidation?.quarantined || activePartai.status === 'berjalan' 
-                        ? 'opacity-50 cursor-not-allowed' 
-                        : ''
-                    }`}
-                    title={
-                      activePartai.physicsValidation?.quarantined
-                        ? 'Dilarang: Data ditahan karantina fisika'
-                        : activePartai.status === 'berjalan'
-                        ? 'Partai masih berjalan (Multi-day). Menunggu status Susut Akhir dari operator.'
-                        : 'Kirim 1 Baris Resmi Partai Ini ke Google Sheets Master Rekap via API'
-                    }
-                  >
-                    <Send className="w-4 h-4 text-slate-950" />
-                    <span>
-                      {isPushing ? 'Mengirim...' : 'Kirim & Simpan ke Rekap Master'}
-                    </span>
-                  </button>
-                </div>
+            {/* Action Bar Push ke Sheet Master */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+              <div className="text-xs text-slate-400">
+                Target Sheet: <strong className="text-slate-200">{DEFAULT_MASTER_SHEET_NAME}</strong> pada Spreadsheet Master ({DEFAULT_MASTER_SPREADSHEET_ID.substring(0, 10)}...)
               </div>
 
-              {/* Diagnostic Box: Penjelasan Struktur & Solusi */}
-              <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-700 text-slate-300 text-xs space-y-2">
-                <div className="flex items-center justify-between text-amber-300 font-bold">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="w-4 h-4 text-amber-400" />
-                    <span>Diagnostik Pengiriman Data ke Sheet Rekap (Row #247)</span>
-                  </div>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-semibold">
-                    Analisis Sistem
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Tombol Kirim Otomatis via GAS */}
+                <button
+                  onClick={() => setIsConfirmPushOpen(true)}
+                  disabled={
+                    isPushing || 
+                    activePartai.status === 'kosong' || 
+                    activePartai.physicsValidation?.quarantined ||
+                    activePartai.status === 'berjalan'
+                  }
+                  className={`min-h-[44px] lg:min-h-[38px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 text-xs font-bold transition-all shadow-md cursor-pointer ${
+                    isPushing || activePartai.status === 'kosong' || activePartai.physicsValidation?.quarantined || activePartai.status === 'berjalan' 
+                      ? 'opacity-50 cursor-not-allowed' 
+                      : ''
+                  }`}
+                  title={
+                    activePartai.physicsValidation?.quarantined
+                      ? 'Dilarang: Data ditahan karantina fisika'
+                      : activePartai.status === 'berjalan'
+                      ? 'Partai masih berjalan (Multi-day). Menunggu status Susut Akhir dari operator.'
+                      : 'Kirim 1 Baris Resmi Partai Ini ke Google Sheets Master Rekap via API'
+                  }
+                >
+                  <Send className="w-4 h-4 text-slate-950" />
+                  <span>
+                    {isPushing ? 'Mengirim...' : 'Kirim & Simpan ke Rekap Master'}
                   </span>
-                </div>
-                <div className="text-[11px] leading-relaxed text-slate-300 space-y-1">
-                  <p>
-                    <strong>1. Apakah perlu update GAS?</strong> <span className="text-emerald-400 font-semibold">YA, MUTLAK PERLU.</span> URL Web App saat ini adalah script draf eksternal yang belum dideploy di dalam Google Sheet Rekap Anda (<code className="text-cyan-300">1bYUgDYlb3...</code>). Karena sheet <strong className="text-white">DATA PROSES CKH</strong> berstatus proteksi gembok (<span className="text-amber-300 font-mono">🔒</span>), hanya script yang dipasang langsung via menu <strong>Ekstensi &gt; Apps Script</strong> dengan akses <em>&quot;Siapa saja (Anyone)&quot;</em> yang memiliki wewenang menulis baris baru.
-                  </p>
-                  <p>
-                    <strong>2. Solusi Instan Hari Ini:</strong> Anda dapat mengklik tombol <span className="text-amber-300 font-semibold">&ldquo;Salin Baris #247 (Siap Paste)&rdquo;</span> di atas, lalu buka Google Sheet Rekap, klik <strong>Cell B247</strong>, dan tekan <kbd className="px-1.5 py-0.5 rounded bg-slate-800 text-white font-mono text-[10px] border border-slate-600">Ctrl+V</kbd>. Seluruh kolom mentah (B, E, F, G, H, K, L) akan langsung terisi rapi tanpa menimpa formula C, D, I, J, M, N, O, P.
-                  </p>
-                </div>
+                </button>
               </div>
             </div>
           </div>
@@ -1867,44 +1758,25 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {syncLogs.length > 0 && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const cleaned = getDhpSyncLogs();
-                    setSyncLogs(cleaned);
+            {syncLogs.length > 0 && userRole === 'Admin' && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm('Hapus seluruh riwayat pengiriman lokal dari browser ini? Data di Google Sheets Master tidak akan terhapus.')) {
+                    clearDhpSyncLogs();
+                    setSyncLogs([]);
                     setPushStatusMessage({
                       type: 'success',
-                      text: `Audit Trail diperiksa: ${cleaned.length} transaksi unik tersimpan. Seluruh duplikasi telah dibersihkan.`
+                      text: 'Riwayat pengiriman lokal berhasil dikosongkan.'
                     });
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[11px] font-semibold border border-slate-700 transition-colors cursor-pointer"
-                  title="Hapus baris kembar dan simpan hanya transaksi unik"
-                >
-                  <RefreshCw className="w-3 h-3 text-cyan-400" />
-                  <span>Bersihkan Duplikat</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (window.confirm('Hapus seluruh riwayat pengiriman lokal dari browser ini? Data di Google Sheets Master tidak akan terhapus.')) {
-                      clearDhpSyncLogs();
-                      setSyncLogs([]);
-                      setPushStatusMessage({
-                        type: 'success',
-                        text: 'Riwayat pengiriman lokal berhasil dikosongkan.'
-                      });
-                    }
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-lg bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 text-[11px] font-semibold border border-rose-800/60 transition-colors cursor-pointer"
-                  title="Kosongkan seluruh riwayat log pengiriman lokal"
-                >
-                  <Trash2 className="w-3 h-3 text-rose-400" />
-                  <span>Reset Log</span>
-                </button>
-              </>
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] lg:min-h-[32px] rounded-lg bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 text-[11px] font-semibold border border-rose-800/60 transition-colors cursor-pointer"
+                title="Kosongkan seluruh riwayat log pengiriman lokal (Khusus Admin)"
+              >
+                <Trash2 className="w-3 h-3 text-rose-400" />
+                <span>Reset Log</span>
+              </button>
             )}
           </div>
         </div>
@@ -2543,7 +2415,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <div className="p-3 rounded-xl bg-amber-950/80 border border-amber-600/80 text-amber-300 text-[11px] leading-relaxed flex items-start gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Anti-Duplikasi Aktif:</strong> Partai ini terdeteksi sudah tercatat di Master Sheet (Baris #{duplicateInMaster.srcRow || '248'}). Mengirim ulang akan <strong>memperbarui baris tersebut</strong> (menyinkronkan Tanggal Admoist ke: {formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id)}) tanpa membuat baris ganda.
+                    <strong>Anti-Duplikasi Aktif:</strong> Partai ini terdeteksi sudah tercatat di Master Sheet ({duplicateInMaster.srcRow ? `Baris #${duplicateInMaster.srcRow}` : 'Sheet Master'}). Mengirim ulang akan <strong>memperbarui baris tersebut</strong> (menyinkronkan Tanggal Admoist ke: {formatHariTanggalAdmoist(activePartai.tanggalAdmoist, activePartai.id)}) tanpa membuat baris ganda.
                   </span>
                 </div>
               )}

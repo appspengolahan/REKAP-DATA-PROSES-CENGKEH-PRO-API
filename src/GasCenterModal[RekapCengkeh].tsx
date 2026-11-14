@@ -21,7 +21,7 @@ import {
   FileCode,
   Zap
 } from 'lucide-react';
-import { GasConfig } from './types[RekapCengkeh]';
+import { GasConfig, UserRole } from './types[RekapCengkeh]';
 import { saveGasConfig, DEFAULT_EXEC_URL, DEFAULT_SPREADSHEET_ID, DEFAULT_SHEET_NAME, testGasPayload, isHtmlResponse } from './Code[RekapCengkeh]';
 
 const GAS_TEMPLATE_CODE = String.raw`/**
@@ -172,22 +172,13 @@ function doPost(e) {
       var row = body.row || [];
       
       var tgl = String(inputData.colB_tanggal || row[1] || "").trim();
-      if (body.partaiId === "PARTAI 3" && (tgl.indexOf("12 November") > -1 || !tgl)) {
-        tgl = "Rabu, 11 November 2026";
-      } else if (body.partaiId === "PARTAI 2" && (tgl.indexOf("11 November") > -1 || !tgl)) {
-        tgl = "Selasa, 10 November 2026";
-      } else if (body.partaiId === "PARTAI 1" && (tgl.indexOf("10 November") > -1 || !tgl)) {
-        tgl = "Senin, 09 November 2026";
-      } else if (body.partaiId === "PARTAI 4" && (tgl.indexOf("13 November") > -1 || !tgl)) {
-        tgl = "Kamis, 12 November 2026";
-      }
       var jenis = String(inputData.colE_jenis || row[4] || "").trim();
       var kaGld = String(inputData.colF_kaGld || row[5] || "").trim();
       var gld = Number(inputData.colG_gldKering || row[6] || 0);
       var rjB = Number(inputData.colH_rjBasah || row[7] || 0);
       var rjK = Number(inputData.colK_rjKering || row[10] || 0);
       var kaDry = String(inputData.colL_kaDry || row[11] || "").trim();
-      var jalurProses = String(inputData.colQ_jalurProses || row[16] || (body.partaiId === "PARTAI 3" ? "Silo" : "Manual")).trim();
+      var jalurProses = String(inputData.colQ_jalurProses || row[16] || "Manual").trim();
       
       // =======================================================
       // ANTI-DUPLIKASI (IDEMPOTENT WRITE PROTECTION):
@@ -393,12 +384,8 @@ function autoSyncAllPartaiToServer() {
       
       if (gldKering <= 0 || rjKering <= 0) continue;
       
-      // Tanggal Proses Admoist Resmi untuk Kolom B DATA PROSES CKH:
-      var tglAdmoistPartai = "Senin, 09 November 2026";
-      if (tabName === "PARTAI 1") tglAdmoistPartai = "Senin, 09 November 2026";
-      else if (tabName === "PARTAI 2") tglAdmoistPartai = "Selasa, 10 November 2026";
-      else if (tabName === "PARTAI 3") tglAdmoistPartai = "Rabu, 11 November 2026";
-      else if (tabName === "PARTAI 4") tglAdmoistPartai = "Kamis, 12 November 2026";
+      // Tanggal Proses Admoist Resmi untuk Kolom B DATA PROSES CKH (Cell R11)
+      var tglAdmoistPartai = tglMulai || "-";
       
       try {
         var cellR11 = sheet.getRange("R11");
@@ -430,22 +417,11 @@ function autoSyncAllPartaiToServer() {
         }
       } catch(e) {}
       
-      // Strict Protection Guard: Kolom B adalah TANGGAL PROSES ADMOIST (Cell R11), BUKAN tanggal rajang atau dryer!
-      if (tabName === "PARTAI 3" && (tglAdmoistPartai.indexOf("12 November") > -1 || !tglAdmoistPartai)) {
-        tglAdmoistPartai = "Rabu, 11 November 2026";
-      } else if (tabName === "PARTAI 2" && (tglAdmoistPartai.indexOf("11 November") > -1 || !tglAdmoistPartai)) {
-        tglAdmoistPartai = "Selasa, 10 November 2026";
-      } else if (tabName === "PARTAI 1" && (tglAdmoistPartai.indexOf("10 November") > -1 || !tglAdmoistPartai)) {
-        tglAdmoistPartai = "Senin, 09 November 2026";
-      } else if (tabName === "PARTAI 4" && (tglAdmoistPartai.indexOf("13 November") > -1 || !tglAdmoistPartai)) {
-        tglAdmoistPartai = "Kamis, 12 November 2026";
-      }
-      
       // Jalur Silo vs Manual dari Cell O8:P8
       var jalurProses = "Manual";
       try {
         var valO8 = String(sheet.getRange("O8").getDisplayValue() || "").trim();
-        if (/silo/i.test(valO8) || tabName === "PARTAI 3") {
+        if (/silo/i.test(valO8)) {
           jalurProses = "Silo";
         }
       } catch(e) {}
@@ -509,6 +485,7 @@ interface GasCenterModalProps {
   isSyncing: boolean;
   onToggleAutoSync?: () => void;
   initialTab?: 'endpoint' | 'payload' | 'script';
+  userRole?: UserRole;
 }
 
 export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
@@ -520,11 +497,15 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
   onManualSync,
   isSyncing,
   onToggleAutoSync,
-  initialTab = 'endpoint'
+  initialTab = 'endpoint',
+  userRole = 'Admin'
 }) => {
   if (!isOpen) return null;
 
-  const [activeTab, setActiveTab] = useState<'endpoint' | 'payload' | 'script'>(initialTab);
+  const isAdmin = userRole === 'Admin';
+  const [activeTab, setActiveTab] = useState<'endpoint' | 'payload' | 'script'>(
+    initialTab === 'payload' && !isAdmin ? 'endpoint' : initialTab
+  );
   const [execUrl, setExecUrl] = useState(config.execUrl);
   const [spreadsheetId, setSpreadsheetId] = useState(config.spreadsheetId);
   const [sheetName, setSheetName] = useState(config.sheetName);
@@ -533,9 +514,9 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
 
   React.useEffect(() => {
     if (initialTab) {
-      setActiveTab(initialTab);
+      setActiveTab(initialTab === 'payload' && !isAdmin ? 'endpoint' : initialTab);
     }
-  }, [initialTab, isOpen]);
+  }, [initialTab, isOpen, isAdmin]);
 
   React.useEffect(() => {
     setAutoSync(config.autoSync ?? true);
@@ -678,21 +659,23 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
             <Sliders className="w-3.5 h-3.5" />
             <span>Pengaturan Endpoint & Sinkronisasi</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('payload')}
-            className={`shrink-0 min-h-[44px] lg:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-              activeTab === 'payload'
-                ? 'bg-blue-50 text-blue-700 border border-blue-200'
-                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-            }`}
-          >
-            <Code2 className="w-3.5 h-3.5" />
-            <span>Payload Testing Console</span>
-            <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-mono font-bold">
-              doGet/doPost
-            </span>
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('payload')}
+              className={`shrink-0 min-h-[44px] lg:min-h-[34px] flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
+                activeTab === 'payload'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+              }`}
+            >
+              <Code2 className="w-3.5 h-3.5" />
+              <span>Payload Testing Console</span>
+              <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.2 rounded font-mono font-bold">
+                doGet/doPost
+              </span>
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setActiveTab('script')}
@@ -866,8 +849,8 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
           </div>
         )}
 
-        {/* Tab 2: Payload Testing Console (doGet / doPost) */}
-        {activeTab === 'payload' && (
+        {/* Tab 2: Payload Testing Console (doGet / doPost - Khusus Admin) */}
+        {activeTab === 'payload' && isAdmin && (
           <div className="space-y-4 text-xs md:text-sm">
             <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200 text-blue-900 text-xs">
               <p className="font-semibold flex items-center gap-1.5 mb-1">
