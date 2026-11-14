@@ -501,8 +501,6 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
   initialTab = 'endpoint',
   userRole = 'Admin'
 }) => {
-  if (!isOpen) return null;
-
   const isAdmin = userRole === 'Admin';
   const [activeTab, setActiveTab] = useState<'endpoint' | 'payload' | 'script'>(
     initialTab === 'payload' && !isAdmin ? 'endpoint' : initialTab
@@ -664,6 +662,8 @@ export const GasCenterModalRekapCengkeh: React.FC<GasCenterModalProps> = ({
     setSpreadsheetId(DEFAULT_SPREADSHEET_ID);
     setSheetName(DEFAULT_SHEET_NAME);
   };
+
+  if (!isOpen) return null;
 
   return (
     <div 
