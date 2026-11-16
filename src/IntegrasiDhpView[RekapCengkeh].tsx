@@ -1402,14 +1402,26 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
 
             {(() => {
               const sesiData = activePartai.sesiList?.find((s) => s.sesi === selectedDryerSesiTab);
-              const dryerParams = sesiData?.dryerParams || activePartai.dryerParams || {
-                rpmInput: 12.0,
-                putaranCylinder: 50.0,
-                tekananUap: 5.0,
-                suhuCylinder: 43.0,
-                anginHe: 2.0
+              const emptyDryerParams: NonNullable<DhpPartaiData['dryerParams']> = {
+                rpmInput: null,
+                putaranCylinder: null,
+                tekananUap: null,
+                suhuCylinder: null,
+                anginHe: null
               };
-              const sesiKaDry = sesiData?.kaDry ?? (selectedDryerSesiTab === 1 ? activePartai.sesiList?.[0]?.kaDry : activePartai.sesiList?.[1]?.kaDry) ?? activePartai.kaDryRata;
+              const hasDryerParams = (dp?: DhpPartaiData['dryerParams'] | null): dp is NonNullable<DhpPartaiData['dryerParams']> =>
+                Boolean(
+                  dp &&
+                  (dp.rpmInput !== null ||
+                    dp.putaranCylinder !== null ||
+                    dp.tekananUap !== null ||
+                    dp.suhuCylinder !== null ||
+                    dp.anginHe !== null)
+                );
+              const dryerParams: NonNullable<DhpPartaiData['dryerParams']> = sesiData
+                ? (hasDryerParams(sesiData.dryerParams) ? sesiData.dryerParams : emptyDryerParams)
+                : (hasDryerParams(activePartai.dryerParams) ? activePartai.dryerParams : emptyDryerParams);
+              const sesiKaDry = sesiData ? (sesiData.kaDry ?? null) : (activePartai.kaDryRata ?? null);
               const sesiHasilDryer = sesiData?.hasilDryer ?? 0;
               const sesiSusutPct = sesiData?.susutDryerPct ?? 0;
 
@@ -1423,7 +1435,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                         <span>RPM Input Cengkeh</span>
                       </div>
                       <div className="text-sm font-bold text-white font-mono">
-                        {dryerParams.rpmInput !== null && dryerParams.rpmInput !== undefined ? `${dryerParams.rpmInput.toFixed(2)} Rpm` : '12,00 Rpm'}
+                        {dryerParams.rpmInput !== null && dryerParams.rpmInput !== undefined && dryerParams.rpmInput > 0
+                          ? `${dryerParams.rpmInput.toFixed(2).replace('.', ',')} Rpm`
+                          : '-'}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Feeder Speed</div>
                     </div>
@@ -1435,7 +1449,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                         <span>Putaran Cylinder</span>
                       </div>
                       <div className="text-sm font-bold text-white font-mono">
-                        {dryerParams.putaranCylinder !== null && dryerParams.putaranCylinder !== undefined ? `${dryerParams.putaranCylinder.toFixed(2)} Rpm` : '50,00 Rpm'}
+                        {dryerParams.putaranCylinder !== null && dryerParams.putaranCylinder !== undefined && dryerParams.putaranCylinder > 0
+                          ? `${dryerParams.putaranCylinder.toFixed(2).replace('.', ',')} Rpm`
+                          : '-'}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Rotasi Drum</div>
                     </div>
@@ -1447,7 +1463,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                         <span>Tekanan Uap</span>
                       </div>
                       <div className="text-sm font-bold text-white font-mono">
-                        {dryerParams.tekananUap !== null && dryerParams.tekananUap !== undefined ? `${dryerParams.tekananUap.toFixed(2)} Bar` : '5,00 Bar'}
+                        {dryerParams.tekananUap !== null && dryerParams.tekananUap !== undefined && dryerParams.tekananUap > 0
+                          ? `${dryerParams.tekananUap.toFixed(2).replace('.', ',')} Bar`
+                          : '-'}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Steam Dryer</div>
                     </div>
@@ -1459,7 +1477,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                         <span>Suhu Cylinder</span>
                       </div>
                       <div className="text-sm font-bold text-orange-300 font-mono">
-                        {dryerParams.suhuCylinder !== null && dryerParams.suhuCylinder !== undefined ? `${dryerParams.suhuCylinder.toFixed(1)} °C` : '43,0 °C'}
+                        {dryerParams.suhuCylinder !== null && dryerParams.suhuCylinder !== undefined && dryerParams.suhuCylinder > 0
+                          ? `${dryerParams.suhuCylinder.toFixed(1).replace('.', ',')} °C`
+                          : '-'}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Suhu Operasional</div>
                     </div>
@@ -1471,7 +1491,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                         <span>Angin HE</span>
                       </div>
                       <div className="text-sm font-bold text-white font-mono">
-                        {dryerParams.anginHe !== null && dryerParams.anginHe !== undefined ? `${dryerParams.anginHe.toFixed(2)} Wi` : '2,00 Wi'}
+                        {dryerParams.anginHe !== null && dryerParams.anginHe !== undefined && dryerParams.anginHe > 0
+                          ? `${dryerParams.anginHe.toFixed(2).replace('.', ',')} Wi`
+                          : '-'}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Heat Exchanger</div>
                     </div>
@@ -1483,7 +1505,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                         <span>KA Hasil Dryer</span>
                       </div>
                       <div className="text-sm font-bold text-emerald-300 font-mono">
-                        {sesiKaDry !== null && sesiKaDry !== undefined ? `${Number(sesiKaDry).toFixed(2)} %Mc` : '-'}
+                        {sesiKaDry !== null && sesiKaDry !== undefined && sesiKaDry > 0
+                          ? `${Number(sesiKaDry).toFixed(2).replace('.', ',')} %Mc`
+                          : '-'}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Target: 14.5 - 15.5%</div>
                     </div>

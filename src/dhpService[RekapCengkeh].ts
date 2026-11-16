@@ -291,14 +291,14 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
           const sisaGldBelumRajangPct = p.sisaGldBelumRajangPct || 0;
           const timbanganItems = p.timbanganItems || [];
 
-          const defaultDryer: DhpDryerMachineParams = {
-            rpmInput: 12.0,
-            putaranCylinder: 50.0,
-            tekananUap: 5.0,
-            suhuCylinder: 43.0,
-            anginHe: 2.0
+          const emptyDryer: DhpDryerMachineParams = {
+            rpmInput: null,
+            putaranCylinder: null,
+            tekananUap: null,
+            suhuCylinder: null,
+            anginHe: null
           };
-          const dryerParams = p.dryerParams || defaultDryer;
+          const dryerParams = p.dryerParams || emptyDryer;
           const updatedSesiList = Array.isArray(p.sesiList) && p.sesiList.length > 0 
             ? p.sesiList
                 .filter((s: DhpSesiDryer) => {
@@ -590,6 +590,7 @@ export async function fetchDhpPartai(
   }
 
   // 2. Scan Seluruh Baris untuk Komponen Timbangan & QC
+  let activeDryerSection: 1 | 2 | 3 | null = null;
   lines.forEach((l, idx) => {
     // Tanggal Proses Admoist (Cell R11 pada lembar kerja)
     // Pada CSV GViz, baris yang memuat 'Gelondong Kering :' memiliki cell R (kolom index 17)
@@ -688,18 +689,38 @@ export async function fetchDhpPartai(
       }
     }
 
-    // Kadar Air Dryer Sesi 1, 2, & 3
+    // Kadar Air Dryer Sesi 1, 2, & 3 (hanya diisi jika ada nilai > 0, bukan cell kosong)
     if (l.includes('K. Air Hasil Dryer 1 :')) {
       const m = l.match(/Hasil Dryer 1 :","([^"]*)"/);
-      if (m && kaDryer1 === null) kaDryer1 = cleanIndoNumber(m[1]);
+      if (m && kaDryer1 === null && /\d/.test(m[1])) {
+        const val = cleanIndoNumber(m[1]);
+        if (val > 0) kaDryer1 = val;
+      }
     }
     if (l.includes('K. Air Hasil Dryer 2 :')) {
       const m = l.match(/Hasil Dryer 2 :","([^"]*)"/);
-      if (m && kaDryer2 === null) kaDryer2 = cleanIndoNumber(m[1]);
+      if (m && kaDryer2 === null && /\d/.test(m[1])) {
+        const val = cleanIndoNumber(m[1]);
+        if (val > 0) kaDryer2 = val;
+      }
     }
     if (l.includes('K. Air Hasil Dryer 3 :')) {
       const m = l.match(/Hasil Dryer 3 :","([^"]*)"/);
-      if (m && kaDryer3 === null) kaDryer3 = cleanIndoNumber(m[1]);
+      if (m && kaDryer3 === null && /\d/.test(m[1])) {
+        const val = cleanIndoNumber(m[1]);
+        if (val > 0) kaDryer3 = val;
+      }
+    }
+
+    // Lacak blok Sesi Dryer aktif secara dinamis (aman meski GViz melewati baris kosong)
+    if (colQClean.includes('Proses Dryer Pertama') || l.includes('Proses Dryer Pertama :')) {
+      activeDryerSection = 1;
+    } else if (colQClean.includes('Proses Dryer Kedua') || l.includes('Proses Dryer Kedua :')) {
+      activeDryerSection = 2;
+    } else if (colQClean.includes('Proses Dryer Ketiga') || l.includes('Proses Dryer Ketiga :')) {
+      activeDryerSection = 3;
+    } else if (l.includes('Total Dryer 1 + 2') || l.includes('Hasil Dryer 1+2+3')) {
+      activeDryerSection = null;
     }
 
     // Tanggal Sesi 2 jika berbeda hari
@@ -710,32 +731,52 @@ export async function fetchDhpPartai(
       }
     }
 
-    // Parameter Mesin Dryer (Sesi 1: baris ~85-135, Sesi 2: baris ~145-185, Sesi 3: baris ~270-315)
-    const rowNum = idx + 1;
-    const isSesi1 = rowNum >= 85 && rowNum <= 135;
-    const isSesi2 = (rowNum >= 145 && rowNum <= 185) || (rowNum >= 235 && rowNum <= 255);
-    const isSesi3 = rowNum >= 270 && rowNum <= 315;
-    const targetDryer = isSesi1 ? dryerParamsSesi1 : isSesi2 ? dryerParamsSesi2 : isSesi3 ? dryerParamsSesi3 : null;
+    // Parameter Mesin Dryer per blok Sesi 1 / 2 / 3 (hanya diisi jika cell R berisi angka valid)
+    const targetDryer =
+      activeDryerSection === 1
+        ? dryerParamsSesi1
+        : activeDryerSection === 2
+          ? dryerParamsSesi2
+          : activeDryerSection === 3
+            ? dryerParamsSesi3
+            : null;
     if (targetDryer) {
-      if (l.includes('RPM Input Cengkeh :')) {
-        const m = l.match(/RPM Input Cengkeh :\"?,\"?([0-9.,]+)/i) || l.match(/RPM Input Cengkeh\s*:\s*([0-9.,]+)/i);
-        if (m) targetDryer.rpmInput = cleanIndoNumber(m[1]);
+      const extractDryerField = (label: string): number | null => {
+        if (colQClean.includes(label)) {
+          if (colRClean && /\d/.test(colRClean)) {
+            const val = cleanIndoNumber(colRClean);
+            return val > 0 ? val : null;
+          }
+          return null;
+        }
+        const esc = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const m = l.match(new RegExp(`${esc}\\s*:?","([^"]*\\d[^"]*)"`, 'i'));
+        if (m) {
+          const val = cleanIndoNumber(m[1]);
+          return val > 0 ? val : null;
+        }
+        return null;
+      };
+
+      if (l.includes('RPM Input Cengkeh')) {
+        const val = extractDryerField('RPM Input Cengkeh');
+        if (val !== null) targetDryer.rpmInput = val;
       }
-      if (l.includes('Putaran Cylinder :')) {
-        const m = l.match(/Putaran Cylinder :\"?,\"?([0-9.,]+)/i) || l.match(/Putaran Cylinder\s*:\s*([0-9.,]+)/i);
-        if (m) targetDryer.putaranCylinder = cleanIndoNumber(m[1]);
+      if (l.includes('Putaran Cylinder')) {
+        const val = extractDryerField('Putaran Cylinder');
+        if (val !== null) targetDryer.putaranCylinder = val;
       }
-      if (l.includes('Tekanan Uap :')) {
-        const m = l.match(/Tekanan Uap :\"?,\"?([0-9.,]+)/i) || l.match(/Tekanan Uap\s*:\s*([0-9.,]+)/i);
-        if (m) targetDryer.tekananUap = cleanIndoNumber(m[1]);
+      if (l.includes('Tekanan Uap')) {
+        const val = extractDryerField('Tekanan Uap');
+        if (val !== null) targetDryer.tekananUap = val;
       }
-      if (l.includes('Suhu Cylinder :')) {
-        const m = l.match(/Suhu Cylinder :\"?,\"?([0-9.,]+)/i) || l.match(/Suhu Cylinder\s*:\s*([0-9.,]+)/i);
-        if (m) targetDryer.suhuCylinder = cleanIndoNumber(m[1]);
+      if (l.includes('Suhu Cylinder')) {
+        const val = extractDryerField('Suhu Cylinder');
+        if (val !== null) targetDryer.suhuCylinder = val;
       }
-      if (l.includes('Angin HE :')) {
-        const m = l.match(/Angin HE :\"?,\"?([0-9.,]+)/i) || l.match(/Angin HE\s*:\s*([0-9.,]+)/i);
-        if (m) targetDryer.anginHe = cleanIndoNumber(m[1]);
+      if (l.includes('Angin HE')) {
+        const val = extractDryerField('Angin HE');
+        if (val !== null) targetDryer.anginHe = val;
       }
     }
   });
@@ -1276,7 +1317,7 @@ export async function fetchDhpPartai(
       rawStatusText: s3StatusInfo.rawStatusText,
       isChecked: s3StatusInfo.isChecked,
       statusCellCoordinate: s3StatusInfo.statusCellCoordinate,
-      dryerParams: dryerParamsSesi3.rpmInput !== null ? dryerParamsSesi3 : dryerParamsSesi2
+      dryerParams: dryerParamsSesi3
     });
   }
 
@@ -1308,17 +1349,26 @@ export async function fetchDhpPartai(
     statusDropdown: statusDropdownKertasKerja
   });
 
-  const activeDryerParams: DhpDryerMachineParams = dryerParamsSesi1.rpmInput !== null
+  const hasDryerValues = (dp: DhpDryerMachineParams) =>
+    dp.rpmInput !== null ||
+    dp.putaranCylinder !== null ||
+    dp.tekananUap !== null ||
+    dp.suhuCylinder !== null ||
+    dp.anginHe !== null;
+
+  const activeDryerParams: DhpDryerMachineParams = hasDryerValues(dryerParamsSesi1)
     ? dryerParamsSesi1
-    : dryerParamsSesi2.rpmInput !== null
+    : hasDryerValues(dryerParamsSesi2)
       ? dryerParamsSesi2
-      : {
-          rpmInput: 12.0,
-          putaranCylinder: 50.0,
-          tekananUap: 5.0,
-          suhuCylinder: 43.0,
-          anginHe: 2.0
-        };
+      : hasDryerValues(dryerParamsSesi3)
+        ? dryerParamsSesi3
+        : {
+            rpmInput: null,
+            putaranCylinder: null,
+            tekananUap: null,
+            suhuCylinder: null,
+            anginHe: null
+          };
 
   const tglAdmoistClean = tanggalAdmoist;
   const tglAdmoistIndo = tglAdmoistClean ? formatTanggalIndo(tglAdmoistClean) : '';
