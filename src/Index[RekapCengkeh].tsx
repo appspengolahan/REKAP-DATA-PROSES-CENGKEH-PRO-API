@@ -259,6 +259,9 @@ export const IndexRekapCengkeh: React.FC = () => {
           susutPct: p.susutDryerPct,
           totalSusutKg: p.totalSusutKg,
           totalSusutPct: p.totalSusutPct,
+          debuKg: p.totalDebuKg ?? null,
+          debuPct: p.debuPct ?? null,
+          riilSusutPct: p.riilSusutPct ?? null,
           sumber: 'DHP',
           dhpPartaiId: p.namaTab,
           jalurSilo: p.jalurSilo || 'Manual',
@@ -938,7 +941,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                       {ringkasanBulanPeriode.jumlahData} entri proses
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2.5 text-xs">
                     <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
                       <span className="text-[10px] text-slate-500 font-medium uppercase">Input Gld. Kering</span>
                       <div className="text-sm font-bold text-slate-900 mt-0.5">{formatKg(ringkasanBulanPeriode.gldKering)}</div>
@@ -958,6 +961,21 @@ export const IndexRekapCengkeh: React.FC = () => {
                     <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
                       <span className="text-[10px] text-slate-500 font-medium uppercase">Total Susut Rata²</span>
                       <div className="text-sm font-bold text-[#0d3a8a] mt-0.5">{formatPct(ringkasanBulanPeriode.totalSusutPct)}</div>
+                    </div>
+                    <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] text-slate-500 font-medium uppercase">Debu (Kg / %)</span>
+                      <div className="text-sm font-bold text-cyan-700 mt-0.5">
+                        {ringkasanBulanPeriode.debuKg != null ? formatKg(ringkasanBulanPeriode.debuKg) : '-'}
+                        {ringkasanBulanPeriode.debuPct != null && (
+                          <span className="text-[11px] font-medium text-slate-500 ml-1">({formatPct(ringkasanBulanPeriode.debuPct)})</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
+                      <span className="text-[10px] text-slate-500 font-medium uppercase">Riil Susut (%)</span>
+                      <div className="text-sm font-bold text-[#0d3a8a] mt-0.5">
+                        {ringkasanBulanPeriode.riilSusutPct != null ? formatPct(ringkasanBulanPeriode.riilSusutPct) : '-'}
+                      </div>
                     </div>
                     <div className="bg-[#fafbfd] border border-slate-200 rounded-lg p-2.5">
                       <span className="text-[10px] text-slate-500 font-medium uppercase">Kadar Air Rata²</span>
@@ -1316,7 +1334,7 @@ export const IndexRekapCengkeh: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-center text-xs">
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 text-center text-xs">
                     <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
                       <div className="text-[10px] text-slate-500 font-medium uppercase">Jumlah Data</div>
                       <div className="text-sm font-bold text-slate-900 mt-0.5">{ringkasanPeriode.jumlahData} entri</div>
@@ -1347,6 +1365,22 @@ export const IndexRekapCengkeh: React.FC = () => {
                       <div className="text-[10px] text-slate-500 font-medium uppercase">Total Susut Rata²</div>
                       <div className="text-sm font-bold text-emerald-700 mt-0.5">{formatPct(ringkasanPeriode.totalSusutPct)}</div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Min {formatPct(ringkasanPeriode.totalSusutMinPct)} - Max {formatPct(ringkasanPeriode.totalSusutMaxPct)}</div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Debu (Kg / %)</div>
+                      <div className="text-sm font-bold text-cyan-700 mt-0.5">
+                        {ringkasanPeriode.debuKg != null ? formatKg(ringkasanPeriode.debuKg) : '-'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {ringkasanPeriode.debuPct != null ? formatPct(ringkasanPeriode.debuPct) : 'Belum tercatat'}
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <div className="text-[10px] text-slate-500 font-medium uppercase">Riil Susut (%)</div>
+                      <div className="text-sm font-bold text-[#0d3a8a] mt-0.5">
+                        {ringkasanPeriode.riilSusutPct != null ? formatPct(ringkasanPeriode.riilSusutPct) : '-'}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">Total Susut - Debu</div>
                     </div>
                     <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
                       <div className="text-[10px] text-slate-500 font-medium uppercase">K. Air Gld / Dry</div>

@@ -27,6 +27,9 @@ export interface RawRowCengkeh {
   sumber?: 'DHP' | 'REKAP_MASTER'; // Sumber data transaksi
   dhpPartaiId?: string; // ID partai jika berasal dari DHP
   jalurSilo?: 'Silo' | 'Manual'; // Klasifikasi alur proses Admoist: 'Silo' vs 'Manual' (Kolom Q Sheet Master)
+  debuKg?: number | null;       // Kolom R: Debu (Kg)
+  debuPct?: number | null;      // Kolom S: Debu (%) = (Debu Kg / Gld Kering) * 100
+  riilSusutPct?: number | null; // Kolom T: Riil Susut Hasil (%) = Total Susut (%) - Debu (%)
 }
 
 export interface SummaryKpiCengkeh {
@@ -44,6 +47,9 @@ export interface SummaryKpiCengkeh {
   totalSusutMaxPct: number;
   kaGldRata: number | null;
   kaDryRata: number | null;
+  debuKg?: number | null;
+  debuPct?: number | null;
+  riilSusutPct?: number | null;
   periodeLabel: string;
   mode?: 'tahunan' | 'bulanan' | 'periode';
 }
@@ -64,6 +70,9 @@ export interface RekapItemCengkeh {
   maxPct: number;
   kaGldRata: number | null;
   kaDryRata: number | null;
+  debuKg?: number | null;
+  debuPct?: number | null;
+  riilSusutPct?: number | null;
   kapasitasPct: number;
 }
 
@@ -157,6 +166,7 @@ export interface DhpSesiDryer {
   kaDry: number | null;
   susutDryerKg: number;
   susutDryerPct: number;
+  debuKg?: number | null;
   status: 'selesai' | 'berjalan' | 'belum';
   rawStatusText?: string;          // Operator status cell text (e.g. "Progress..", "Selesai")
   isChecked?: boolean;              // Operator checkbox state (Cell Q188/Q253/Q318)
@@ -197,6 +207,9 @@ export interface DhpPartaiData {
   susutDryerPct: number;
   totalSusutKg: number;
   totalSusutPct: number;
+  totalDebuKg?: number | null;
+  debuPct?: number | null;
+  riilSusutPct?: number | null;
   status: 'selesai' | 'berjalan' | 'kosong';
   catatanStatus: string;
   statusDropdownKertasKerja?: string; // Dropdown status Kolom Q / R lembar kerja ("Susut Akhir", "Susut Sementara", "Perkiraan Susut Sementara")
@@ -236,6 +249,7 @@ export interface DhpSyncLog {
   rjKering: number;
   totalSusutKg: number;
   totalSusutPct: number;
+  debuKg?: number | null;
   waktuKirim: string;
   pengirim: string;
   status: 'sukses' | 'gagal';

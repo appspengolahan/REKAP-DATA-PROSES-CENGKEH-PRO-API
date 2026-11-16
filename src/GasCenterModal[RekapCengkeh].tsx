@@ -179,6 +179,16 @@ function doPost(e) {
       var rjK = Number(inputData.colK_rjKering || row[10] || 0);
       var kaDry = String(inputData.colL_kaDry || row[11] || "").trim();
       var jalurProses = String(inputData.colQ_jalurProses || row[16] || "Manual").trim();
+      var rawDebuKg = inputData.colR_debuKg !== undefined ? inputData.colR_debuKg : row[17];
+      var debuKgNum = null;
+      if (rawDebuKg !== null && rawDebuKg !== undefined && rawDebuKg !== "") {
+        var parsedDebuVal = typeof rawDebuKg === "number"
+          ? rawDebuKg
+          : parseFloat(String(rawDebuKg).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(/,/g, "."));
+        if (!isNaN(parsedDebuVal) && parsedDebuVal >= 0) {
+          debuKgNum = Math.round(parsedDebuVal * 10) / 10;
+        }
+      }
       
       // =======================================================
       // ANTI-DUPLIKASI (IDEMPOTENT WRITE PROTECTION):
@@ -219,17 +229,27 @@ function doPost(e) {
         targetRow = Math.max(lastRow + 1, 11);
       }
       
-      // Salin formula jika baris target belum punya formula di Kolom I
+      // Salin formula jika baris target belum punya formula di Kolom I (20 kolom A-T)
       var existingFormulaI = sheet.getRange(targetRow, 9).getFormula();
       if (!existingFormulaI && targetRow > 11) {
-        sheet.getRange(targetRow - 1, 1, 1, 17).copyTo(
-          sheet.getRange(targetRow, 1, 1, 17),
+        sheet.getRange(targetRow - 1, 1, 1, 20).copyTo(
+          sheet.getRange(targetRow, 1, 1, 20),
           SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
           false
         );
+      } else if (targetRow > 11) {
+        var existingFormulaS = sheet.getRange(targetRow, 19).getFormula();
+        var prevFormulaS = sheet.getRange(targetRow - 1, 19).getFormula();
+        if (!existingFormulaS && prevFormulaS) {
+          sheet.getRange(targetRow - 1, 19, 1, 2).copyTo(
+            sheet.getRange(targetRow, 19, 1, 2),
+            SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
+            false
+          );
+        }
       }
       
-      // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L, Q). Kolom C, D, I, J, M, N, O, P aman terjaga!
+      // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L, Q, R). Kolom C, D, I, J, M, N, O, P, S, T aman terjaga!
       if (tgl) sheet.getRange(targetRow, 2).setValue(tgl);
       if (jenis) sheet.getRange(targetRow, 5).setValue(jenis);
       if (kaGld) sheet.getRange(targetRow, 6).setValue(kaGld);
@@ -238,6 +258,9 @@ function doPost(e) {
       if (rjK > 0) sheet.getRange(targetRow, 11).setValue(rjK);
       if (kaDry) sheet.getRange(targetRow, 12).setValue(kaDry);
       sheet.getRange(targetRow, 17).setValue(jalurProses);
+      if (debuKgNum !== null) {
+        sheet.getRange(targetRow, 18).setValue(debuKgNum);
+      }
       
       SpreadsheetApp.flush(); // Commit fisik ke Google Sheets
       
@@ -250,7 +273,7 @@ function doPost(e) {
         partaiId: body.partaiId || "PARTAI",
         message: isDuplicateFound
           ? "Sukses (Anti-Duplikat): Data " + (body.partaiId || "Partai") + " sudah tercatat di baris #" + targetRow + ". Baris #" + targetRow + " berhasil DIPERBARUI (Tanggal Admoist disinkronkan ke: " + tgl + ") tanpa membuat baris duplikat ganda."
-          : "Sukses: Data " + (body.partaiId || "Partai") + " (" + tgl + ") berhasil dibukukan ke baris baru #" + targetRow + " Sheet Master. Kolom rumus (C, D, I, J, M, N, O, P) tetap utuh terlindungi."
+          : "Sukses: Data " + (body.partaiId || "Partai") + " (" + tgl + ") berhasil dibukukan ke baris baru #" + targetRow + " Sheet Master. Kolom rumus (C, D, I, J, M, N, O, P, S, T) tetap utuh terlindungi."
       })).setMimeType(ContentService.MimeType.JSON);
     }
     
@@ -427,6 +450,35 @@ function autoSyncAllPartaiToServer() {
         }
       } catch(e) {}
       
+      // Ekstraksi Total Debu (Kg) dari blok Proses Dryer Pertama/Kedua/Ketiga (Kolom Q: "Debu :", Kolom R: nilai)
+      var totalDebuKg = null;
+      for (var i = 0; i < allData.length; i++) {
+        var hdrQ = String(allData[i][16] || "").trim();
+        if (/Proses Dryer (Pertama|Kedua|Ketiga)/i.test(hdrQ)) {
+          for (var j = i + 1; j < Math.min(allData.length, i + 10); j++) {
+            var cQDebu = String(allData[j][16] || "").trim();
+            if (/^debu\s*:/i.test(cQDebu)) {
+              var rawDebuVal = allData[j][17];
+              var parsedDebu = null;
+              if (typeof rawDebuVal === "number" && !isNaN(rawDebuVal)) {
+                parsedDebu = rawDebuVal;
+              } else if (rawDebuVal !== "" && rawDebuVal !== null && rawDebuVal !== undefined) {
+                var sDebu = String(rawDebuVal).replace(/[^0-9.,-]/g, "").replace(/\./g, "").replace(/,/g, ".");
+                var nDebu = parseFloat(sDebu);
+                if (!isNaN(nDebu)) parsedDebu = nDebu;
+              }
+              if (parsedDebu !== null && parsedDebu >= 0) {
+                totalDebuKg = (totalDebuKg === null ? 0 : totalDebuKg) + parsedDebu;
+              }
+              break;
+            }
+          }
+        }
+      }
+      if (totalDebuKg !== null) {
+        totalDebuKg = Math.round(totalDebuKg * 10) / 10;
+      }
+
       var payload = {
         action: "syncDhpToRekap",
         partaiId: tabName,
@@ -440,7 +492,8 @@ function autoSyncAllPartaiToServer() {
           colH_rjBasah: rjBasah || gldKering,
           colK_rjKering: rjKering,
           colL_kaDry: kaDryStr,
-          colQ_jalurProses: jalurProses
+          colQ_jalurProses: jalurProses,
+          colR_debuKg: totalDebuKg
         }
       };
       

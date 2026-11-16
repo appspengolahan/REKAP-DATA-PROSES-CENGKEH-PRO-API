@@ -353,6 +353,10 @@ export function summarizeRows(filtered: RawRowCengkeh[]): SummaryKpiCengkeh {
   let kaGldCount = 0;
   let kaDrySum = 0;
   let kaDryCount = 0;
+  let debuSum = 0;
+  let debuGldBasis = 0;
+  let debuSusutBasisKg = 0;
+  let debuCount = 0;
   let minTotalPct = Infinity;
   let maxTotalPct = -Infinity;
 
@@ -371,6 +375,12 @@ export function summarizeRows(filtered: RawRowCengkeh[]): SummaryKpiCengkeh {
       kaDrySum += r.kaDry;
       kaDryCount++;
     }
+    if (r.debuKg !== null && r.debuKg !== undefined && !isNaN(r.debuKg)) {
+      debuSum += r.debuKg;
+      debuGldBasis += r.gldKering;
+      debuSusutBasisKg += r.totalSusutKg;
+      debuCount++;
+    }
     if (r.totalSusutPct < minTotalPct) minTotalPct = r.totalSusutPct;
     if (r.totalSusutPct > maxTotalPct) maxTotalPct = r.totalSusutPct;
   });
@@ -378,6 +388,11 @@ export function summarizeRows(filtered: RawRowCengkeh[]): SummaryKpiCengkeh {
   const selisihPct = sumGld ? (sumSelisih / sumGld) * 100 : 0;
   const susutDryerPct = sumRjBasah ? (sumSusut / sumRjBasah) * 100 : 0;
   const totalSusutPct = sumGld ? (sumTotalSusut / sumGld) * 100 : 0;
+  const debuKg = debuCount > 0 ? round1(debuSum) : null;
+  const debuPct = (debuCount > 0 && debuGldBasis > 0) ? round2((debuSum / debuGldBasis) * 100) : null;
+  const riilSusutPct = (debuCount > 0 && debuGldBasis > 0)
+    ? round2(((debuSusutBasisKg - debuSum) / debuGldBasis) * 100)
+    : null;
 
   return {
     jumlahData: filtered.length,
@@ -394,6 +409,9 @@ export function summarizeRows(filtered: RawRowCengkeh[]): SummaryKpiCengkeh {
     totalSusutMaxPct: round2(maxTotalPct === -Infinity ? 0 : maxTotalPct),
     kaGldRata: kaGldCount ? round1(kaGldSum / kaGldCount) : null,
     kaDryRata: kaDryCount ? round1(kaDrySum / kaDryCount) : null,
+    debuKg,
+    debuPct,
+    riilSusutPct,
     periodeLabel: ''
   };
 }
@@ -491,6 +509,10 @@ interface GroupBucket {
   kaGldCount: number;
   kaDrySum: number;
   kaDryCount: number;
+  debuSum: number;
+  debuGldBasis: number;
+  debuSusutBasisKg: number;
+  debuCount: number;
   minPct: number;
   maxPct: number;
 }
@@ -517,6 +539,10 @@ function aggregateRows(
         kaGldCount: 0,
         kaDrySum: 0,
         kaDryCount: 0,
+        debuSum: 0,
+        debuGldBasis: 0,
+        debuSusutBasisKg: 0,
+        debuCount: 0,
         minPct: Infinity,
         maxPct: -Infinity
       };
@@ -537,6 +563,12 @@ function aggregateRows(
       g.kaDrySum += r.kaDry;
       g.kaDryCount++;
     }
+    if (r.debuKg !== null && r.debuKg !== undefined && !isNaN(r.debuKg)) {
+      g.debuSum += r.debuKg;
+      g.debuGldBasis += r.gldKering;
+      g.debuSusutBasisKg += r.totalSusutKg;
+      g.debuCount++;
+    }
     if (r.totalSusutPct < g.minPct) g.minPct = r.totalSusutPct;
     if (r.totalSusutPct > g.maxPct) g.maxPct = r.totalSusutPct;
   });
@@ -554,6 +586,11 @@ function finalizeGroups(
     const susutDryerPct = g.rjBasah ? (g.susutKg / g.rjBasah) * 100 : 0;
     const totalSusutPct = g.gldKering ? (g.totalSusutKg / g.gldKering) * 100 : 0;
     const kapasitasPct = totalGld ? (g.gldKering / totalGld) * 100 : 0;
+    const debuKg = g.debuCount > 0 ? round1(g.debuSum) : null;
+    const debuPct = (g.debuCount > 0 && g.debuGldBasis > 0) ? round2((g.debuSum / g.debuGldBasis) * 100) : null;
+    const riilSusutPct = (g.debuCount > 0 && g.debuGldBasis > 0)
+      ? round2(((g.debuSusutBasisKg - g.debuSum) / g.debuGldBasis) * 100)
+      : null;
 
     return {
       label: k,
@@ -569,6 +606,9 @@ function finalizeGroups(
       maxPct: round2(g.maxPct === -Infinity ? 0 : g.maxPct),
       kaGldRata: g.kaGldCount ? round1(g.kaGldSum / g.kaGldCount) : null,
       kaDryRata: g.kaDryCount ? round1(g.kaDrySum / g.kaDryCount) : null,
+      debuKg,
+      debuPct,
+      riilSusutPct,
       kapasitasPct: round2(kapasitasPct)
     };
   });
@@ -916,6 +956,17 @@ async function doFetchGvizSheet(spreadsheetId: string, sheetName: string): Promi
     const rawColQ = String(cols[16] || '').trim();
     const jalurSilo: 'Silo' | 'Manual' = /silo/i.test(rawColQ) ? 'Silo' : 'Manual';
 
+    const debuKgParsed = parseIndoNum(cols[17]);
+    const debuKg = debuKgParsed !== null ? round1(debuKgParsed) : null;
+    const debuPctRaw = parseIndoNum(cols[18]);
+    const riilSusutPctRaw = parseIndoNum(cols[19]);
+    const debuPct = debuKg !== null
+      ? (debuPctRaw !== null ? round2(debuPctRaw) : (gldKering > 0 ? round2((debuKg / gldKering) * 100) : null))
+      : null;
+    const riilSusutPct = debuKg !== null
+      ? (riilSusutPctRaw !== null ? round2(riilSusutPctRaw) : (debuPct !== null ? round2(totalSusutPct - debuPct) : null))
+      : null;
+
     rows.push({
       srcRow: i + 1,
       tanggal: cleanTgl,
@@ -935,6 +986,9 @@ async function doFetchGvizSheet(spreadsheetId: string, sheetName: string): Promi
       totalSusutKg: totalSusutKg,
       totalSusutPct: totalSusutPct,
       jalurSilo: jalurSilo,
+      debuKg,
+      debuPct,
+      riilSusutPct,
       verified: true
     });
   }
@@ -1076,6 +1130,17 @@ export function parse2DArrayToRows(values: any[][]): RawRowCengkeh[] {
     const rawColQ = String(cols[16] || '').trim();
     const jalurSilo: 'Silo' | 'Manual' = /silo/i.test(rawColQ) ? 'Silo' : 'Manual';
 
+    const debuKgParsed = parseIndoNum(cols[17]);
+    const debuKg = debuKgParsed !== null ? round1(debuKgParsed) : null;
+    const debuPctRaw = parseIndoNum(cols[18]);
+    const riilSusutPctRaw = parseIndoNum(cols[19]);
+    const debuPct = debuKg !== null
+      ? (debuPctRaw !== null ? round2(debuPctRaw) : (gldKering > 0 ? round2((debuKg / gldKering) * 100) : null))
+      : null;
+    const riilSusutPct = debuKg !== null
+      ? (riilSusutPctRaw !== null ? round2(riilSusutPctRaw) : (debuPct !== null ? round2(totalSusutPct - debuPct) : null))
+      : null;
+
     rows.push({
       srcRow: i + 1,
       tanggal: cleanTgl,
@@ -1095,6 +1160,9 @@ export function parse2DArrayToRows(values: any[][]): RawRowCengkeh[] {
       totalSusutKg: totalSusutKg,
       totalSusutPct: totalSusutPct,
       jalurSilo: jalurSilo,
+      debuKg,
+      debuPct,
+      riilSusutPct,
       verified: true
     });
   }

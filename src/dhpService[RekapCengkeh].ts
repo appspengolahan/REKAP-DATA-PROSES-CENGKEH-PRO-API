@@ -326,6 +326,17 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
             pengering: 'Dryer'
           };
           const qc: DhpQcParams = p.qc ? { ...defaultQc, ...p.qc } : defaultQc;
+          const totalDebuKg = p.totalDebuKg !== undefined
+            ? p.totalDebuKg
+            : (Array.isArray(updatedSesiList) && updatedSesiList.some((s: DhpSesiDryer) => s.debuKg !== null && s.debuKg !== undefined)
+                ? round1(updatedSesiList.reduce((acc: number, s: DhpSesiDryer) => acc + (s.debuKg || 0), 0))
+                : null);
+          const debuPct = p.debuPct !== undefined
+            ? p.debuPct
+            : (totalDebuKg !== null && gldKering > 0 ? round2((totalDebuKg / gldKering) * 100) : null);
+          const riilSusutPct = p.riilSusutPct !== undefined
+            ? p.riilSusutPct
+            : (debuPct !== null ? round2((p.totalSusutPct || 0) - debuPct) : null);
 
           return {
             ...p,
@@ -339,6 +350,9 @@ export function getCachedDhpPartai(): DhpPartaiData[] | null {
             sisaGldBelumRajangKg,
             sisaGldBelumRajangPct,
             timbanganItems,
+            totalDebuKg,
+            debuPct,
+            riilSusutPct,
             status,
             catatanStatus,
             tanggalMulai: tglMulai,
@@ -802,11 +816,12 @@ export async function fetchDhpPartai(
     let susutPct = 0;
     let koliRjBasah = 0;
     let koliHasilDryer = 0;
+    let debuKg: number | null = null;
 
     for (let i = 0; i < parsedLines.length; i++) {
       const colQHeader = (parsedLines[i][16] || '').trim();
       if (colQHeader.includes(sectionKeyword) || (lines[i] && lines[i].includes(sectionKeyword))) {
-        for (let j = i + 1; j < Math.min(parsedLines.length, i + 8); j++) {
+        for (let j = i + 1; j < Math.min(parsedLines.length, i + 10); j++) {
           const cQ = (parsedLines[j][16] || '').trim();
           const cR = (parsedLines[j][17] || '').trim();
           if (cQ.includes('N :') || cR.includes('N :')) {
@@ -823,12 +838,16 @@ export async function fetchDhpPartai(
             susutKg = cleanIndoNumber(cR);
           } else if (cR.includes('%') && (!cQ || cQ.includes('Susut'))) {
             susutPct = cleanIndoNumber(cR);
+          } else if (/^debu\s*:/i.test(cQ)) {
+            if (cR && /\d/.test(cR)) {
+              debuKg = round1(cleanIndoNumber(cR));
+            }
           }
         }
         break;
       }
     }
-    return { rjBasah, hasilDryer, susutKg, susutPct, koliRjBasah, koliHasilDryer };
+    return { rjBasah, hasilDryer, susutKg, susutPct, koliRjBasah, koliHasilDryer, debuKg };
   };
 
   // B. Proses Dryer Sesi 1, Sesi 2, Sesi 3 langsung dari Full CSV
@@ -839,6 +858,7 @@ export async function fetchDhpPartai(
   const s1SusutPctExplicit = s1Parsed.susutPct;
   const s1KoliRjBasah = s1Parsed.koliRjBasah;
   let s1KoliDryer = s1Parsed.koliHasilDryer;
+  const s1DebuKg = s1Parsed.debuKg;
 
   const s2Parsed = extractDryerSectionFromCsv('Proses Dryer Kedua :');
   rjBasahSesi2 = s2Parsed.rjBasah;
@@ -847,6 +867,7 @@ export async function fetchDhpPartai(
   const s2SusutPctExplicit = s2Parsed.susutPct;
   const s2KoliRjBasah = s2Parsed.koliRjBasah;
   const s2KoliDryer = s2Parsed.koliHasilDryer;
+  const s2DebuKg = s2Parsed.debuKg;
 
   const s3Parsed = extractDryerSectionFromCsv('Proses Dryer Ketiga :');
   rjBasahSesi3 = s3Parsed.rjBasah;
@@ -855,6 +876,7 @@ export async function fetchDhpPartai(
   const s3SusutPctExplicit = s3Parsed.susutPct;
   const s3KoliRjBasah = s3Parsed.koliRjBasah;
   const s3KoliDryer = s3Parsed.koliHasilDryer;
+  const s3DebuKg = s3Parsed.debuKg;
 
   // Fallback regex ke full sheet match jika struktur kolom berbeda
   if (rjBasahSesi1 === 0) {
@@ -1005,6 +1027,18 @@ export async function fetchDhpPartai(
 
   const totalSusutKg = round1(gldKering - totalRjKering);
   const totalSusutPct = gldKering > 0 ? round2((totalSusutKg / gldKering) * 100) : 0;
+
+  // Ekstraksi Total Debu (Kg), Debu (%), dan Riil Susut Hasil (%)
+  const debuValues = [s1DebuKg, s2DebuKg, s3DebuKg].filter((v): v is number => v !== null && !isNaN(v));
+  const totalDebuKg = debuValues.length > 0
+    ? round1(debuValues.reduce((acc, v) => acc + v, 0))
+    : (total123Parsed.debuKg ?? total12Parsed.debuKg ?? null);
+  const debuPct = (totalDebuKg !== null && gldKering > 0)
+    ? round2((totalDebuKg / gldKering) * 100)
+    : null;
+  const riilSusutPct = debuPct !== null
+    ? round2(totalSusutPct - debuPct)
+    : null;
 
   // Rata-rata kadar air dryer
   let kaDryRata: number | null = null;
@@ -1183,6 +1217,7 @@ export async function fetchDhpPartai(
       kaDry: kaDryer1 ?? kaDryRata,
       susutDryerKg: susutDryerSesi1Kg || (totalRjBasah > 0 && totalRjKering > 0 ? round1(totalRjBasah - totalRjKering) : 0),
       susutDryerPct: susutDryerSesi1Pct || (totalRjBasah > 0 && totalRjKering > 0 ? round2(((totalRjBasah - totalRjKering) / totalRjBasah) * 100) : 0),
+      debuKg: s1DebuKg,
       status: s1StatusInfo.status,
       rawStatusText: s1StatusInfo.rawStatusText,
       isChecked: s1StatusInfo.isChecked,
@@ -1210,6 +1245,7 @@ export async function fetchDhpPartai(
       kaDry: kaDryer2,
       susutDryerKg: susutDryerSesi2Kg,
       susutDryerPct: susutDryerSesi2Pct,
+      debuKg: s2DebuKg,
       status: s2StatusInfo.status,
       rawStatusText: s2StatusInfo.rawStatusText,
       isChecked: s2StatusInfo.isChecked,
@@ -1235,6 +1271,7 @@ export async function fetchDhpPartai(
       kaDry: kaDryer3,
       susutDryerKg: susutDryerSesi3Kg,
       susutDryerPct: susutDryerSesi3Pct,
+      debuKg: s3DebuKg,
       status: s3StatusInfo.status,
       rawStatusText: s3StatusInfo.rawStatusText,
       isChecked: s3StatusInfo.isChecked,
@@ -1325,6 +1362,9 @@ export async function fetchDhpPartai(
     susutDryerPct: totalSusutDryerPct,
     totalSusutKg: totalSusutAkhirSheet > 0 ? totalSusutAkhirSheet : totalSusutKg,
     totalSusutPct,
+    totalDebuKg,
+    debuPct,
+    riilSusutPct,
     status,
     catatanStatus,
     statusDropdownKertasKerja,
@@ -1438,6 +1478,9 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
       susutDryerPct: 0,
       totalSusutKg: 0,
       totalSusutPct: 0,
+      totalDebuKg: null,
+      debuPct: null,
+      riilSusutPct: null,
       status: 'kosong' as const,
       catatanStatus: 'Tab tidak ditemukan atau belum terisi.',
       statusDropdownKertasKerja: '',
@@ -1636,7 +1679,7 @@ export async function pushDhpToMasterSheet(
   const formatPctSheet = (n: number) => `${formatDec2(n)}%`;
   const formatMcSheet = (n: number | null) => (n !== null ? `${formatDec2(n)} Mc` : '');
 
-  // 16 Kolom Baris Resmi DATA PROSES CKH
+  // 18 Kolom Baris Resmi DATA PROSES CKH (Col A s/d Col R)
   const rowData = [
     '', // Col A (Kosong)
     tglStr, // Col B: Hari, Tanggal
@@ -1654,11 +1697,12 @@ export async function pushDhpToMasterSheet(
     formatPctSheet(partai.susutDryerPct), // Col N: SUSUT (%)
     formatKgSheet(partai.totalSusutKg), // Col O: T. SUSUT (Kg)
     formatPctSheet(partai.totalSusutPct), // Col P: T. SUSUT (%)
-    partai.jalurSilo || 'Manual' // Col Q: JALUR PROSES ('Silo' atau 'Manual')
+    partai.jalurSilo || 'Manual', // Col Q: JALUR PROSES ('Silo' atau 'Manual')
+    partai.totalDebuKg !== null && partai.totalDebuKg !== undefined ? formatDec1(partai.totalDebuKg) : '' // Col R: Debu (Kg)
   ];
 
-  // Data input murni yang boleh ditulis ke Google Sheet (Kolom B, E, F, G, H, K, L, Q)
-  // Kolom C, D, I, J, M, N, O, P adalah FORMULA SHEET yang DILINDUNGI & TIDAK BOLEH DITIMPA
+  // Data input murni yang boleh ditulis ke Google Sheet (Kolom B, E, F, G, H, K, L, Q, R)
+  // Kolom C, D, I, J, M, N, O, P, S, T adalah FORMULA SHEET yang DILINDUNGI & TIDAK BOLEH DITIMPA
   const inputData = {
     colB_tanggal: tglStr,
     colE_jenis: partai.jenis,
@@ -1667,7 +1711,8 @@ export async function pushDhpToMasterSheet(
     colH_rjBasah: partai.totalRjBasah,
     colK_rjKering: partai.totalRjKering,
     colL_kaDry: formatMcSheet(partai.kaDryRata),
-    colQ_jalurProses: partai.jalurSilo || 'Manual'
+    colQ_jalurProses: partai.jalurSilo || 'Manual',
+    colR_debuKg: partai.totalDebuKg ?? null
   };
 
   const payload = {
@@ -1678,7 +1723,7 @@ export async function pushDhpToMasterSheet(
     noLaporan: partai.noLaporan,
     userRole,
     inputData,
-    protectedFormulaColumns: ['C', 'D', 'I', 'J', 'M', 'N', 'O', 'P'],
+    protectedFormulaColumns: ['C', 'D', 'I', 'J', 'M', 'N', 'O', 'P', 'S', 'T'],
     row: rowData, // Kompatibilitas mundur
     partaiSummary: {
       gldKering: partai.gldKering,
@@ -1686,6 +1731,7 @@ export async function pushDhpToMasterSheet(
       totalRjKering: partai.totalRjKering,
       totalSusutKg: partai.totalSusutKg,
       totalSusutPct: partai.totalSusutPct,
+      debuKg: partai.totalDebuKg ?? null,
       jalurSilo: partai.jalurSilo || 'Manual',
       qc: partai.qc
     }
@@ -1760,6 +1806,7 @@ export async function pushDhpToMasterSheet(
       rjKering: partai.totalRjKering,
       totalSusutKg: partai.totalSusutKg,
       totalSusutPct: partai.totalSusutPct,
+      debuKg: partai.totalDebuKg ?? null,
       waktuKirim: formatWibDateTime(),
       pengirim: userRole,
       status: 'sukses',
@@ -1784,6 +1831,7 @@ export async function pushDhpToMasterSheet(
       rjKering: partai.totalRjKering,
       totalSusutKg: partai.totalSusutKg,
       totalSusutPct: partai.totalSusutPct,
+      debuKg: partai.totalDebuKg ?? null,
       waktuKirim: formatWibDateTime(),
       pengirim: userRole,
       status: 'gagal',
@@ -1875,6 +1923,16 @@ function handleDhpPost(e) {
     var kaGldStr = String(inputData.colF_kaGld || row[5] || "").trim();
     var kaDryStr = String(inputData.colL_kaDry || row[11] || "").trim();
     var jalurProses = String(inputData.colQ_jalurProses || row[16] || "Manual").trim();
+    var rawDebuKg = inputData.colR_debuKg !== undefined ? inputData.colR_debuKg : row[17];
+    var debuKgNum = null;
+    if (rawDebuKg !== null && rawDebuKg !== undefined && rawDebuKg !== "") {
+      var parsedDebuVal = typeof rawDebuKg === "number"
+        ? rawDebuKg
+        : parseFloat(String(rawDebuKg).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(/,/g, "."));
+      if (!isNaN(parsedDebuVal) && parsedDebuVal >= 0) {
+        debuKgNum = Math.round(parsedDebuVal * 10) / 10;
+      }
+    }
     
     var gldKeringNum = Number(inputData.colG_gldKering || 0);
     if (!gldKeringNum && row[6]) {
@@ -2000,14 +2058,25 @@ function handleDhpPost(e) {
     }
     
     // PROTEKSI FORMULA: Jika baris target belum memiliki rumus bawaan di kolom I (misal template habis),
-    // salin seluruh rumus dari baris sebelumnya agar formula C, D, I, J, M, N, O, P tetap aktif
+    // salin seluruh rumus dari baris sebelumnya (20 kolom A-T) agar formula C, D, I, J, M, N, O, P, S, T tetap aktif
     var existingFormulaI = targetSheet.getRange(targetRow, 9).getFormula();
     if (!existingFormulaI && targetRow > 11) {
-      targetSheet.getRange(targetRow - 1, 1, 1, 17).copyTo(
-        targetSheet.getRange(targetRow, 1, 1, 17),
+      targetSheet.getRange(targetRow - 1, 1, 1, 20).copyTo(
+        targetSheet.getRange(targetRow, 1, 1, 20),
         SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
         false
       );
+    } else if (targetRow > 11) {
+      // Pastikan kolom S & T juga terwarisi rumusnya jika baris template sebelumnya sudah punya S:T tetapi targetRow belum
+      var existingFormulaS = targetSheet.getRange(targetRow, 19).getFormula();
+      var prevFormulaS = targetSheet.getRange(targetRow - 1, 19).getFormula();
+      if (!existingFormulaS && prevFormulaS) {
+        targetSheet.getRange(targetRow - 1, 19, 1, 2).copyTo(
+          targetSheet.getRange(targetRow, 19, 1, 2),
+          SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
+          false
+        );
+      }
     }
     
     // LAYER 5: TULIS NILAI HANYA KE KOLOM RAW DATA INPUT:
@@ -2019,7 +2088,8 @@ function handleDhpPost(e) {
     // Kolom K (11): RJ. KERING (numeric)
     // Kolom L (12): K. AIR DRY
     // Kolom Q (17): JALUR PROSES ('Silo' atau 'Manual')
-    // CATATAN: Kolom C, D, I, J, M, N, O, P 100% TIDAK DISENTUH KARENA BERISI FORMULA MASTER!
+    // Kolom R (18): Debu (Kg) (numeric, hanya jika terisi di kertas kerja)
+    // CATATAN: Kolom C, D, I, J, M, N, O, P, S, T 100% TIDAK DISENTUH KARENA BERISI FORMULA MASTER!
     targetSheet.getRange(targetRow, 2).setValue(tglBaru);
     targetSheet.getRange(targetRow, 5).setValue(jenisBaru);
     targetSheet.getRange(targetRow, 6).setValue(kaGldStr);
@@ -2028,6 +2098,9 @@ function handleDhpPost(e) {
     targetSheet.getRange(targetRow, 11).setValue(rjKeringNum);
     targetSheet.getRange(targetRow, 12).setValue(kaDryStr);
     targetSheet.getRange(targetRow, 17).setValue(jalurProses);
+    if (debuKgNum !== null) {
+      targetSheet.getRange(targetRow, 18).setValue(debuKgNum);
+    }
     
     // FLUSH SEGERA: Pastikan perubahan ditulis permanen ke server Google Sheets
     SpreadsheetApp.flush();
@@ -2047,7 +2120,7 @@ function handleDhpPost(e) {
         jenisBaru,
         gldKeringNum,
         targetRow,
-        "Kolom C, D, I, J, M, N, O, P Terlindungi",
+        "Kolom C, D, I, J, M, N, O, P, S, T Terlindungi",
         contents.userRole || "Admin"
       ]);
       SpreadsheetApp.flush();
@@ -2283,6 +2356,35 @@ function autoSyncAllPartaiToServer() {
         }
       } catch(e) {}
       
+      // Ekstraksi Total Debu (Kg) dari blok Proses Dryer Pertama/Kedua/Ketiga (Kolom Q: "Debu :", Kolom R: nilai)
+      var totalDebuKg = null;
+      for (var i = 0; i < allData.length; i++) {
+        var hdrQ = String(allData[i][16] || "").trim();
+        if (/Proses Dryer (Pertama|Kedua|Ketiga)/i.test(hdrQ)) {
+          for (var j = i + 1; j < Math.min(allData.length, i + 10); j++) {
+            var cQDebu = String(allData[j][16] || "").trim();
+            if (/^debu\s*:/i.test(cQDebu)) {
+              var rawDebuVal = allData[j][17];
+              var parsedDebu = null;
+              if (typeof rawDebuVal === "number" && !isNaN(rawDebuVal)) {
+                parsedDebu = rawDebuVal;
+              } else if (rawDebuVal !== "" && rawDebuVal !== null && rawDebuVal !== undefined) {
+                var sDebu = String(rawDebuVal).replace(/[^0-9.,-]/g, "").replace(/\./g, "").replace(/,/g, ".");
+                var nDebu = parseFloat(sDebu);
+                if (!isNaN(nDebu)) parsedDebu = nDebu;
+              }
+              if (parsedDebu !== null && parsedDebu >= 0) {
+                totalDebuKg = (totalDebuKg === null ? 0 : totalDebuKg) + parsedDebu;
+              }
+              break;
+            }
+          }
+        }
+      }
+      if (totalDebuKg !== null) {
+        totalDebuKg = Math.round(totalDebuKg * 10) / 10;
+      }
+
       // Jalankan handleDhpPost secara internal (5-Layer Defense)
       var payload = {
         action: "syncDhpToRekap",
@@ -2297,7 +2399,8 @@ function autoSyncAllPartaiToServer() {
           colH_rjBasah: rjBasah || gldKering,
           colK_rjKering: rjKering,
           colL_kaDry: kaDryStr,
-          colQ_jalurProses: jalurProses
+          colQ_jalurProses: jalurProses,
+          colR_debuKg: totalDebuKg
         }
       };
       
@@ -2515,6 +2618,16 @@ function doPost(e) {
       var rjK = Number(inputData.colK_rjKering || row[10] || 0);
       var kaDry = String(inputData.colL_kaDry || row[11] || "").trim();
       var jalurProses = String(inputData.colQ_jalurProses || row[16] || "Manual").trim();
+      var rawDebuKg = inputData.colR_debuKg !== undefined ? inputData.colR_debuKg : row[17];
+      var debuKgNum = null;
+      if (rawDebuKg !== null && rawDebuKg !== undefined && rawDebuKg !== "") {
+        var parsedDebuVal = typeof rawDebuKg === "number"
+          ? rawDebuKg
+          : parseFloat(String(rawDebuKg).replace(/[^\d.,-]/g, "").replace(/\./g, "").replace(/,/g, "."));
+        if (!isNaN(parsedDebuVal) && parsedDebuVal >= 0) {
+          debuKgNum = Math.round(parsedDebuVal * 10) / 10;
+        }
+      }
 
       var lastRow = findActualLastRow_(targetSheet);
       var targetRow = -1;
@@ -2546,17 +2659,27 @@ function doPost(e) {
         targetRow = Math.max(lastRow + 1, 11);
       }
 
-      // Salin formula jika baris target belum punya formula di Kolom I
+      // Salin formula jika baris target belum punya formula di Kolom I (20 kolom A-T)
       var existingFormulaI = targetSheet.getRange(targetRow, 9).getFormula();
       if (!existingFormulaI && targetRow > 11) {
-        targetSheet.getRange(targetRow - 1, 1, 1, 17).copyTo(
-          targetSheet.getRange(targetRow, 1, 1, 17),
+        targetSheet.getRange(targetRow - 1, 1, 1, 20).copyTo(
+          targetSheet.getRange(targetRow, 1, 1, 20),
           SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
           false
         );
+      } else if (targetRow > 11) {
+        var existingFormulaS = targetSheet.getRange(targetRow, 19).getFormula();
+        var prevFormulaS = targetSheet.getRange(targetRow - 1, 19).getFormula();
+        if (!existingFormulaS && prevFormulaS) {
+          targetSheet.getRange(targetRow - 1, 19, 1, 2).copyTo(
+            targetSheet.getRange(targetRow, 19, 1, 2),
+            SpreadsheetApp.CopyPasteType.PASTE_FORMULA,
+            false
+          );
+        }
       }
       
-      // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L, Q). Kolom C, D, I, J, M, N, O, P aman terjaga!
+      // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L, Q, R). Kolom C, D, I, J, M, N, O, P, S, T aman terjaga!
       if (tgl) targetSheet.getRange(targetRow, 2).setValue(tgl);
       if (jenis) targetSheet.getRange(targetRow, 5).setValue(jenis);
       if (kaGld) targetSheet.getRange(targetRow, 6).setValue(kaGld);
@@ -2565,6 +2688,7 @@ function doPost(e) {
       if (rjK > 0) targetSheet.getRange(targetRow, 11).setValue(rjK);
       if (kaDry) targetSheet.getRange(targetRow, 12).setValue(kaDry);
       targetSheet.getRange(targetRow, 17).setValue(jalurProses);
+      if (debuKgNum !== null) targetSheet.getRange(targetRow, 18).setValue(debuKgNum);
       
       SpreadsheetApp.flush(); // Commit fisik ke Google Sheets
       
@@ -2577,7 +2701,7 @@ function doPost(e) {
         partaiId: body.partaiId || "PARTAI",
         message: isDuplicateFound
           ? "Sukses (Anti-Duplikat): Data " + (body.partaiId || "Partai") + " sudah tercatat di baris #" + targetRow + ". Baris #" + targetRow + " berhasil DIPERBARUI (Tanggal Admoist: " + tgl + ") tanpa membuat baris duplikat ganda."
-          : "Sukses: Data " + (body.partaiId || "Partai") + " (" + tgl + ") berhasil dibukukan ke baris baru #" + targetRow + " Sheet Master. Kolom rumus (C, D, I, J, M, N, O, P) tetap utuh terlindungi."
+          : "Sukses: Data " + (body.partaiId || "Partai") + " (" + tgl + ") berhasil dibukukan ke baris baru #" + targetRow + " Sheet Master. Kolom rumus (C, D, I, J, M, N, O, P, S, T) tetap utuh terlindungi."
       })).setMimeType(ContentService.MimeType.JSON);
     }
 

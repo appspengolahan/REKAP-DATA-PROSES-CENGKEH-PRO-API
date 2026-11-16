@@ -89,6 +89,8 @@ export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = React.memo(({ d
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Selisih (%)</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Susut Dryer (%)</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Total Susut (%)</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Debu (Kg / %)</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Riil Susut (%)</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Min (%)</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Max (%)</th>
             </tr>
@@ -116,6 +118,18 @@ export const TableBulanRekapCengkeh: React.FC<TableBulanProps> = React.memo(({ d
                     pClass === 'pct-high' ? 'text-[#c0392b] font-bold' : pClass === 'pct-low' ? 'text-[#1b8a5a] font-bold' : 'text-[#1f2937]'
                   }`}>
                     {formatDec2(r.totalSusutPct)}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono whitespace-nowrap">
+                    {r.debuKg != null ? (
+                      <span>
+                        {formatDec1(r.debuKg)} <span className="text-[11px] text-[#6b7280]">({r.debuPct != null ? `${formatDec2(r.debuPct)}%` : '-'})</span>
+                      </span>
+                    ) : (
+                      <span className="text-[#9ca3af]">-</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#0d3a8a] font-mono font-semibold">
+                    {r.riilSusutPct != null ? formatDec2(r.riilSusutPct) : <span className="text-[#9ca3af] font-normal">-</span>}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">
                     {formatDec2(r.minPct)}
@@ -244,6 +258,8 @@ export const TableJenisRekapCengkeh: React.FC<TableJenisProps> = React.memo(({ d
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Selisih (%)</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Susut Dryer (%)</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Total Susut (%)</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Debu (Kg / %)</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Riil Susut (%)</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Kapasitas (%)</th>
             </tr>
           </thead>
@@ -270,6 +286,18 @@ export const TableJenisRekapCengkeh: React.FC<TableJenisProps> = React.memo(({ d
                     pClass === 'pct-high' ? 'text-[#c0392b] font-bold' : pClass === 'pct-low' ? 'text-[#1b8a5a] font-bold' : 'text-[#1f2937]'
                   }`}>
                     {formatDec2(r.totalSusutPct)}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#1f2937] font-mono whitespace-nowrap">
+                    {r.debuKg != null ? (
+                      <span>
+                        {formatDec1(r.debuKg)} <span className="text-[11px] text-[#6b7280]">({r.debuPct != null ? `${formatDec2(r.debuPct)}%` : '-'})</span>
+                      </span>
+                    ) : (
+                      <span className="text-[#9ca3af]">-</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#0d3a8a] font-mono font-semibold">
+                    {r.riilSusutPct != null ? formatDec2(r.riilSusutPct) : <span className="text-[#9ca3af] font-normal">-</span>}
                   </td>
                   <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] text-[#6b7280] font-mono">
                     {formatDec2(r.kapasitasPct)}
@@ -507,6 +535,8 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Rajang Kering</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Susut Dryer</th>
               <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Total Susut</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Debu</th>
+              <th className="py-2 px-2.5 text-right border-b border-[#e1e5ec]">Riil Susut</th>
               <th className="py-2 px-2.5 text-center border-b border-[#e1e5ec] no-print">Verifikasi</th>
             </tr>
           </thead>
@@ -574,6 +604,19 @@ export const BatchExplorerTableRekapCengkeh: React.FC<BatchExplorerProps> = Reac
                     pClass === 'pct-high' ? 'text-[#c0392b] font-bold' : pClass === 'pct-low' ? 'text-[#1b8a5a] font-bold' : 'text-[#1f2937]'
                   }`}>
                     {formatPct(r.totalSusutPct)}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] font-mono whitespace-nowrap">
+                    {r.debuKg != null ? (
+                      <div className="leading-tight">
+                        <div className="text-[#1f2937]">{formatKg(r.debuKg)}</div>
+                        {r.debuPct != null && <div className="text-[10.5px] text-[#6b7280]">{formatPct(r.debuPct)}</div>}
+                      </div>
+                    ) : (
+                      <span className="text-[#9ca3af]">-</span>
+                    )}
+                  </td>
+                  <td className="py-2 px-2.5 text-right border-b border-[#e1e5ec] font-mono font-semibold text-[#0d3a8a]">
+                    {r.riilSusutPct != null ? formatPct(r.riilSusutPct) : <span className="text-[#9ca3af] font-normal">-</span>}
                   </td>
                   <td className="py-2 px-2.5 text-center border-b border-[#e1e5ec] no-print">
                     <button

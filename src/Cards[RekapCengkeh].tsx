@@ -80,6 +80,16 @@ export const SummaryKpiGrid: React.FC<{ data: SummaryKpiCengkeh | null }> = Reac
         label="Kadar Air Dryer"
         value={data.kaDryRata !== null ? `${data.kaDryRata.toFixed(1)}%` : '-'}
       />
+      <KpiCard
+        label="Debu (Kg / %)"
+        value={data.debuKg != null ? formatKg(data.debuKg) : '-'}
+        sub={data.debuPct != null ? `${formatPct(data.debuPct)} dari Gld.` : 'Belum tercatat'}
+      />
+      <KpiCard
+        label="Riil Susut (%)"
+        value={data.riilSusutPct != null ? formatPct(data.riilSusutPct) : '-'}
+        sub="Susut Total - Debu"
+      />
     </div>
   );
 });

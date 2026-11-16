@@ -1512,9 +1512,12 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                         <span className="text-slate-400">({sesiData.tanggal})</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <span>Hasil Dryer: <strong className="text-slate-200">{formatKgKoli(sesiHasilDryer, sesiData?.koliHasilDryer)}</strong></span>
                       <span>Susut Dryer: <strong className="text-slate-200">{formatPct(sesiSusutPct)}</strong></span>
+                      {sesiData?.debuKg != null && (
+                        <span>Debu: <strong className="text-cyan-300">{formatKg(sesiData.debuKg)}</strong></span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1545,6 +1548,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <th className="px-3.5 py-2.5 text-right">KA Dryer (%)</th>
                     <th className="px-3.5 py-2.5 text-right">Susut Dryer (Kg)</th>
                     <th className="px-3.5 py-2.5 text-right">Susut Dryer (%)</th>
+                    <th className="px-3.5 py-2.5 text-right">Debu (Kg)</th>
                     <th className="px-3.5 py-2.5 text-center">Status Operator</th>
                   </tr>
                 </thead>
@@ -1566,6 +1570,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       <td className="px-3.5 py-2.5 text-right font-mono text-amber-300">{s.kaDry ? `${s.kaDry.toFixed(2)}%` : '-'}</td>
                       <td className="px-3.5 py-2.5 text-right font-mono text-rose-300">{s.susutDryerKg ? formatKg(s.susutDryerKg) : '-'}</td>
                       <td className="px-3.5 py-2.5 text-right font-mono font-bold text-rose-300">{s.susutDryerPct ? formatPct(s.susutDryerPct) : '-'}</td>
+                      <td className="px-3.5 py-2.5 text-right font-mono text-cyan-300">{s.debuKg != null ? formatKg(s.debuKg) : '-'}</td>
                       <td className="px-3.5 py-2.5 text-center">
                         {s.status === 'selesai' ? (
                           <div className="inline-flex flex-col items-center">
@@ -1630,6 +1635,9 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <td className="px-3.5 py-2.5 text-right font-mono text-rose-400">
                       {formatPct(activePartai.susutDryerPct)}
                     </td>
+                    <td className="px-3.5 py-2.5 text-right font-mono text-cyan-300">
+                      {activePartai.totalDebuKg != null ? formatKg(activePartai.totalDebuKg) : '-'}
+                    </td>
                     <td className="px-3.5 py-2.5 text-center text-[10px] text-slate-400">
                       Akumulatif
                     </td>
@@ -1669,7 +1677,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
             </div>
 
             {/* Susut Total Box */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 rounded-xl bg-slate-800/80 border border-slate-700">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 p-4 rounded-xl bg-slate-800/80 border border-slate-700">
               <div>
                 <span className="text-[11px] text-slate-400">Bahan Baku (Gld Kering):</span>
                 <div className="text-base font-bold text-white mt-0.5 font-mono">
@@ -1686,6 +1694,27 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                 <span className="text-[11px] text-slate-400">Total Susut Bahan:</span>
                 <div className="text-base font-bold text-rose-400 mt-0.5">
                   {formatKg(activePartai.totalSusutKg)} ({formatPct(activePartai.totalSusutPct)})
+                </div>
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-400">Debu (Kg &amp; %):</span>
+                <div className="text-base font-bold text-cyan-300 mt-0.5 font-mono">
+                  {activePartai.totalDebuKg != null ? (
+                    <>
+                      {formatKg(activePartai.totalDebuKg)}{' '}
+                      <span className="text-xs text-cyan-200/80">
+                        ({activePartai.debuPct != null ? formatPct(activePartai.debuPct) : '-'})
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-slate-500">-</span>
+                  )}
+                </div>
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-400">Riil Susut Hasil (%):</span>
+                <div className="text-base font-bold text-amber-300 mt-0.5 font-mono">
+                  {activePartai.riilSusutPct != null ? formatPct(activePartai.riilSusutPct) : <span className="text-slate-500">-</span>}
                 </div>
               </div>
             </div>
@@ -1843,7 +1872,12 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       <td className="px-3 py-2.5 text-amber-300 font-medium whitespace-nowrap">{log.jenis}</td>
                       <td className="px-3 py-2.5 text-right font-mono whitespace-nowrap">{formatKg(log.gldKering)}</td>
                       <td className="px-3 py-2.5 text-right font-mono text-rose-300 font-bold whitespace-nowrap">
-                        {formatKg(log.totalSusutKg)} ({formatPct(log.totalSusutPct)})
+                        <div>{formatKg(log.totalSusutKg)} ({formatPct(log.totalSusutPct)})</div>
+                        {log.debuKg != null && (
+                          <div className="text-[10px] font-normal text-cyan-300">
+                            Debu: {formatKg(log.debuKg)}
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-2.5 text-slate-400 text-[11px] whitespace-nowrap">{log.pengirim}</td>
                       <td className="px-3 py-2.5 text-center whitespace-nowrap">
@@ -2430,6 +2464,20 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                   <span className="text-slate-400">Total Susut Akhir:</span>
                   <span className="font-bold text-rose-400">{formatKg(activePartai.totalSusutKg)} ({formatPct(activePartai.totalSusutPct)})</span>
                 </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-400">Debu (Kolom R):</span>
+                  <span className="font-bold text-cyan-300 font-mono">
+                    {activePartai.totalDebuKg != null
+                      ? `${formatKg(activePartai.totalDebuKg)}${activePartai.debuPct != null ? ` (${formatPct(activePartai.debuPct)})` : ''}`
+                      : 'Tidak diisi (-)'}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <span className="text-slate-400">Riil Susut Hasil (Kolom T):</span>
+                  <span className="font-bold text-amber-300 font-mono">
+                    {activePartai.riilSusutPct != null ? formatPct(activePartai.riilSusutPct) : '-'}
+                  </span>
+                </div>
               </div>
 
               {/* Box Proteksi Rumus Kolom */}
@@ -2441,7 +2489,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-900 text-blue-300 font-mono">Formula-Safe</span>
                   </div>
                   <div className="text-slate-300 mt-1">
-                    Input otomatis <strong>hanya mengisi Kolom Mentah: B (Tanggal Admoist), E, F, G, H, K, L</strong>. Kolom rumus (<strong>C, D, I, J, M, N, O, P</strong>) tidak disentuh dan dihitung otomatis oleh Google Sheet.
+                    Input otomatis <strong>hanya mengisi Kolom Mentah: B (Tanggal Admoist), E, F, G, H, K, L, Q (Jalur), R (Debu Kg jika diisi)</strong>. Kolom rumus (<strong>C, D, I, J, M, N, O, P, S, T</strong>) tidak disentuh dan dihitung otomatis oleh Google Sheet.
                   </div>
                 </div>
               </div>
