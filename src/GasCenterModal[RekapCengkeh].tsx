@@ -192,10 +192,9 @@ function doPost(e) {
       
       // =======================================================
       // ANTI-DUPLIKASI (IDEMPOTENT WRITE PROTECTION):
-      // Pindai hingga 25 baris terakhir di DATA PROSES CKH.
-      // Jika data partai ini sudah pernah dicatat sebelumnya (berdasarkan Tanggal Admoist
-      // ATAU Bobot Gelondong Kering yang sama persis), sistem otomatis MEMPERBARUI
-      // baris tersebut tanpa pernah membuat baris duplikat ganda!
+      // Pindai hingga 30 baris terakhir di DATA PROSES CKH dari bawah ke atas.
+      // Normalisasi tanggal kanonik YYYY-MM-DD + kecocokan Gld Kering memastikan
+      // koreksi/update partai selalu MEMPERBARUI baris yang sama tanpa baris ganda!
       // =======================================================
       var lastRow = findActualLastRow_(sheet);
       var targetRow = -1;
@@ -203,20 +202,26 @@ function doPost(e) {
       
       var scanStart = Math.max(11, lastRow - 30);
       var scanCount = Math.max(1, lastRow - scanStart + 1);
+      var tglKey = normalizeIndoDateKey_(tgl);
       if (lastRow >= 11) {
         var existingRange = sheet.getRange(scanStart, 1, scanCount, 12).getValues();
         var existingDisplayB = sheet.getRange(scanStart, 2, scanCount, 1).getDisplayValues();
-        for (var ex = 0; ex < existingRange.length; ex++) {
+        for (var ex = existingRange.length - 1; ex >= 0; ex--) {
           var exRowIdx = scanStart + ex;
           var exTgl = String(existingDisplayB[ex][0] || existingRange[ex][1] || "").trim(); // Col B (Tanggal Admoist)
-          var exGld = Number(existingRange[ex][6] || 0);         // Col G (Gld Kering)
-          var exRjK = Number(existingRange[ex][10] || 0);        // Col K (Rj Kering)
+          var exTglKey = normalizeIndoDateKey_(existingRange[ex][1] instanceof Date ? existingRange[ex][1] : exTgl);
+          var exGld = parseIndoNumGas_(existingRange[ex][6]);         // Col G (Gld Kering)
+          var exRjK = parseIndoNumGas_(existingRange[ex][10]);        // Col K (Rj Kering)
           
-          var matchTgl = (tgl && exTgl && (tgl.toLowerCase() === exTgl.toLowerCase()));
+          var matchTgl = (tglKey && exTglKey)
+            ? (tglKey === exTglKey)
+            : (tgl && exTgl && (tgl.toLowerCase() === exTgl.toLowerCase()));
           var matchGld = (gld > 0 && exGld > 0 && Math.abs(gld - exGld) < 0.5);
           var matchRjK = (rjK > 0 && exRjK > 0 && Math.abs(rjK - exRjK) < 1.0);
+          var isRecent = (lastRow - exRowIdx) <= 12;
+          var closeDate = isDateKeyClose_(tglKey, exTglKey, 3);
           
-          if ((matchTgl && matchGld) || (matchTgl && matchRjK) || (matchGld && matchRjK)) {
+          if ((matchTgl && matchGld) || (matchTgl && matchRjK) || (matchGld && matchRjK) || (matchGld && isRecent && closeDate)) {
             targetRow = exRowIdx;
             isDuplicateFound = true;
             break;
@@ -293,129 +298,266 @@ function doPost(e) {
   }
 }
 
+function parseIndoNumGas_(val) {
+  if (typeof val === "number") return isNaN(val) ? 0 : val;
+  if (val === null || val === undefined || val === "") return 0;
+  var s = String(val).replace(/[^0-9.,-]/g, "");
+  if (!s || !/\d/.test(s)) return 0;
+  if (s.indexOf(".") > -1 && s.indexOf(",") > -1) {
+    s = s.replace(/\./g, "").replace(/,/g, ".");
+  } else if (s.indexOf(",") > -1) {
+    s = s.replace(/,/g, ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, "");
+  }
+  var n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function normalizeIndoDateKey_(val) {
+  if (!val) return "";
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    var y = val.getFullYear();
+    var m = val.getMonth() + 1;
+    var d = val.getDate();
+    return y + "-" + (m < 10 ? "0" + m : "" + m) + "-" + (d < 10 ? "0" + d : "" + d);
+  }
+  var s = String(val).trim();
+  if (!s) return "";
+  var iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    var mI = parseInt(iso[2], 10);
+    var dI = parseInt(iso[3], 10);
+    return iso[1] + "-" + (mI < 10 ? "0" + mI : "" + mI) + "-" + (dI < 10 ? "0" + dI : "" + dI);
+  }
+  var slash = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (slash) {
+    var dS = parseInt(slash[1], 10);
+    var mS = parseInt(slash[2], 10);
+    var yS = parseInt(slash[3], 10);
+    if (yS < 100) yS += 2000;
+    return yS + "-" + (mS < 10 ? "0" + mS : "" + mS) + "-" + (dS < 10 ? "0" + dS : "" + dS);
+  }
+  var monthsMap = {
+    januari: 1, jan: 1, februari: 2, feb: 2, maret: 3, mar: 3, april: 4, apr: 4,
+    mei: 5, juni: 6, jun: 6, juli: 7, jul: 7, agustus: 8, agu: 8, agt: 8,
+    september: 9, sep: 9, oktober: 10, okt: 10, november: 11, nov: 11, desember: 12, des: 12
+  };
+  var indo = s.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if (indo) {
+    var dN = parseInt(indo[1], 10);
+    var mN = monthsMap[indo[2].toLowerCase()] || 0;
+    var yN = parseInt(indo[3], 10);
+    if (mN > 0) {
+      return yN + "-" + (mN < 10 ? "0" + mN : "" + mN) + "-" + (dN < 10 ? "0" + dN : "" + dN);
+    }
+  }
+  return "";
+}
+
+function isDateKeyClose_(k1, k2, maxDays) {
+  if (!k1 || !k2) return true;
+  if (k1 === k2) return true;
+  var p1 = k1.split("-");
+  var p2 = k2.split("-");
+  if (p1.length !== 3 || p2.length !== 3) return false;
+  var t1 = Date.UTC(parseInt(p1[0], 10), parseInt(p1[1], 10) - 1, parseInt(p1[2], 10));
+  var t2 = Date.UTC(parseInt(p2[0], 10), parseInt(p2[1], 10) - 1, parseInt(p2[2], 10));
+  return Math.abs(t1 - t2) <= maxDays * 86400000;
+}
+
+function isSessionCheckedSelesaiGas_(sheet, rowNum) {
+  try {
+    var vals = sheet.getRange(rowNum, 17, 1, 2).getValues()[0];
+    var disp = sheet.getRange(rowNum, 17, 1, 2).getDisplayValues()[0];
+    var qVal = vals[0];
+    var qDisp = String(disp[0] || "").trim().toUpperCase();
+    var rDisp = String(disp[1] || "").trim().toLowerCase();
+    return qVal === true || qDisp === "TRUE" || rDisp === "selesai" || rDisp === "tuntas";
+  } catch (e) {
+    return false;
+  }
+}
+
+function getSourceDryerActiveMapGas_(ssDhp) {
+  var map = { "PARTAI 1": "OFF", "PARTAI 2": "OFF", "PARTAI 3": "OFF", "PARTAI 4": "OFF" };
+  try {
+    var srcSheet = ssDhp.getSheetByName("SOURCE HASIL DRYER");
+    if (!srcSheet) return map;
+    var rows = srcSheet.getRange(1, 1, Math.min(srcSheet.getLastRow(), 40), 10).getDisplayValues();
+    for (var i = 0; i < rows.length; i++) {
+      var rowJoined = rows[i].join(" ");
+      var statusCol = String(rows[i][8] || "").trim().toLowerCase();
+      if (statusCol !== "proses" && !/\bproses\b/i.test(String(rows[i][8] || ""))) continue;
+      if (/PARTAI\s*(IV|4)\b/i.test(rowJoined)) map["PARTAI 4"] = "Proses";
+      else if (/PARTAI\s*(III|3)\b/i.test(rowJoined)) map["PARTAI 3"] = "Proses";
+      else if (/PARTAI\s*(II|2)\b/i.test(rowJoined)) map["PARTAI 2"] = "Proses";
+      else if (/PARTAI\s*(I|1)\b/i.test(rowJoined)) map["PARTAI 1"] = "Proses";
+    }
+  } catch (e) {}
+  return map;
+}
+
 /**
  * OTOMASI PENUH SERVER-SIDE 24/7 (UNATTENDED / TANPA KLIK TOMBOL)
- * Memindai PARTAI 1 s/d PARTAI 4 di Kertas Kerja DHP dan membukukan ke DATA PROSES CKH saat status 'Susut Akhir'.
+ * Memindai PARTAI 1 s/d PARTAI 4 di Kertas Kerja DHP dan HANYA membukukan ke DATA PROSES CKH saat:
+ * 1) SOURCE HASIL DRYER = OFF, 2) Centang Operator Q188/Q253/Q318 = TRUE / SELESAI,
+ * 3) Dropdown = Susut Akhir, 4) Massa lengkap & lolos Physics Guard.
  */
 function autoSyncAllPartaiToServer() {
   var logs = [];
   try {
     var ssDhp = SpreadsheetApp.openById("1ZEJjMQMBkE8k3NIeHA32P2SooIpvXIfnq_f-pruCelQ");
+    var sourceStatusMap = getSourceDryerActiveMapGas_(ssDhp);
     var partaiTabs = ["PARTAI 1", "PARTAI 2", "PARTAI 3", "PARTAI 4"];
     
     for (var p = 0; p < partaiTabs.length; p++) {
       var tabName = partaiTabs[p];
+      if (sourceStatusMap[tabName] === "Proses") {
+        logs.push(tabName + ": SKIP (SOURCE HASIL DRYER masih Proses)");
+        continue;
+      }
       var sheet = ssDhp.getSheetByName(tabName);
       if (!sheet) continue;
       
       var maxRows = Math.min(sheet.getLastRow(), 350);
       if (maxRows < 20) continue;
       
-      var headerValues = sheet.getRange(1, 1, 3, 20).getValues();
+      var allDisplay = sheet.getRange(1, 1, Math.min(maxRows, 325), 18).getDisplayValues();
+      var allValues = sheet.getRange(1, 1, Math.min(maxRows, 325), 18).getValues();
+      
       var noLap = "";
       var tglMulai = "";
       var jenis = "Manado Grade A (2024)";
-      
-      var l1Str = headerValues[0].join(" ");
-      var l2Str = headerValues[1].join(" ");
-      
+      var l1Str = allDisplay[0].join(" ");
+      var l2Str = allDisplay[1].join(" ");
       var mNoLap = l1Str.match(/:\s*([0-9A-Za-z\/\-_]+)/);
       if (mNoLap) noLap = mNoLap[1].trim();
-      
       var mTgl = l2Str.match(/([A-Za-z]+,\s*\d{1,2}\s+[A-Za-z]+\s+\d{4})/);
       if (mTgl) tglMulai = mTgl[1].trim();
-      
       var mStock = l1Str.match(/Nama Stock[^:]*:\s*([^"]+)/i) || l1Str.match(/:\s*(Manado[^\",]+)/i);
       if (mStock) jenis = mStock[1].trim();
       
-      var statusDropdown = "";
-      var scanStart = Math.min(maxRows, 85);
-      var scanCount = Math.min(Math.max(maxRows - scanStart + 1, 1), 60);
-      var qValues = sheet.getRange(scanStart, 16, scanCount, 3).getValues();
-      
-      for (var r = 0; r < qValues.length; r++) {
-        var valQ = String(qValues[r][1] || "");
-        var valR = String(qValues[r][2] || "");
-        if (/susut\s*akhir/i.test(valQ) || /susut\s*akhir/i.test(valR)) {
-          statusDropdown = "Susut Akhir (Gld Kering-Rj. Kering)";
-          break;
+      // Gld Kering (R15) & Rj Basah (R22)
+      var gldKering = parseIndoNumGas_(sheet.getRange("R15").getDisplayValue());
+      if (gldKering <= 0) {
+        for (var g = 0; g < Math.min(allDisplay.length, 17); g++) {
+          if (String(allDisplay[g][16] || "").indexOf("Netto") > -1) {
+            var nG = parseIndoNumGas_(allDisplay[g][17]);
+            if (nG > 100) { gldKering = nG; break; }
+          }
         }
       }
+      var rjBasah = parseIndoNumGas_(sheet.getRange("R22").getDisplayValue());
       
-      if (statusDropdown !== "Susut Akhir (Gld Kering-Rj. Kering)") {
+      var extractDryerBlockGas = function(keyword) {
+        var res = { rjBasah: 0, hasilDryer: 0, debuKg: null };
+        for (var i = 0; i < allDisplay.length; i++) {
+          var qH = String(allDisplay[i][16] || "").trim();
+          if (qH.indexOf(keyword) > -1) {
+            for (var j = i + 1; j < Math.min(allDisplay.length, i + 10); j++) {
+              var cQ = String(allDisplay[j][16] || "").trim();
+              var cR = String(allDisplay[j][17] || "").trim();
+              if (cQ.indexOf("N :") > -1 || cR.indexOf("N :") > -1) {
+                var vQ = parseIndoNumGas_(cQ);
+                var vR = parseIndoNumGas_(cR);
+                if (vQ > 0) res.rjBasah = vQ;
+                if (vR > 0) res.hasilDryer = vR;
+              } else if (/^debu\s*:/i.test(cQ)) {
+                var rawD = allValues[j][17];
+                if (typeof rawD === "number" && !isNaN(rawD) && rawD >= 0) {
+                  res.debuKg = Math.round(rawD * 10) / 10;
+                } else if (cR && /\d/.test(cR)) {
+                  res.debuKg = Math.round(parseIndoNumGas_(cR) * 10) / 10;
+                }
+              }
+            }
+            break;
+          }
+        }
+        return res;
+      };
+      
+      var s1 = extractDryerBlockGas("Proses Dryer Pertama");
+      var s2 = extractDryerBlockGas("Proses Dryer Kedua");
+      var s3 = extractDryerBlockGas("Proses Dryer Ketiga");
+      var tot123 = extractDryerBlockGas("Total Dryer 1 + 2 + 3");
+      var tot12 = extractDryerBlockGas("Total Dryer 1 + 2 :");
+      
+      var sumSesiRjBasah = s1.rjBasah + s2.rjBasah + s3.rjBasah;
+      if (rjBasah <= 0) rjBasah = tot123.rjBasah || tot12.rjBasah || sumSesiRjBasah;
+      var rjKering = tot123.hasilDryer || tot12.hasilDryer || Math.round((s1.hasilDryer + s2.hasilDryer + s3.hasilDryer) * 10) / 10;
+      
+      if (gldKering <= 0 || rjKering <= 0) {
+        logs.push(tabName + ": SKIP (Gld/RjKering belum terisi)");
         continue;
       }
       
-      var gldKering = 0;
-      var rjBasah = 0;
-      var rjKering = 0;
-      var kaGldStr = "";
+      // FINAL READINESS GATE:
+      var s1Done = isSessionCheckedSelesaiGas_(sheet, 188);
+      var s2Active = (s2.rjBasah > 0 || s2.hasilDryer > 0);
+      var s2Done = !s2Active || isSessionCheckedSelesaiGas_(sheet, 253);
+      var s3Active = (s3.rjBasah > 0 || s3.hasilDryer > 0);
+      var s3Done = !s3Active || isSessionCheckedSelesaiGas_(sheet, 318);
+      if (!s1Done || !s2Done || !s3Done) {
+        logs.push(tabName + ": SKIP (Belum dicentang SELESAI operator S1=" + s1Done + ", S2=" + s2Done + ", S3=" + s3Done + ")");
+        continue;
+      }
+      
+      var targetDropdownRow = s3Active ? 313 : (s2Active ? 248 : 183);
+      var dropdownVal = targetDropdownRow <= maxRows ? String(sheet.getRange(targetDropdownRow, 17).getDisplayValue() || "").trim() : "";
+      if (!dropdownVal) {
+        for (var dr = Math.min(maxRows - 1, 320); dr >= 140; dr--) {
+          var qD = String(allDisplay[dr][16] || "").trim();
+          if (/susut\s*akhir|susut\s*sementara|perkiraan\s*susut/i.test(qD)) {
+            dropdownVal = qD;
+            break;
+          }
+        }
+      }
+      if (!/susut\s*akhir/i.test(dropdownVal)) {
+        logs.push(tabName + ": SKIP (Dropdown belum Susut Akhir: '" + dropdownVal + "')");
+        continue;
+      }
+      
+      if (rjBasah > 0 && sumSesiRjBasah > 0 && (rjBasah - sumSesiRjBasah) > 50) {
+        logs.push(tabName + ": SKIP (Sisa Rj Basah belum di-dryer)");
+        continue;
+      }
+      
+      var susutPctCheck = ((gldKering - rjKering) / gldKering) * 100;
+      if (susutPctCheck > 15.0 || susutPctCheck < -3.0) {
+        logs.push(tabName + ": SKIP (Karantina Fisika susut=" + susutPctCheck.toFixed(2) + "%)");
+        continue;
+      }
+      
+      var kaGldNum = 0;
+      var kaDryList = [];
+      for (var k = 0; k < allDisplay.length; k++) {
+        var cQK = String(allDisplay[k][16] || "").trim();
+        var cRK = String(allDisplay[k][17] || "").trim();
+        if (!kaGldNum && /Pra Rendam/i.test(cQK) && /\d/.test(cRK)) {
+          kaGldNum = parseIndoNumGas_(cRK);
+        }
+        if (/K\.?\s*Air\s*Hasil\s*Dryer\s*[123]/i.test(cQK) && /\d/.test(cRK)) {
+          var kaV = parseIndoNumGas_(cRK);
+          if (kaV > 0) kaDryList.push(kaV);
+        }
+      }
+      var kaGldStr = kaGldNum > 0 ? kaGldNum.toFixed(2).replace(".", ",") + " Mc" : "";
       var kaDryStr = "";
-      
-      try {
-        var cellR11 = sheet.getRange("R11").getValue();
-        if (typeof cellR11 === "number" && cellR11 > 100) gldKering = cellR11;
-      } catch (e) {}
-      
-      try {
-        var cellR22 = sheet.getRange("R22").getValue();
-        if (typeof cellR22 === "number" && cellR22 > 100) rjBasah = cellR22;
-      } catch (e) {}
-      
-      try {
-        var cellQ297 = sheet.getRange("Q297").getValue();
-        var cellR297 = sheet.getRange("R297").getValue();
-        if (typeof cellQ297 === "number" && cellQ297 > 100) rjBasah = cellQ297;
-        if (typeof cellR297 === "number" && cellR297 > 100) rjKering = cellR297;
-      } catch (e) {}
-      
-      var allData = sheet.getRange(1, 1, Math.min(maxRows, 320), 18).getValues();
-      for (var i = 0; i < allData.length; i++) {
-        var rowStr = allData[i].join(" ");
-        if (rowStr.indexOf("Netto :") > -1 && (i < 15 || rowStr.indexOf("SYNC") > -1) && !gldKering) {
-          for (var c = 0; c < allData[i].length; c++) {
-            var v = allData[i][c];
-            if (typeof v === "number" && v > 100) { gldKering = v; break; }
-          }
-        }
-        if (rowStr.indexOf("Kadar Air Pra Rendam :") > -1 || rowStr.indexOf("Pra Rendam :") > -1) {
-          for (var c = 0; c < allData[i].length; c++) {
-            if (String(allData[i][c]).indexOf("%") > -1 || (typeof allData[i][c] === "number" && allData[i][c] < 40)) {
-              kaGldStr = String(allData[i][c]).trim();
-              break;
-            }
-          }
-        }
-        if (rowStr.indexOf("Susut Akhir (Gld Kering-Rj. Kering)") > -1 && !rjKering) {
-          for (var c = 0; c < allData[i].length; c++) {
-            var v = allData[i][c];
-            if (typeof v === "number" && v > 100) { rjKering = v; break; }
-          }
-        }
+      if (kaDryList.length > 0) {
+        var kaSum = 0;
+        for (var ki = 0; ki < kaDryList.length; ki++) kaSum += kaDryList[ki];
+        kaDryStr = (kaSum / kaDryList.length).toFixed(2).replace(".", ",") + " Mc";
       }
-      
-      if (!rjKering) {
-        for (var i = 70; i < allData.length; i++) {
-          var rowStr = allData[i].join(" ");
-          if (rowStr.indexOf("Proses Dryer") > -1 || rowStr.indexOf("Total Dryer") > -1 || rowStr.indexOf("Grand Total") > -1) {
-            for (var c = 0; c < allData[i].length; c++) {
-              var v = allData[i][c];
-              if (typeof v === "number" && v > 500) { rjKering = v; }
-            }
-          }
-        }
-      }
-      
-      if (gldKering <= 0 || rjKering <= 0) continue;
       
       // Tanggal Proses Admoist Resmi untuk Kolom B DATA PROSES CKH (Cell R11)
       var tglAdmoistPartai = tglMulai || "-";
-      
       try {
         var cellR11 = sheet.getRange("R11");
         var valR11 = String(cellR11.getDisplayValue() || "").trim();
         var rawValR11 = cellR11.getValue();
-        
         var dObj = null;
         if (rawValR11 instanceof Date && !isNaN(rawValR11.getTime())) {
           dObj = rawValR11;
@@ -429,55 +571,28 @@ function autoSyncAllPartaiToServer() {
             dObj = new Date(year, month - 1, day);
           }
         }
-        
         if (dObj) {
           var dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
           var monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-          var day = dObj.getDate();
-          var dayPadded = day < 10 ? "0" + day : "" + day;
-          var monthName = monthNames[dObj.getMonth()];
-          var year = dObj.getFullYear();
-          tglAdmoistPartai = dayNames[dObj.getDay()] + ", " + dayPadded + " " + monthName + " " + year;
+          var dayPadded = dObj.getDate() < 10 ? "0" + dObj.getDate() : "" + dObj.getDate();
+          tglAdmoistPartai = dayNames[dObj.getDay()] + ", " + dayPadded + " " + monthNames[dObj.getMonth()] + " " + dObj.getFullYear();
         }
       } catch(e) {}
       
-      // Jalur Silo vs Manual dari Cell O8:P8
       var jalurProses = "Manual";
       try {
         var valO8 = String(sheet.getRange("O8").getDisplayValue() || "").trim();
-        if (/silo/i.test(valO8)) {
-          jalurProses = "Silo";
-        }
+        if (/silo/i.test(valO8)) jalurProses = "Silo";
       } catch(e) {}
       
-      // Ekstraksi Total Debu (Kg) dari blok Proses Dryer Pertama/Kedua/Ketiga (Kolom Q: "Debu :", Kolom R: nilai)
       var totalDebuKg = null;
-      for (var i = 0; i < allData.length; i++) {
-        var hdrQ = String(allData[i][16] || "").trim();
-        if (/Proses Dryer (Pertama|Kedua|Ketiga)/i.test(hdrQ)) {
-          for (var j = i + 1; j < Math.min(allData.length, i + 10); j++) {
-            var cQDebu = String(allData[j][16] || "").trim();
-            if (/^debu\s*:/i.test(cQDebu)) {
-              var rawDebuVal = allData[j][17];
-              var parsedDebu = null;
-              if (typeof rawDebuVal === "number" && !isNaN(rawDebuVal)) {
-                parsedDebu = rawDebuVal;
-              } else if (rawDebuVal !== "" && rawDebuVal !== null && rawDebuVal !== undefined) {
-                var sDebu = String(rawDebuVal).replace(/[^0-9.,-]/g, "").replace(/\./g, "").replace(/,/g, ".");
-                var nDebu = parseFloat(sDebu);
-                if (!isNaN(nDebu)) parsedDebu = nDebu;
-              }
-              if (parsedDebu !== null && parsedDebu >= 0) {
-                totalDebuKg = (totalDebuKg === null ? 0 : totalDebuKg) + parsedDebu;
-              }
-              break;
-            }
-          }
+      var debuList = [s1.debuKg, s2.debuKg, s3.debuKg];
+      for (var di = 0; di < debuList.length; di++) {
+        if (debuList[di] !== null && debuList[di] >= 0) {
+          totalDebuKg = (totalDebuKg === null ? 0 : totalDebuKg) + debuList[di];
         }
       }
-      if (totalDebuKg !== null) {
-        totalDebuKg = Math.round(totalDebuKg * 10) / 10;
-      }
+      if (totalDebuKg !== null) totalDebuKg = Math.round(totalDebuKg * 10) / 10;
 
       var payload = {
         action: "syncDhpToRekap",

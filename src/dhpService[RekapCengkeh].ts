@@ -1090,29 +1090,52 @@ export async function fetchDhpPartai(
     kaDryRata = round2(sumKa / validKaList.length);
   }
 
-  // 3b. Scan Dropdown Status di Kolom Q atau R (sekitar baris 90 s/d 125)
+  // 3b. Scan Dropdown Status di Kolom Q atau R per blok Sesi Dryer (aman meski GViz melewati baris kosong)
   // Dropdown ini berisi: "Susut Sementara", "Susut Akhir (Gld Kering-Rj. Kering)", "Perkiraan Susut Sementara"
-  let statusDropdownKertasKerja = '';
-  lines.forEach((line, idx) => {
-    const rowNum = idx + 1;
-    if (rowNum >= 90 && rowNum <= 125) {
-      const cols = line.split('","');
-      const colQ = cols[16] ? cols[16].replace(/\"/g, '').trim() : '';
-      const colR = cols[17] ? cols[17].replace(/\"/g, '').trim() : '';
-      
-      const checkVal = (v: string) => {
-        if (/susut\s*akhir/i.test(v)) return 'Susut Akhir (Gld Kering-Rj. Kering)';
-        if (/perkiraan\s*susut/i.test(v)) return 'Perkiraan Susut Sementara';
-        if (/susut\s*sementara/i.test(v)) return 'Susut Sementara';
-        return '';
-      };
-      
-      const matchQ = checkVal(colQ);
-      const matchR = checkVal(colR);
-      if (matchQ) statusDropdownKertasKerja = matchQ;
-      else if (matchR && !statusDropdownKertasKerja) statusDropdownKertasKerja = matchR;
+  let statusDropdownSesi1 = '';
+  let statusDropdownSesi2 = '';
+  let statusDropdownSesi3 = '';
+  let statusDropdownFallback = '';
+  let dropdownScanSection: 1 | 2 | 3 | null = null;
+
+  const checkDropdownVal = (v: string) => {
+    if (/susut\s*akhir/i.test(v)) return 'Susut Akhir (Gld Kering-Rj. Kering)';
+    if (/perkiraan\s*susut/i.test(v)) return 'Perkiraan Susut Sementara';
+    if (/susut\s*sementara/i.test(v)) return 'Susut Sementara';
+    return '';
+  };
+
+  parsedLines.forEach((pCols, idx) => {
+    const colQ = (pCols[16] || '').trim();
+    const colR = (pCols[17] || '').trim();
+    const lineRaw = lines[idx] || '';
+
+    if (colQ.includes('Proses Dryer Pertama') || lineRaw.includes('Proses Dryer Pertama :')) {
+      dropdownScanSection = 1;
+    } else if (colQ.includes('Proses Dryer Kedua') || lineRaw.includes('Proses Dryer Kedua :')) {
+      dropdownScanSection = 2;
+    } else if (colQ.includes('Proses Dryer Ketiga') || lineRaw.includes('Proses Dryer Ketiga :')) {
+      dropdownScanSection = 3;
     }
+
+    if (idx < 35) return;
+    const matched = checkDropdownVal(colQ) || checkDropdownVal(colR);
+    if (!matched) return;
+
+    if (dropdownScanSection === 1 && !statusDropdownSesi1) statusDropdownSesi1 = matched;
+    else if (dropdownScanSection === 2 && !statusDropdownSesi2) statusDropdownSesi2 = matched;
+    else if (dropdownScanSection === 3 && !statusDropdownSesi3) statusDropdownSesi3 = matched;
+    if (!statusDropdownFallback) statusDropdownFallback = matched;
   });
+
+  // Pilih dropdown milik sesi tertinggi yang aktif (Sesi 3 -> Sesi 2 -> Sesi 1)
+  const hasActiveSesi3Data = rjBasahSesi3 > 0 || dryerSesi3 > 0;
+  const hasActiveSesi2Data = rjBasahSesi2 > 0 || dryerSesi2 > 0;
+  const statusDropdownKertasKerja = hasActiveSesi3Data
+    ? (statusDropdownSesi3 || statusDropdownSesi2 || statusDropdownSesi1 || statusDropdownFallback)
+    : hasActiveSesi2Data
+      ? (statusDropdownSesi2 || statusDropdownSesi1 || statusDropdownFallback)
+      : (statusDropdownSesi1 || statusDropdownFallback);
 
   const isSusutAkhir = statusDropdownKertasKerja === 'Susut Akhir (Gld Kering-Rj. Kering)';
 
@@ -1230,14 +1253,15 @@ export async function fetchDhpPartai(
     prevTab?.sesiList?.find((s) => s.sesi === 3)
   );
 
-  // Evaluasi Apakah Partai Tuntas dalam 1 Sesi (Kondisi Hari ini: Partai 1 tuntas di Sesi 1)
-  const isSesi1CompleteAll = dryerSesi1 > 0 && (
-    (totalRjBasah > 0 && Math.abs(rjBasahSesi1 - totalRjBasah) < 5) || 
-    (totalRjKering > 0 && Math.abs(dryerSesi1 - totalRjKering) < 5) ||
-    isSusutAkhir ||
-    statusDropdownKertasKerja === 'Susut Akhir (Gld Kering-Rj. Kering)'
-  );
-  const isPartaiHabisDiSesi1 = isSesi1CompleteAll && rjBasahSesi2 === 0 && dryerSesi2 === 0;
+  // Evaluasi Apakah Partai Tuntas dalam 1 Sesi (WAJIB sudah dicentang SELESAI oleh operator di Sesi 1 & tidak ada sisa besar Rj Basah)
+  const isSesi1CompleteAll =
+    dryerSesi1 > 0 &&
+    s1StatusInfo.status === 'selesai' &&
+    s1StatusInfo.isChecked === true &&
+    rjBasahSesi2 === 0 &&
+    dryerSesi2 === 0 &&
+    (rjBasahSesi1 === 0 || totalRjBasah <= rjBasahSesi1 + 50);
+  const isPartaiHabisDiSesi1 = isSesi1CompleteAll;
 
   // Jika habis di Sesi 1, tanggal selesai adalah tanggal Sesi 1 (bukan tanggal Sesi 2 yang tidak pernah berjalan)
   if (isPartaiHabisDiSesi1) {
@@ -1271,7 +1295,7 @@ export async function fetchDhpPartai(
   const hasSesi2 = !isPartaiHabisDiSesi1 && (
     rjBasahSesi2 > 0 || 
     dryerSesi2 > 0 || 
-    (totalRjBasah > rjBasahSesi1 + 20 && !isSusutAkhir && gldKering > 0)
+    (totalRjBasah > rjBasahSesi1 + 50 && rjBasahSesi1 > 0 && gldKering > 0)
   );
 
   if (hasSesi2) {
@@ -1321,26 +1345,6 @@ export async function fetchDhpPartai(
     });
   }
 
-  // 5. Penentuan Status Partai Awal
-  let status: 'selesai' | 'berjalan' | 'kosong' = 'kosong';
-  let catatanStatus = 'Kertas kerja masih kosong / belum ada penimbangan.';
-
-  if (gldKering > 0) {
-    if (isSusutAkhir && totalRjKering > 0) {
-      status = 'selesai';
-      catatanStatus = `Partai dinyatakan habis/tuntas oleh operator (Kolom Q: "Susut Akhir"). Siap dikirim ke Rekap Susut (${totalSusutPct}% total susut).`;
-    } else if (statusDropdownKertasKerja === 'Susut Sementara' || statusDropdownKertasKerja === 'Perkiraan Susut Sementara') {
-      status = 'berjalan';
-      catatanStatus = `Proses sedang berjalan (Kolom Q: "${statusDropdownKertasKerja}"). Belum dinyatakan habis oleh operator.`;
-    } else if (totalRjKering > 0 && totalRjBasah > 0) {
-      status = 'selesai';
-      catatanStatus = `Seluruh proses pengeringan tuntas. Siap dikirim ke Rekap Susut (${totalSusutPct}% total susut).`;
-    } else {
-      status = 'berjalan';
-      catatanStatus = `Proses sedang berjalan. Gelondong Kering: ${formatInt(gldKering)} Kg tercatat, menunggu sesi dryer tuntas.`;
-    }
-  }
-
   const physicsValidation = validateCengkehPhysics({
     gldKering,
     totalRjBasah,
@@ -1348,6 +1352,44 @@ export async function fetchDhpPartai(
     totalSusutPct,
     statusDropdown: statusDropdownKertasKerja
   });
+
+  // 5. Penentuan Status Partai Awal dengan Final Readiness Gate Ketat:
+  // WAJIB: Dropdown Susut Akhir + Seluruh Sesi Dryer Aktif dicentang SELESAI (Q188/Q253/Q318) + Tidak ada sisa besar Rj Basah belum di-dryer
+  const activeDryerSessions = sesiList.filter((s) => s.sesi === 1 || s.rjBasah > 0 || s.hasilDryer > 0);
+  const allSessionsSelesai =
+    activeDryerSessions.length > 0 &&
+    activeDryerSessions.some((s) => s.hasilDryer > 0) &&
+    activeDryerSessions.every((s) => s.status === 'selesai' && s.isChecked === true);
+  const massComplete =
+    totalRjBasah <= 0 ||
+    totalRjBasahAkumulasi <= 0 ||
+    (totalRjBasah - totalRjBasahAkumulasi <= 50);
+
+  let status: 'selesai' | 'berjalan' | 'kosong' = 'kosong';
+  let catatanStatus = 'Kertas kerja masih kosong / belum ada penimbangan.';
+
+  if (gldKering > 0) {
+    if (isSusutAkhir && totalRjKering > 0 && allSessionsSelesai && massComplete) {
+      status = 'selesai';
+      catatanStatus = `Partai dinyatakan habis & dicentang SELESAI oleh operator (Kolom Q: "Susut Akhir"). Siap dikirim ke Rekap Susut (${totalSusutPct}% total susut).`;
+    } else if (statusDropdownKertasKerja === 'Susut Sementara' || statusDropdownKertasKerja === 'Perkiraan Susut Sementara') {
+      status = 'berjalan';
+      catatanStatus = `Proses sedang berjalan (Kolom Q: "${statusDropdownKertasKerja}"). Belum dinyatakan habis oleh operator.`;
+    } else if (!allSessionsSelesai) {
+      const pendingCoords = activeDryerSessions
+        .filter((s) => !(s.status === 'selesai' && s.isChecked === true))
+        .map((s) => `${s.label} (${s.statusCellCoordinate || 'R188'}: ${s.rawStatusText || 'Progress..'})`)
+        .join(', ');
+      status = 'berjalan';
+      catatanStatus = `Penimbangan Dryer masih berjalan — menunggu centang SELESAI operator pada: ${pendingCoords || 'Sesi 1 (R188)'}.`;
+    } else if (!massComplete) {
+      status = 'berjalan';
+      catatanStatus = `Sebagian Rajang Basah (${formatDec1(round1(totalRjBasah - totalRjBasahAkumulasi))} Kg) belum masuk sesi Dryer berikutnya.`;
+    } else {
+      status = 'berjalan';
+      catatanStatus = `Proses sedang berjalan. Gelondong Kering: ${formatInt(gldKering)} Kg tercatat, menunggu status "Susut Akhir" & centang SELESAI operator.`;
+    }
+  }
 
   const hasDryerValues = (dp: DhpDryerMachineParams) =>
     dp.rpmInput !== null ||
@@ -1614,30 +1656,72 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
       const isSusutAkhir = p.isSusutAkhir || p.statusDropdownKertasKerja === 'Susut Akhir (Gld Kering-Rj. Kering)';
       const isSusutSementara = p.statusDropdownKertasKerja === 'Susut Sementara' || p.statusDropdownKertasKerja === 'Perkiraan Susut Sementara';
 
+      const activeSessions = (p.sesiList || []).filter((s) => s.sesi === 1 || s.rjBasah > 0 || s.hasilDryer > 0);
+      const allSessionsSelesai =
+        activeSessions.length > 0 &&
+        activeSessions.some((s) => s.hasilDryer > 0) &&
+        activeSessions.every((s) => s.status === 'selesai' && s.isChecked === true);
+      const sumSesiRjBasah = activeSessions.reduce((acc, s) => acc + (s.rjBasah || 0), 0);
+      const massComplete =
+        p.totalRjBasah <= 0 ||
+        sumSesiRjBasah <= 0 ||
+        (p.totalRjBasah - sumSesiRjBasah <= 50);
+      const sourceDryerOff = sourceRes.ok ? srcStatus === 'OFF' : (prevTab?.sourceDryerStatus === 'OFF');
+      const physicsValid = Boolean(p.gldKering > 0 && p.totalRjKering > 0 && !p.physicsValidation?.quarantined);
+
+      const blockingReasons: string[] = [];
+      if (p.gldKering <= 0) blockingReasons.push('Gelondong Kering belum ditimbang');
+      if (p.totalRjKering <= 0) blockingReasons.push('Hasil akhir Dryer belum tercatat');
+      if (!isSusutAkhir) {
+        blockingReasons.push(
+          isSusutSementara
+            ? `Dropdown masih "${p.statusDropdownKertasKerja}" (belum Susut Akhir)`
+            : 'Dropdown status belum diset ke "Susut Akhir (Gld Kering-Rj. Kering)"'
+        );
+      }
+      if (!allSessionsSelesai) {
+        const pending = activeSessions
+          .filter((s) => !(s.status === 'selesai' && s.isChecked === true))
+          .map((s) => `Sesi ${s.sesi} (${s.statusCellCoordinate || 'R188'}: ${s.rawStatusText || 'Progress..'})`);
+        blockingReasons.push(
+          pending.length > 0
+            ? `Belum dicentang SELESAI oleh operator: ${pending.join(', ')}`
+            : 'Belum ada sesi Dryer yang dicentang SELESAI'
+        );
+      }
+      if (!sourceDryerOff) {
+        blockingReasons.push(
+          sourceRes.ok
+            ? 'Tab SOURCE HASIL DRYER masih berstatus "Proses" (belum OFF)'
+            : 'Status SOURCE HASIL DRYER belum terkonfirmasi OFF'
+        );
+      }
+      if (!massComplete) {
+        blockingReasons.push(`Masih ada sisa Rajang Basah (${formatDec1(round1(p.totalRjBasah - sumSesiRjBasah))} Kg) yang belum masuk Dryer`);
+      }
+      if (p.physicsValidation?.quarantined) {
+        blockingReasons.push(p.physicsValidation.reason || 'Ditahan Karantina Fisika (Layer 2)');
+      }
+
+      const readyToDispatch =
+        isSusutAkhir &&
+        allSessionsSelesai &&
+        sourceDryerOff &&
+        massComplete &&
+        physicsValid;
+
       let status: 'selesai' | 'berjalan' | 'kosong' = 'kosong';
       let catatanStatus = '';
 
       if (p.gldKering > 0) {
-        if (isSusutAkhir && p.totalRjKering > 0) {
+        if (readyToDispatch) {
           status = 'selesai';
-          catatanStatus = `Partai dinyatakan habis/tuntas oleh operator (Dropdown Kolom Q: "Susut Akhir"). Siap dikirim ke Rekap Susut (${p.totalSusutPct}% total susut).`;
-        } else if (isSusutSementara) {
-          status = 'berjalan';
-          if (isTodayActive) {
-            catatanStatus = `Proses sedang berjalan aktif hari ini (Kolom Q: "${p.statusDropdownKertasKerja}" · SOURCE HASIL DRYER: "Proses"). Gld Kering: ${formatInt(p.gldKering)} Kg.`;
-          } else {
-            catatanStatus = `Proses sedang berjalan (Multi-day dryer · Kolom Q: "${p.statusDropdownKertasKerja}"). Belum dinyatakan habis oleh operator.`;
-          }
-        } else if (p.totalRjKering > 0 && p.totalRjBasah > 0) {
-          status = 'selesai';
-          catatanStatus = `Seluruh proses pengeringan tuntas. Siap dikirim ke Rekap Susut (${p.totalSusutPct}% total susut).`;
+          catatanStatus = `Tuntas & Terverifikasi (Susut Akhir + Centang SELESAI Operator + SOURCE DRYER OFF). Siap dibukukan ke Rekap Susut (${p.totalSusutPct}% total susut).`;
         } else {
           status = 'berjalan';
-          if (isTodayActive) {
-            catatanStatus = `Sedang berjalan aktif hari ini (Tercatat "Proses" di SOURCE HASIL DRYER). Gld Kering: ${formatInt(p.gldKering)} Kg tercatat.`;
-          } else {
-            catatanStatus = `Proses sedang berjalan (Multi-day dryer / menunggu sesi berikutnya tuntas). Gld Kering: ${formatInt(p.gldKering)} Kg.`;
-          }
+          catatanStatus = blockingReasons.length > 0
+            ? `Belum siap kirim: ${blockingReasons[0]}.`
+            : `Proses sedang berjalan. Gld Kering: ${formatInt(p.gldKering)} Kg.`;
         }
       } else if (isTodayActive) {
         status = 'berjalan';
@@ -1654,6 +1738,15 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
         statusDropdownKertasKerja: p.statusDropdownKertasKerja,
         isSusutAkhir,
         physicsValidation: p.physicsValidation,
+        readinessChecks: {
+          isSusutAkhir,
+          allSessionsSelesai,
+          sourceDryerOff,
+          massComplete,
+          physicsValid,
+          readyToDispatch,
+          blockingReasons
+        },
         sourceDryerStatus: srcStatus,
         isTodayActive
       };
@@ -2077,7 +2170,7 @@ function handleDhpPost(e) {
     // TEMPLATE FINDER: Temukan baris riil terakhir (mengabaikan 823 baris formula template kosong)
     var actualLast = findActualLastRow_(targetSheet);
     
-    // LAYER 3: Multi-Day Idempotency Key & Duplicate Shield
+    // LAYER 3: Multi-Day Idempotency Key & Duplicate Shield (Tanggal Kanonik YYYY-MM-DD + Bobot Gld Kering)
     // Cek apakah data partai ini sudah pernah dicatat di baris 11 s/d actualLast
     var isDuplicate = false;
     var targetRow = -1;
@@ -2085,17 +2178,25 @@ function handleDhpPost(e) {
       var scanCount = actualLast - 10;
       var existingData = targetSheet.getRange(11, 2, scanCount, 10).getValues();
       var existingDisplayB = targetSheet.getRange(11, 2, scanCount, 1).getDisplayValues();
-      for (var i = 0; i < existingData.length; i++) {
-        var exTgl = String(existingDisplayB[i][0] || existingData[i][0] || "").trim();
-        var exGld = Number(existingData[i][5]) || 0;  // Col G (2+5=7)
-        var exRjK = Number(existingData[i][9]) || 0;  // Col K (2+9=11)
+      var tglBaruKey = normalizeIndoDateKey_(tglBaru);
+      for (var i = existingData.length - 1; i >= 0; i--) {
+        var exRowNum = i + 11;
+        var exTglRaw = existingDisplayB[i][0] || existingData[i][0] || "";
+        var exTgl = String(exTglRaw).trim();
+        var exTglKey = normalizeIndoDateKey_(existingData[i][0] instanceof Date ? existingData[i][0] : exTgl);
+        var exGld = parseIndoNumGas_(existingData[i][5]);  // Col G (2+5=7)
+        var exRjK = parseIndoNumGas_(existingData[i][9]);  // Col K (2+9=11)
         
-        var sameTgl = (exTgl && tglBaru && (exTgl.toLowerCase() === tglBaru.toLowerCase()));
+        var sameTgl = (tglBaruKey && exTglKey)
+          ? (tglBaruKey === exTglKey)
+          : (exTgl && tglBaru && (exTgl.toLowerCase() === tglBaru.toLowerCase()));
         var sameGld = (gldKeringNum > 0 && exGld > 0 && Math.abs(exGld - gldKeringNum) < 0.5);
         var sameRjK = (rjKeringNum > 0 && exRjK > 0 && Math.abs(exRjK - rjKeringNum) < 1.0);
+        var isRecentRow = (actualLast - exRowNum) <= 12;
+        var isCloseDate = isDateKeyClose_(tglBaruKey, exTglKey, 3);
         
-        if ((sameTgl && sameGld) || (sameTgl && sameRjK) || (sameGld && sameRjK)) {
-          targetRow = i + 11;
+        if ((sameTgl && sameGld) || (sameTgl && sameRjK) || (sameGld && sameRjK) || (sameGld && isRecentRow && isCloseDate)) {
+          targetRow = exRowNum;
           isDuplicate = true;
           break;
         }
@@ -2245,133 +2346,279 @@ function createJsonResponse(obj) {
  * 6. Langsung menulis baris resmi ke DATA PROSES CKH (melindungi 8 kolom rumus).
  * 7. Mencatat log otomatisasi ke AUDIT_LOG_INTEGRASI.
  */
+function parseIndoNumGas_(val) {
+  if (typeof val === "number") return isNaN(val) ? 0 : val;
+  if (val === null || val === undefined || val === "") return 0;
+  var s = String(val).replace(/[^0-9.,-]/g, "");
+  if (!s || !/\d/.test(s)) return 0;
+  if (s.indexOf(".") > -1 && s.indexOf(",") > -1) {
+    s = s.replace(/\./g, "").replace(/,/g, ".");
+  } else if (s.indexOf(",") > -1) {
+    s = s.replace(/,/g, ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    s = s.replace(/\./g, "");
+  }
+  var n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function normalizeIndoDateKey_(val) {
+  if (!val) return "";
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    var y = val.getFullYear();
+    var m = val.getMonth() + 1;
+    var d = val.getDate();
+    return y + "-" + (m < 10 ? "0" + m : "" + m) + "-" + (d < 10 ? "0" + d : "" + d);
+  }
+  var s = String(val).trim();
+  if (!s) return "";
+  var iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (iso) {
+    var mI = parseInt(iso[2], 10);
+    var dI = parseInt(iso[3], 10);
+    return iso[1] + "-" + (mI < 10 ? "0" + mI : "" + mI) + "-" + (dI < 10 ? "0" + dI : "" + dI);
+  }
+  var slash = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
+  if (slash) {
+    var dS = parseInt(slash[1], 10);
+    var mS = parseInt(slash[2], 10);
+    var yS = parseInt(slash[3], 10);
+    if (yS < 100) yS += 2000;
+    return yS + "-" + (mS < 10 ? "0" + mS : "" + mS) + "-" + (dS < 10 ? "0" + dS : "" + dS);
+  }
+  var monthsMap = {
+    januari: 1, januari_: 1, jan: 1,
+    februari: 2, feb: 2,
+    maret: 3, mar: 3,
+    april: 4, apr: 4,
+    mei: 5,
+    juni: 6, jun: 6,
+    juli: 7, jul: 7,
+    agustus: 8, agu: 8, agt: 8,
+    september: 9, sep: 9,
+    oktober: 10, okt: 10,
+    november: 11, nov: 11,
+    desember: 12, des: 12
+  };
+  var indo = s.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+  if (indo) {
+    var dN = parseInt(indo[1], 10);
+    var mN = monthsMap[indo[2].toLowerCase()] || 0;
+    var yN = parseInt(indo[3], 10);
+    if (mN > 0) {
+      return yN + "-" + (mN < 10 ? "0" + mN : "" + mN) + "-" + (dN < 10 ? "0" + dN : "" + dN);
+    }
+  }
+  return "";
+}
+
+function isDateKeyClose_(k1, k2, maxDays) {
+  if (!k1 || !k2) return true;
+  if (k1 === k2) return true;
+  var p1 = k1.split("-");
+  var p2 = k2.split("-");
+  if (p1.length !== 3 || p2.length !== 3) return false;
+  var t1 = Date.UTC(parseInt(p1[0], 10), parseInt(p1[1], 10) - 1, parseInt(p1[2], 10));
+  var t2 = Date.UTC(parseInt(p2[0], 10), parseInt(p2[1], 10) - 1, parseInt(p2[2], 10));
+  return Math.abs(t1 - t2) <= maxDays * 86400000;
+}
+
+function isSessionCheckedSelesaiGas_(sheet, rowNum) {
+  try {
+    var vals = sheet.getRange(rowNum, 17, 1, 2).getValues()[0];
+    var disp = sheet.getRange(rowNum, 17, 1, 2).getDisplayValues()[0];
+    var qVal = vals[0];
+    var qDisp = String(disp[0] || "").trim().toUpperCase();
+    var rDisp = String(disp[1] || "").trim().toLowerCase();
+    return qVal === true || qDisp === "TRUE" || rDisp === "selesai" || rDisp === "tuntas";
+  } catch (e) {
+    return false;
+  }
+}
+
+function getSourceDryerActiveMapGas_(ssDhp) {
+  var map = { "PARTAI 1": "OFF", "PARTAI 2": "OFF", "PARTAI 3": "OFF", "PARTAI 4": "OFF" };
+  try {
+    var srcSheet = ssDhp.getSheetByName("SOURCE HASIL DRYER");
+    if (!srcSheet) return map;
+    var rows = srcSheet.getRange(1, 1, Math.min(srcSheet.getLastRow(), 40), 10).getDisplayValues();
+    for (var i = 0; i < rows.length; i++) {
+      var rowJoined = rows[i].join(" ");
+      var statusCol = String(rows[i][8] || "").trim().toLowerCase();
+      var isProses = statusCol === "proses" || /\bproses\b/i.test(String(rows[i][8] || ""));
+      if (!isProses) continue;
+      if (/PARTAI\s*(IV|4)\b/i.test(rowJoined)) map["PARTAI 4"] = "Proses";
+      else if (/PARTAI\s*(III|3)\b/i.test(rowJoined)) map["PARTAI 3"] = "Proses";
+      else if (/PARTAI\s*(II|2)\b/i.test(rowJoined)) map["PARTAI 2"] = "Proses";
+      else if (/PARTAI\s*(I|1)\b/i.test(rowJoined)) map["PARTAI 1"] = "Proses";
+    }
+  } catch (e) {}
+  return map;
+}
+
 function autoSyncAllPartaiToServer() {
   var logs = [];
   try {
     var ssDhp = SpreadsheetApp.openById(DHP_SOURCE_SPREADSHEET_ID);
+    var sourceStatusMap = getSourceDryerActiveMapGas_(ssDhp);
     var partaiTabs = ["PARTAI 1", "PARTAI 2", "PARTAI 3", "PARTAI 4"];
     
     for (var p = 0; p < partaiTabs.length; p++) {
       var tabName = partaiTabs[p];
+      if (sourceStatusMap[tabName] === "Proses") {
+        logs.push(tabName + ": SKIP (SOURCE HASIL DRYER masih Proses)");
+        continue;
+      }
       var sheet = ssDhp.getSheetByName(tabName);
       if (!sheet) continue;
       
       var maxRows = Math.min(sheet.getLastRow(), 350);
       if (maxRows < 20) continue;
       
+      var allDisplay = sheet.getRange(1, 1, Math.min(maxRows, 325), 18).getDisplayValues();
+      var allValues = sheet.getRange(1, 1, Math.min(maxRows, 325), 18).getValues();
+      
       // 1. Ekstraksi Header
-      var headerValues = sheet.getRange(1, 1, 3, 20).getValues();
       var noLap = "";
       var tglMulai = "";
       var jenis = "Manado Grade A (2024)";
-      
-      var l1Str = headerValues[0].join(" ");
-      var l2Str = headerValues[1].join(" ");
-      
+      var l1Str = allDisplay[0].join(" ");
+      var l2Str = allDisplay[1].join(" ");
       var mNoLap = l1Str.match(/:\s*([0-9A-Za-z\/\-_]+)/);
       if (mNoLap) noLap = mNoLap[1].trim();
-      
       var mTgl = l2Str.match(/([A-Za-z]+,\s*\d{1,2}\s+[A-Za-z]+\s+\d{4})/);
       if (mTgl) tglMulai = mTgl[1].trim();
-      
       var mStock = l1Str.match(/Nama Stock[^:]*:\s*([^"]+)/i) || l1Str.match(/:\s*(Manado[^\",]+)/i);
       if (mStock) jenis = mStock[1].trim();
       
-      // 2. Scan Status Dropdown Kolom Q/R (baris 85 - 145)
-      var statusDropdown = "";
-      var scanStart = Math.min(maxRows, 85);
-      var scanCount = Math.min(Math.max(maxRows - scanStart + 1, 1), 60);
-      var qValues = sheet.getRange(scanStart, 16, scanCount, 3).getValues();
-      
-      for (var r = 0; r < qValues.length; r++) {
-        var valQ = String(qValues[r][1] || "");
-        var valR = String(qValues[r][2] || "");
-        if (/susut\s*akhir/i.test(valQ) || /susut\s*akhir/i.test(valR)) {
-          statusDropdown = "Susut Akhir (Gld Kering-Rj. Kering)";
-          break;
-        }
-      }
-      
-      // Hanya proses partai yang sudah dinyatakan "Susut Akhir" oleh operator
-      if (statusDropdown !== "Susut Akhir (Gld Kering-Rj. Kering)") {
-        continue;
-      }
-      
-      // 3. Scan Timbangan Netto (Gld Kering, Rj Basah, Rj Kering)
-      var gldKering = 0;
-      var rjBasah = 0;
-      var rjKering = 0;
-      var kaGldStr = "";
-      var kaDryStr = "";
-      
-      // Coba pembacaan langsung di koordinat baku
-      try {
-        var cellR11 = sheet.getRange("R11").getValue();
-        if (typeof cellR11 === "number" && cellR11 > 100) gldKering = cellR11;
-      } catch (e) {}
-      
-      try {
-        var cellR22 = sheet.getRange("R22").getValue();
-        if (typeof cellR22 === "number" && cellR22 > 100) rjBasah = cellR22;
-      } catch (e) {}
-      
-      try {
-        var cellQ297 = sheet.getRange("Q297").getValue();
-        var cellR297 = sheet.getRange("R297").getValue();
-        if (typeof cellQ297 === "number" && cellQ297 > 100) rjBasah = cellQ297;
-        if (typeof cellR297 === "number" && cellR297 > 100) rjKering = cellR297;
-      } catch (e) {}
-      
-      var allData = sheet.getRange(1, 1, Math.min(maxRows, 320), 18).getValues();
-      
-      for (var i = 0; i < allData.length; i++) {
-        var rowStr = allData[i].join(" ");
-        if (rowStr.indexOf("Netto :") > -1 && (i < 15 || rowStr.indexOf("SYNC") > -1) && !gldKering) {
-          for (var c = 0; c < allData[i].length; c++) {
-            var v = allData[i][c];
-            if (typeof v === "number" && v > 100) { gldKering = v; break; }
+      // 2. Ekstraksi Gld Kering (R15), Rj Basah (R22), & Blok Proses Dryer Pertama/Kedua/Ketiga
+      var gldKering = parseIndoNumGas_(sheet.getRange("R15").getDisplayValue());
+      if (gldKering <= 0) {
+        for (var g = 0; g < Math.min(allDisplay.length, 17); g++) {
+          if (String(allDisplay[g][16] || "").indexOf("Netto") > -1) {
+            var nG = parseIndoNumGas_(allDisplay[g][17]);
+            if (nG > 100) { gldKering = nG; break; }
           }
         }
-        if (rowStr.indexOf("Kadar Air Pra Rendam :") > -1 || rowStr.indexOf("Pra Rendam :") > -1) {
-          for (var c = 0; c < allData[i].length; c++) {
-            if (String(allData[i][c]).indexOf("%") > -1 || (typeof allData[i][c] === "number" && allData[i][c] < 40)) {
-              kaGldStr = String(allData[i][c]).trim();
-              break;
+      }
+      var rjBasah = parseIndoNumGas_(sheet.getRange("R22").getDisplayValue());
+      
+      var extractDryerBlockGas = function(keyword) {
+        var res = { rjBasah: 0, hasilDryer: 0, debuKg: null };
+        for (var i = 0; i < allDisplay.length; i++) {
+          var qH = String(allDisplay[i][16] || "").trim();
+          if (qH.indexOf(keyword) > -1) {
+            for (var j = i + 1; j < Math.min(allDisplay.length, i + 10); j++) {
+              var cQ = String(allDisplay[j][16] || "").trim();
+              var cR = String(allDisplay[j][17] || "").trim();
+              if (cQ.indexOf("N :") > -1 || cR.indexOf("N :") > -1) {
+                var vQ = parseIndoNumGas_(cQ);
+                var vR = parseIndoNumGas_(cR);
+                if (vQ > 0) res.rjBasah = vQ;
+                if (vR > 0) res.hasilDryer = vR;
+              } else if (/^debu\s*:/i.test(cQ)) {
+                var rawD = allValues[j][17];
+                if (typeof rawD === "number" && !isNaN(rawD) && rawD >= 0) {
+                  res.debuKg = Math.round(rawD * 10) / 10;
+                } else if (cR && /\d/.test(cR)) {
+                  res.debuKg = Math.round(parseIndoNumGas_(cR) * 10) / 10;
+                }
+              }
             }
+            break;
           }
         }
-        if (rowStr.indexOf("Susut Akhir (Gld Kering-Rj. Kering)") > -1 && !rjKering) {
-          for (var c = 0; c < allData[i].length; c++) {
-            var v = allData[i][c];
-            if (typeof v === "number" && v > 100) { rjKering = v; break; }
-          }
-        }
-      }
+        return res;
+      };
       
-      if (!rjKering) {
-        for (var i = 70; i < allData.length; i++) {
-          var rowStr = allData[i].join(" ");
-          if (rowStr.indexOf("Proses Dryer") > -1 || rowStr.indexOf("Total Dryer") > -1 || rowStr.indexOf("Grand Total") > -1) {
-            for (var c = 0; c < allData[i].length; c++) {
-              var v = allData[i][c];
-              if (typeof v === "number" && v > 500) { rjKering = v; }
-            }
-          }
-        }
-      }
+      var s1 = extractDryerBlockGas("Proses Dryer Pertama");
+      var s2 = extractDryerBlockGas("Proses Dryer Kedua");
+      var s3 = extractDryerBlockGas("Proses Dryer Ketiga");
+      var tot123 = extractDryerBlockGas("Total Dryer 1 + 2 + 3");
+      var tot12 = extractDryerBlockGas("Total Dryer 1 + 2 :");
+      
+      var sumSesiRjBasah = s1.rjBasah + s2.rjBasah + s3.rjBasah;
+      if (rjBasah <= 0) rjBasah = tot123.rjBasah || tot12.rjBasah || sumSesiRjBasah;
+      var rjKering = tot123.hasilDryer || tot12.hasilDryer || Math.round((s1.hasilDryer + s2.hasilDryer + s3.hasilDryer) * 10) / 10;
       
       if (gldKering <= 0 || rjKering <= 0) {
+        logs.push(tabName + ": SKIP (Gld/RjKering belum terisi)");
         continue;
       }
       
-      // Tanggal Proses Admoist Resmi untuk Kolom B DATA PROSES CKH (Cell R11)
-      var tglAdmoistPartai = tglMulai || "-";
+      // 3. FINAL READINESS GATE WAJIB:
+      // 3a. Centang SELESAI Operator pada semua sesi Dryer aktif (Q188:R188, Q253:R253, Q318:R318)
+      var s1Done = isSessionCheckedSelesaiGas_(sheet, 188);
+      var s2Active = (s2.rjBasah > 0 || s2.hasilDryer > 0);
+      var s2Done = !s2Active || isSessionCheckedSelesaiGas_(sheet, 253);
+      var s3Active = (s3.rjBasah > 0 || s3.hasilDryer > 0);
+      var s3Done = !s3Active || isSessionCheckedSelesaiGas_(sheet, 318);
+      if (!s1Done || !s2Done || !s3Done) {
+        logs.push(tabName + ": SKIP (Menunggu centang SELESAI operator S1=" + s1Done + ", S2=" + s2Done + ", S3=" + s3Done + ")");
+        continue;
+      }
       
+      // 3b. Dropdown Status Sesi Tertinggi Aktif harus "Susut Akhir"
+      var targetDropdownRow = s3Active ? 313 : (s2Active ? 248 : 183);
+      var dropdownVal = "";
+      if (targetDropdownRow <= maxRows) {
+        dropdownVal = String(sheet.getRange(targetDropdownRow, 17).getDisplayValue() || "").trim();
+      }
+      if (!dropdownVal) {
+        for (var dr = Math.min(maxRows - 1, 320); dr >= 140; dr--) {
+          var qD = String(allDisplay[dr][16] || "").trim();
+          if (/susut\s*akhir|susut\s*sementara|perkiraan\s*susut/i.test(qD)) {
+            dropdownVal = qD;
+            break;
+          }
+        }
+      }
+      if (!/susut\s*akhir/i.test(dropdownVal)) {
+        logs.push(tabName + ": SKIP (Dropdown belum Susut Akhir: '" + dropdownVal + "')");
+        continue;
+      }
+      
+      // 3c. Kelengkapan Massa (tidak ada sisa besar Rj Basah > 50 Kg yang belum masuk sesi Dryer)
+      if (rjBasah > 0 && sumSesiRjBasah > 0 && (rjBasah - sumSesiRjBasah) > 50) {
+        logs.push(tabName + ": SKIP (Sisa Rj Basah belum di-dryer: " + (rjBasah - sumSesiRjBasah).toFixed(1) + " Kg)");
+        continue;
+      }
+      
+      // 3d. Layer 2 Physics Sanity Guard
+      var susutPctCheck = ((gldKering - rjKering) / gldKering) * 100;
+      if (susutPctCheck > 15.0 || susutPctCheck < -3.0) {
+        logs.push(tabName + ": SKIP (Karantina Fisika susut=" + susutPctCheck.toFixed(2) + "%)");
+        continue;
+      }
+      
+      // 4. Kadar Air Pra-Rendam & Kadar Air Dryer
+      var kaGldNum = 0;
+      var kaDryList = [];
+      for (var k = 0; k < allDisplay.length; k++) {
+        var cQK = String(allDisplay[k][16] || "").trim();
+        var cRK = String(allDisplay[k][17] || "").trim();
+        if (!kaGldNum && /Pra Rendam/i.test(cQK) && /\d/.test(cRK)) {
+          kaGldNum = parseIndoNumGas_(cRK);
+        }
+        if (/K\.?\s*Air\s*Hasil\s*Dryer\s*[123]/i.test(cQK) && /\d/.test(cRK)) {
+          var kaV = parseIndoNumGas_(cRK);
+          if (kaV > 0) kaDryList.push(kaV);
+        }
+      }
+      var kaGldStr = kaGldNum > 0 ? kaGldNum.toFixed(2).replace(".", ",") + " Mc" : "";
+      var kaDryStr = "";
+      if (kaDryList.length > 0) {
+        var kaSum = 0;
+        for (var ki = 0; ki < kaDryList.length; ki++) kaSum += kaDryList[ki];
+        kaDryStr = (kaSum / kaDryList.length).toFixed(2).replace(".", ",") + " Mc";
+      }
+      
+      // 5. Tanggal Proses Admoist Resmi dari Cell R11
+      var tglAdmoistPartai = tglMulai || "-";
       try {
         var cellR11 = sheet.getRange("R11");
         var valR11 = String(cellR11.getDisplayValue() || "").trim();
         var rawValR11 = cellR11.getValue();
-        
         var dObj = null;
         if (rawValR11 instanceof Date && !isNaN(rawValR11.getTime())) {
           dObj = rawValR11;
@@ -2385,55 +2632,30 @@ function autoSyncAllPartaiToServer() {
             dObj = new Date(year, month - 1, day);
           }
         }
-        
         if (dObj) {
           var dayNames = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
           var monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-          var day = dObj.getDate();
-          var dayPadded = day < 10 ? "0" + day : "" + day;
-          var monthName = monthNames[dObj.getMonth()];
-          var year = dObj.getFullYear();
-          tglAdmoistPartai = dayNames[dObj.getDay()] + ", " + dayPadded + " " + monthName + " " + year;
+          var dayPadded = dObj.getDate() < 10 ? "0" + dObj.getDate() : "" + dObj.getDate();
+          tglAdmoistPartai = dayNames[dObj.getDay()] + ", " + dayPadded + " " + monthNames[dObj.getMonth()] + " " + dObj.getFullYear();
         }
       } catch(e) {}
       
-      // Jalur Silo vs Manual dari Cell O8:P8
+      // 6. Jalur Silo vs Manual dari Cell O8:P8
       var jalurProses = "Manual";
       try {
         var valO8 = String(sheet.getRange("O8").getDisplayValue() || "").trim();
-        if (/silo/i.test(valO8)) {
-          jalurProses = "Silo";
-        }
+        if (/silo/i.test(valO8)) jalurProses = "Silo";
       } catch(e) {}
       
-      // Ekstraksi Total Debu (Kg) dari blok Proses Dryer Pertama/Kedua/Ketiga (Kolom Q: "Debu :", Kolom R: nilai)
+      // 7. Akumulasi Total Debu (Kg)
       var totalDebuKg = null;
-      for (var i = 0; i < allData.length; i++) {
-        var hdrQ = String(allData[i][16] || "").trim();
-        if (/Proses Dryer (Pertama|Kedua|Ketiga)/i.test(hdrQ)) {
-          for (var j = i + 1; j < Math.min(allData.length, i + 10); j++) {
-            var cQDebu = String(allData[j][16] || "").trim();
-            if (/^debu\s*:/i.test(cQDebu)) {
-              var rawDebuVal = allData[j][17];
-              var parsedDebu = null;
-              if (typeof rawDebuVal === "number" && !isNaN(rawDebuVal)) {
-                parsedDebu = rawDebuVal;
-              } else if (rawDebuVal !== "" && rawDebuVal !== null && rawDebuVal !== undefined) {
-                var sDebu = String(rawDebuVal).replace(/[^0-9.,-]/g, "").replace(/\./g, "").replace(/,/g, ".");
-                var nDebu = parseFloat(sDebu);
-                if (!isNaN(nDebu)) parsedDebu = nDebu;
-              }
-              if (parsedDebu !== null && parsedDebu >= 0) {
-                totalDebuKg = (totalDebuKg === null ? 0 : totalDebuKg) + parsedDebu;
-              }
-              break;
-            }
-          }
+      var debuList = [s1.debuKg, s2.debuKg, s3.debuKg];
+      for (var di = 0; di < debuList.length; di++) {
+        if (debuList[di] !== null && debuList[di] >= 0) {
+          totalDebuKg = (totalDebuKg === null ? 0 : totalDebuKg) + debuList[di];
         }
       }
-      if (totalDebuKg !== null) {
-        totalDebuKg = Math.round(totalDebuKg * 10) / 10;
-      }
+      if (totalDebuKg !== null) totalDebuKg = Math.round(totalDebuKg * 10) / 10;
 
       // Jalankan handleDhpPost secara internal (5-Layer Defense)
       var payload = {
@@ -2549,6 +2771,62 @@ function findActualLastRow_(sheet) {
     }
   }
   return lastFilled;
+}
+
+function parseIndoNumCore_(val) {
+  if (typeof val === "number") return isNaN(val) ? 0 : val;
+  var s = String(val || "").replace(/[^\d.,-]/g, "").trim();
+  if (!s) return 0;
+  if (s.indexOf(".") > -1 && s.indexOf(",") > -1) {
+    s = s.replace(/\./g, "").replace(",", ".");
+  } else if (s.indexOf(",") > -1) {
+    s = s.replace(",", ".");
+  } else if (/^\d{1,3}\.\d{3}$/.test(s)) {
+    s = s.replace(/\./g, "");
+  }
+  var n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
+function normalizeIndoDateKeyCore_(val) {
+  if (val instanceof Date && !isNaN(val.getTime())) {
+    var y = val.getFullYear();
+    var m = ("0" + (val.getMonth() + 1)).slice(-2);
+    var d = ("0" + val.getDate()).slice(-2);
+    return y + "-" + m + "-" + d;
+  }
+  var raw = String(val || "").trim();
+  if (!raw) return "";
+  var isoM = raw.match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoM) return isoM[1] + "-" + ("0" + isoM[2]).slice(-2) + "-" + ("0" + isoM[3]).slice(-2);
+  var slashM = raw.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (slashM) {
+    var yr = parseInt(slashM[3], 10);
+    if (yr < 100) yr += 2000;
+    return yr + "-" + ("0" + parseInt(slashM[2], 10)).slice(-2) + "-" + ("0" + parseInt(slashM[1], 10)).slice(-2);
+  }
+  var months = {
+    januari: "01", jan: "01", februari: "02", feb: "02", maret: "03", mar: "03",
+    april: "04", apr: "04", mei: "05", may: "05", juni: "06", jun: "06",
+    juli: "07", jul: "07", agustus: "08", agu: "08", aug: "08", september: "09", sep: "09",
+    oktober: "10", okt: "10", oct: "10", november: "11", nov: "11", desember: "12", des: "12", dec: "12"
+  };
+  var indoM = raw.toLowerCase().match(/(\d{1,2})\s+([a-z]+)\s+(\d{4})/);
+  if (indoM && months[indoM[2]]) {
+    return indoM[3] + "-" + months[indoM[2]] + "-" + ("0" + parseInt(indoM[1], 10)).slice(-2);
+  }
+  return raw.toLowerCase();
+}
+
+function isDateKeyCloseCore_(k1, k2, maxDays) {
+  if (!k1 || !k2) return true;
+  if (k1 === k2) return true;
+  var m1 = k1.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  var m2 = k2.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m1 || !m2) return false;
+  var d1 = new Date(parseInt(m1[1], 10), parseInt(m1[2], 10) - 1, parseInt(m1[3], 10));
+  var d2 = new Date(parseInt(m2[1], 10), parseInt(m2[2], 10) - 1, parseInt(m2[3], 10));
+  return Math.abs(d1.getTime() - d2.getTime()) <= (maxDays * 86400000);
 }
 
 function doGet(e) {
@@ -2684,20 +2962,26 @@ function doPost(e) {
       var isDuplicateFound = false;
       var scanStart = Math.max(11, lastRow - 30);
       var scanCount = Math.max(1, lastRow - scanStart + 1);
+      var tglKey = normalizeIndoDateKeyCore_(tgl);
       if (lastRow >= 11) {
         var existingRange = targetSheet.getRange(scanStart, 1, scanCount, 12).getValues();
         var existingDisplayB = targetSheet.getRange(scanStart, 2, scanCount, 1).getDisplayValues();
-        for (var ex = 0; ex < existingRange.length; ex++) {
+        for (var ex = existingRange.length - 1; ex >= 0; ex--) {
           var exRowIdx = scanStart + ex;
           var exTgl = String(existingDisplayB[ex][0] || existingRange[ex][1] || "").trim();
-          var exGld = Number(existingRange[ex][6] || 0);
-          var exRjK = Number(existingRange[ex][10] || 0);
+          var exTglKey = normalizeIndoDateKeyCore_(existingRange[ex][1] instanceof Date ? existingRange[ex][1] : exTgl);
+          var exGld = parseIndoNumCore_(existingRange[ex][6]);
+          var exRjK = parseIndoNumCore_(existingRange[ex][10]);
 
-          var matchTgl = (tgl && exTgl && (tgl.toLowerCase() === exTgl.toLowerCase()));
+          var matchTgl = (tglKey && exTglKey)
+            ? (tglKey === exTglKey)
+            : (tgl && exTgl && (tgl.toLowerCase() === exTgl.toLowerCase()));
           var matchGld = (gld > 0 && exGld > 0 && Math.abs(gld - exGld) < 0.5);
           var matchRjK = (rjK > 0 && exRjK > 0 && Math.abs(rjK - exRjK) < 1.0);
+          var isRecent = (lastRow - exRowIdx) <= 12;
+          var closeDate = isDateKeyCloseCore_(tglKey, exTglKey, 3);
 
-          if ((matchTgl && matchGld) || (matchTgl && matchRjK) || (matchGld && matchRjK)) {
+          if ((matchTgl && matchGld) || (matchTgl && matchRjK) || (matchGld && matchRjK) || (matchGld && isRecent && closeDate)) {
             targetRow = exRowIdx;
             isDuplicateFound = true;
             break;

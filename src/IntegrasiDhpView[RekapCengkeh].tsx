@@ -238,19 +238,21 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
       if (ctx.isAutoDispatch && data.length > 0 && !ctx.isPushing) {
         const currentSyncLogs = getDhpSyncLogs();
         for (const p of data) {
-          if (
-            p.status === 'selesai' && 
-            p.gldKering > 0 && 
-            p.totalRjKering > 0 && 
-            !p.physicsValidation?.quarantined
-          ) {
+          const isReadyToAutoDispatch =
+            p.status === 'selesai' &&
+            p.readinessChecks?.readyToDispatch === true &&
+            p.gldKering > 0 &&
+            p.totalRjKering > 0 &&
+            !p.physicsValidation?.quarantined;
+
+          if (isReadyToAutoDispatch) {
             const admoistFull = formatHariTanggalAdmoist(p.tanggalAdmoist, p.id);
             const candDates = [
               admoistFull,
               p.tanggalAdmoist ? formatTanggalIndo(p.tanggalAdmoist) : null
             ].filter((d): d is string => Boolean(d && d !== '-' && d !== 'Belum Tercatat'));
 
-            const isAlreadyInMaster = ctx.masterRows.some((r) => {
+            const isAlreadySyncedIdenticalInMaster = ctx.masterRows.some((r) => {
               if (!r) return false;
               const rTgl = String(r.rawTanggal || r.tanggal || '').trim().toLowerCase();
               const sameTanggal = candDates.some((d) => {
@@ -262,22 +264,27 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               const sameBaku = pBaku > 0 && Math.abs(rBaku - pBaku) < 0.8;
               const rHasil = Number(r.rjKering || 0);
               const pHasil = Number(p.totalRjKering || 0);
-              const sameHasil = pHasil > 0 && Math.abs(rHasil - pHasil) < 1.5;
-              return (sameTanggal && sameBaku) || (sameTanggal && sameHasil) || (sameBaku && sameHasil);
+              const sameHasil = pHasil > 0 && Math.abs(rHasil - pHasil) < 1.0;
+              const rDebu = r.debuKg ?? null;
+              const pDebu = p.totalDebuKg ?? null;
+              const sameDebu = (pDebu === null) || (rDebu !== null && Math.abs(rDebu - pDebu) < 0.2);
+              return ((sameTanggal && sameBaku) || (sameBaku && sameHasil)) && sameHasil && sameDebu;
             });
 
-            // Cegah auto-dispatch ganda jika sudah ada log sukses di browser
-            const isAlreadyDispatchedInLogs = currentSyncLogs.some((l) => 
-              l.partai === p.namaTab && 
-              l.status === 'sukses' && 
-              Math.abs(Number(l.gldKering || 0) - Number(p.gldKering || 0)) < 0.8
+            // Cegah auto-dispatch ganda jika bobot akhir & debu yang sama persis sudah sukses dikirim
+            const isAlreadyDispatchedInLogs = currentSyncLogs.some((l) =>
+              l.partai === p.namaTab &&
+              l.status === 'sukses' &&
+              Math.abs(Number(l.gldKering || 0) - Number(p.gldKering || 0)) < 0.8 &&
+              Math.abs(Number(l.rjKering || 0) - Number(p.totalRjKering || 0)) < 0.8 &&
+              ((p.totalDebuKg ?? null) === null || (l.debuKg != null && Math.abs(Number(l.debuKg) - Number(p.totalDebuKg)) < 0.2))
             );
 
             // Cegah spam log gagal berulang setiap 60 detik untuk endpoint & bobot yang sama persis
-            const attemptKey = `${ctx.execUrl}|${p.namaTab}|${p.gldKering}|${p.totalRjKering}`;
+            const attemptKey = `${ctx.execUrl}|${p.namaTab}|${p.gldKering}|${p.totalRjKering}|${p.totalDebuKg ?? ''}`;
             const alreadyFailedSameAttempt = lastAutoDispatchErrorKeyRef.current === attemptKey;
 
-            if (!isAlreadyInMaster && !isAlreadyDispatchedInLogs && !alreadyFailedSameAttempt) {
+            if (!isAlreadySyncedIdenticalInMaster && !isAlreadyDispatchedInLogs && !alreadyFailedSameAttempt) {
               setIsPushing(true);
               try {
                 await pushDhpToMasterSheet(
@@ -1771,17 +1778,68 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
               </div>
             )}
 
-            {/* Status Multi-Day Reminder */}
+            {/* Checklist Kesiapan Kirim (Final Readiness Gate) */}
+            {activePartai.readinessChecks && activePartai.gldKering > 0 && (
+              <div className="p-3 rounded-xl bg-slate-800/50 border border-slate-700/80 space-y-2">
+                <div className="text-[10.5px] font-bold uppercase tracking-wider text-slate-400">
+                  Syarat Pengunci Pengiriman Hasil Akhir (Final Readiness Gate)
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-[11px]">
+                  <div className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+                    activePartai.readinessChecks.isSusutAkhir
+                      ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300'
+                      : 'bg-amber-950/50 border-amber-700/60 text-amber-300'
+                  }`}>
+                    {activePartai.readinessChecks.isSusutAkhir ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <Clock className="w-3.5 h-3.5 shrink-0" />}
+                    <span>Dropdown: Susut Akhir</span>
+                  </div>
+                  <div className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+                    activePartai.readinessChecks.allSessionsSelesai
+                      ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300'
+                      : 'bg-amber-950/50 border-amber-700/60 text-amber-300'
+                  }`}>
+                    {activePartai.readinessChecks.allSessionsSelesai ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <Clock className="w-3.5 h-3.5 shrink-0" />}
+                    <span>Centang SELESAI (R188+)</span>
+                  </div>
+                  <div className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+                    activePartai.readinessChecks.sourceDryerOff
+                      ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300'
+                      : 'bg-amber-950/50 border-amber-700/60 text-amber-300'
+                  }`}>
+                    {activePartai.readinessChecks.sourceDryerOff ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <Clock className="w-3.5 h-3.5 shrink-0" />}
+                    <span>SOURCE DRYER: {activePartai.sourceDryerStatus || 'OFF'}</span>
+                  </div>
+                  <div className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 ${
+                    activePartai.readinessChecks.massComplete && activePartai.readinessChecks.physicsValid
+                      ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300'
+                      : 'bg-amber-950/50 border-amber-700/60 text-amber-300'
+                  }`}>
+                    {activePartai.readinessChecks.massComplete && activePartai.readinessChecks.physicsValid ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                    <span>Massa &amp; Fisika Valid</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Status Multi-Day / Belum Final Reminder */}
             {activePartai.status === 'berjalan' && (
               <div className="p-3.5 rounded-xl bg-blue-950/60 border border-blue-700/60 text-blue-200 text-xs flex items-start gap-2.5">
                 <Clock className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <div className="font-bold text-blue-300">
-                    PROSES MULTI-HARI SEDANG BERJALAN (BELUM SUSUT AKHIR)
+                    PENGIRIMAN DIKUNCI — PROSES DRYER BELUM FINAL
                   </div>
-                  <div className="text-[11px] text-blue-200/90">
-                    Partai ini berstatus &ldquo;{activePartai.statusDropdownKertasKerja || 'Proses Berjalan'}&rdquo; pada lembar kerja DHP. Sesuai standar operasional cengkeh, baris transaksi resmi hanya dibukukan ke Rekap Susut setelah operator mengubah status menjadi &ldquo;<strong>Susut Akhir (Gld Kering-Rj. Kering)</strong>&rdquo;.
-                  </div>
+                  {activePartai.readinessChecks && activePartai.readinessChecks.blockingReasons.length > 0 ? (
+                    <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-blue-200/90">
+                      {activePartai.readinessChecks.blockingReasons.map((reason, idx) => (
+                        <li key={idx}>{reason}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="text-[11px] text-blue-200/90">
+                      Partai ini masih berjalan. Data hanya dapat dibukukan ke Rekap Susut setelah seluruh sesi Dryer dicentang <strong>SELESAI</strong> oleh operator, status <strong>SOURCE HASIL DRYER = OFF</strong>, dan dropdown berstatus <strong>Susut Akhir</strong>.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1800,18 +1858,19 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     isPushing || 
                     activePartai.status === 'kosong' || 
                     activePartai.physicsValidation?.quarantined ||
-                    activePartai.status === 'berjalan'
+                    activePartai.status === 'berjalan' ||
+                    (activePartai.readinessChecks ? !activePartai.readinessChecks.readyToDispatch : false)
                   }
                   className={`min-h-[44px] lg:min-h-[38px] flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-slate-950 text-xs font-bold transition-all shadow-md cursor-pointer ${
-                    isPushing || activePartai.status === 'kosong' || activePartai.physicsValidation?.quarantined || activePartai.status === 'berjalan' 
+                    isPushing || activePartai.status === 'kosong' || activePartai.physicsValidation?.quarantined || activePartai.status === 'berjalan' || (activePartai.readinessChecks ? !activePartai.readinessChecks.readyToDispatch : false)
                       ? 'opacity-50 cursor-not-allowed' 
                       : ''
                   }`}
                   title={
                     activePartai.physicsValidation?.quarantined
                       ? 'Dilarang: Data ditahan karantina fisika'
-                      : activePartai.status === 'berjalan'
-                      ? 'Partai masih berjalan (Multi-day). Menunggu status Susut Akhir dari operator.'
+                      : activePartai.status === 'berjalan' || (activePartai.readinessChecks && !activePartai.readinessChecks.readyToDispatch)
+                      ? (activePartai.readinessChecks?.blockingReasons?.[0] || 'Partai belum final. Menunggu centang SELESAI operator & SOURCE DRYER OFF.')
                       : 'Kirim 1 Baris Resmi Partai Ini ke Google Sheets Master Rekap via API'
                   }
                 >
