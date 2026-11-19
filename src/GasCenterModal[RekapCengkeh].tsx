@@ -401,22 +401,18 @@ function getSourceDryerActiveMapGas_(ssDhp) {
 /**
  * OTOMASI PENUH SERVER-SIDE 24/7 (UNATTENDED / TANPA KLIK TOMBOL)
  * Memindai PARTAI 1 s/d PARTAI 4 di Kertas Kerja DHP dan HANYA membukukan ke DATA PROSES CKH saat:
- * 1) SOURCE HASIL DRYER = OFF, 2) Centang Operator Q188/Q253/Q318 = TRUE / SELESAI,
- * 3) Dropdown = Susut Akhir, 4) Massa lengkap & lolos Physics Guard.
+ * 1) Centang Operator Q188/Q253/Q318 = TRUE / SELESAI pada semua sesi aktif,
+ * 2) Dropdown = Susut Akhir, 3) Massa lengkap (sisa Rj Basah <= 50 Kg), 4) Lolos Physics Guard.
+ * (SOURCE HASIL DRYER tidak dijadikan pemblokir karena berbasis jadwal tanggal TODAY()).
  */
 function autoSyncAllPartaiToServer() {
   var logs = [];
   try {
     var ssDhp = SpreadsheetApp.openById("1ZEJjMQMBkE8k3NIeHA32P2SooIpvXIfnq_f-pruCelQ");
-    var sourceStatusMap = getSourceDryerActiveMapGas_(ssDhp);
     var partaiTabs = ["PARTAI 1", "PARTAI 2", "PARTAI 3", "PARTAI 4"];
     
     for (var p = 0; p < partaiTabs.length; p++) {
       var tabName = partaiTabs[p];
-      if (sourceStatusMap[tabName] === "Proses") {
-        logs.push(tabName + ": SKIP (SOURCE HASIL DRYER masih Proses)");
-        continue;
-      }
       var sheet = ssDhp.getSheetByName(tabName);
       if (!sheet) continue;
       

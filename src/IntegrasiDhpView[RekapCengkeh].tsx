@@ -1802,20 +1802,20 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     <span>Centang SELESAI (R188+)</span>
                   </div>
                   <div className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 ${
-                    activePartai.readinessChecks.sourceDryerOff
+                    activePartai.readinessChecks.massComplete
                       ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300'
                       : 'bg-amber-950/50 border-amber-700/60 text-amber-300'
                   }`}>
-                    {activePartai.readinessChecks.sourceDryerOff ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <Clock className="w-3.5 h-3.5 shrink-0" />}
-                    <span>SOURCE DRYER: {activePartai.sourceDryerStatus || 'OFF'}</span>
+                    {activePartai.readinessChecks.massComplete ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <Clock className="w-3.5 h-3.5 shrink-0" />}
+                    <span>Massa Dryer Lengkap</span>
                   </div>
                   <div className={`px-2.5 py-1.5 rounded-lg border flex items-center gap-1.5 ${
-                    activePartai.readinessChecks.massComplete && activePartai.readinessChecks.physicsValid
+                    activePartai.readinessChecks.physicsValid
                       ? 'bg-emerald-950/60 border-emerald-700/60 text-emerald-300'
                       : 'bg-amber-950/50 border-amber-700/60 text-amber-300'
                   }`}>
-                    {activePartai.readinessChecks.massComplete && activePartai.readinessChecks.physicsValid ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
-                    <span>Massa &amp; Fisika Valid</span>
+                    {activePartai.readinessChecks.physicsValid ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertTriangle className="w-3.5 h-3.5 shrink-0" />}
+                    <span>Audit Fisika Valid</span>
                   </div>
                 </div>
               </div>
@@ -1837,7 +1837,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     </ul>
                   ) : (
                     <div className="text-[11px] text-blue-200/90">
-                      Partai ini masih berjalan. Data hanya dapat dibukukan ke Rekap Susut setelah seluruh sesi Dryer dicentang <strong>SELESAI</strong> oleh operator, status <strong>SOURCE HASIL DRYER = OFF</strong>, dan dropdown berstatus <strong>Susut Akhir</strong>.
+                      Partai ini masih berjalan. Data hanya dapat dibukukan ke Rekap Susut setelah seluruh sesi Dryer dicentang <strong>SELESAI</strong> oleh operator, massa Dryer lengkap, dan dropdown berstatus <strong>Susut Akhir</strong>.
                     </div>
                   )}
                 </div>
@@ -1870,7 +1870,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                     activePartai.physicsValidation?.quarantined
                       ? 'Dilarang: Data ditahan karantina fisika'
                       : activePartai.status === 'berjalan' || (activePartai.readinessChecks && !activePartai.readinessChecks.readyToDispatch)
-                      ? (activePartai.readinessChecks?.blockingReasons?.[0] || 'Partai belum final. Menunggu centang SELESAI operator & SOURCE DRYER OFF.')
+                      ? (activePartai.readinessChecks?.blockingReasons?.[0] || 'Partai belum final. Menunggu centang SELESAI operator & status Susut Akhir.')
                       : 'Kirim 1 Baris Resmi Partai Ini ke Google Sheets Master Rekap via API'
                   }
                 >

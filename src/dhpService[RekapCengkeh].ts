@@ -1689,13 +1689,6 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
             : 'Belum ada sesi Dryer yang dicentang SELESAI'
         );
       }
-      if (!sourceDryerOff) {
-        blockingReasons.push(
-          sourceRes.ok
-            ? 'Tab SOURCE HASIL DRYER masih berstatus "Proses" (belum OFF)'
-            : 'Status SOURCE HASIL DRYER belum terkonfirmasi OFF'
-        );
-      }
       if (!massComplete) {
         blockingReasons.push(`Masih ada sisa Rajang Basah (${formatDec1(round1(p.totalRjBasah - sumSesiRjBasah))} Kg) yang belum masuk Dryer`);
       }
@@ -1703,10 +1696,12 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
         blockingReasons.push(p.physicsValidation.reason || 'Ditahan Karantina Fisika (Layer 2)');
       }
 
+      // Catatan: Tab SOURCE HASIL DRYER kolom I ("Proses"/"OFF") berbasis rumus tanggal hari ini (TODAY()),
+      // sehingga tetap "Proses" sepanjang hari kalender meskipun operator sudah selesai & mencentang SELESAI.
+      // Karena itu pengunci final ditentukan oleh 4 syarat operasional otoritatif di bawah ini:
       const readyToDispatch =
         isSusutAkhir &&
         allSessionsSelesai &&
-        sourceDryerOff &&
         massComplete &&
         physicsValid;
 
@@ -1716,7 +1711,7 @@ export async function fetchAllDhpPartai(spreadsheetId: string = getDhpSpreadshee
       if (p.gldKering > 0) {
         if (readyToDispatch) {
           status = 'selesai';
-          catatanStatus = `Tuntas & Terverifikasi (Susut Akhir + Centang SELESAI Operator + SOURCE DRYER OFF). Siap dibukukan ke Rekap Susut (${p.totalSusutPct}% total susut).`;
+          catatanStatus = `Tuntas & Terverifikasi (Susut Akhir + Centang SELESAI Operator + Massa & Fisika Valid). Siap dibukukan ke Rekap Susut (${p.totalSusutPct}% total susut).`;
         } else {
           status = 'berjalan';
           catatanStatus = blockingReasons.length > 0
@@ -2460,15 +2455,10 @@ function autoSyncAllPartaiToServer() {
   var logs = [];
   try {
     var ssDhp = SpreadsheetApp.openById(DHP_SOURCE_SPREADSHEET_ID);
-    var sourceStatusMap = getSourceDryerActiveMapGas_(ssDhp);
     var partaiTabs = ["PARTAI 1", "PARTAI 2", "PARTAI 3", "PARTAI 4"];
     
     for (var p = 0; p < partaiTabs.length; p++) {
       var tabName = partaiTabs[p];
-      if (sourceStatusMap[tabName] === "Proses") {
-        logs.push(tabName + ": SKIP (SOURCE HASIL DRYER masih Proses)");
-        continue;
-      }
       var sheet = ssDhp.getSheetByName(tabName);
       if (!sheet) continue;
       
