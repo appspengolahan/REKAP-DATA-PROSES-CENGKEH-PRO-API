@@ -1485,7 +1485,7 @@ export const IntegrasiDhpViewRekapCengkeh: React.FC<IntegrasiDhpViewProps> = ({
                       </div>
                       <div className="text-sm font-bold text-orange-300 font-mono">
                         {dryerParams.suhuCylinder !== null && dryerParams.suhuCylinder !== undefined && dryerParams.suhuCylinder > 0
-                          ? `${dryerParams.suhuCylinder.toFixed(1).replace('.', ',')} °C`
+                          ? `${dryerParams.suhuCylinder.toFixed(2).replace('.', ',')} °C`
                           : '-'}
                       </div>
                       <div className="text-[10px] text-slate-400 mt-0.5">Suhu Operasional</div>

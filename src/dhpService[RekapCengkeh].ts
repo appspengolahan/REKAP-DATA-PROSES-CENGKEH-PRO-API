@@ -480,14 +480,17 @@ export async function fetchDhpPartai(
     const rangeParam = range ? `&range=${encodeURIComponent(range)}` : '';
     return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(tabName)}${rangeParam}&t=${Date.now()}`;
   };
+  const buildGvizJsonUrl = (range: string): string => {
+    return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(tabName)}&range=${encodeURIComponent(range)}&t=${Date.now()}`;
+  };
 
   // Hemat kuota socket & rate-limit Google Sheets:
-  // Hanya 3 permintaan default per tab (Full CSV + Cell O8:P8 + Status Sesi 1 Q188:R188)
-  // Data R11, Q20:R24, P24:R35, Sesi 1/2/3, & Total Dryer dibaca langsung dari Full CSV.
-  const [csvText, siloRangeCsv, s1StatusCsv] = await Promise.all([
+  // Full CSV + Cell O8:P8 + Status Sesi 1 Q188:R188 + Raw JSON Q174:R318 (presisi 2 desimal Suhu Cylinder)
+  const [csvText, siloRangeCsv, s1StatusCsv, dryerParamsRawJson] = await Promise.all([
     fetchCsvWithRetry(buildGvizUrl(), { required: true, isFullSheet: true, retries: 2, timeoutMs: 12000 }),
     fetchCsvWithRetry(buildGvizUrl('O8:P8'), { required: false, retries: 1, timeoutMs: 8000 }),
-    fetchCsvWithRetry(buildGvizUrl('Q188:R188'), { required: false, retries: 1, timeoutMs: 8000 })
+    fetchCsvWithRetry(buildGvizUrl('Q188:R188'), { required: false, retries: 1, timeoutMs: 8000 }),
+    fetchCsvWithRetry(buildGvizJsonUrl('Q174:R318'), { required: false, retries: 1, timeoutMs: 8000 })
   ]);
 
   const lines = csvText ? csvText.split('\n') : [];
@@ -780,6 +783,33 @@ export async function fetchDhpPartai(
       }
     }
   });
+
+  // 2b. Presisi 2 Desimal Raw Numeric dari GViz JSON (Q174:R318) agar nilai seperti 68,95 °C / 74,11 °C
+  // tidak kehilangan digit desimal kedua akibat format tampilan 1 desimal di CSV Google Sheets.
+  if (dryerParamsRawJson) {
+    try {
+      const startBrace = dryerParamsRawJson.indexOf('{');
+      const endBrace = dryerParamsRawJson.lastIndexOf('}');
+      if (startBrace !== -1 && endBrace > startBrace) {
+        const parsed = JSON.parse(dryerParamsRawJson.slice(startBrace, endBrace + 1));
+        const rows: any[] = parsed?.table?.rows || [];
+        const sessionTargets = [dryerParamsSesi1, dryerParamsSesi2, dryerParamsSesi3];
+        let suhuIdx = 0;
+        for (const row of rows) {
+          const labelQ = String(row?.c?.[0]?.v ?? row?.c?.[0]?.f ?? '').trim();
+          const rawVal = row?.c?.[1]?.v;
+          if (labelQ.includes('Suhu Cylinder')) {
+            if (suhuIdx < sessionTargets.length && typeof rawVal === 'number' && !isNaN(rawVal) && rawVal > 0) {
+              sessionTargets[suhuIdx].suhuCylinder = round2(rawVal);
+            }
+            suhuIdx++;
+          }
+        }
+      }
+    } catch {
+      // Abaikan jika JSON opsional gagal diparsing; nilai CSV tetap dipakai sebagai fallback.
+    }
+  }
 
   // Jika namaStock belum tertangkap di baris 1, cari di baris resume
   if (!jenis || jenis === 'Manado Grade A (2024)' || jenis.includes('RESUME')) {
