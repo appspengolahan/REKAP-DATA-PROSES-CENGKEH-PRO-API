@@ -1845,7 +1845,10 @@ export async function pushDhpToMasterSheet(
   // Format angka ke format lokal Indonesia sesuai standar Google Sheets Master (singleton)
   const formatKgSheet = (n: number) => formatDec1(n);
   const formatPctSheet = (n: number) => `${formatDec2(n)}%`;
-  const formatMcSheet = (n: number | null) => (n !== null ? `${formatDec2(n)} Mc` : '');
+  // Kolom F & L wajib berupa ANGKA MURNI (tanpa teks " Mc") agar Format Angka Kustom Sheet menampilkan "Mc" secara otomatis
+  // dan rumus di Tab FILTER DATA / DASHBOARD tetap membaca sebagai tipe numerik.
+  const kaGldNumeric = partai.kaGld !== null && !isNaN(partai.kaGld) && partai.kaGld > 0 ? round2(partai.kaGld) : null;
+  const kaDryNumeric = partai.kaDryRata !== null && !isNaN(partai.kaDryRata) && partai.kaDryRata > 0 ? round2(partai.kaDryRata) : null;
 
   // 18 Kolom Baris Resmi DATA PROSES CKH (Col A s/d Col R)
   const rowData = [
@@ -1854,13 +1857,13 @@ export async function pushDhpToMasterSheet(
     bulan,  // Col C: Bulan
     tahun,  // Col D: Tahun
     partai.jenis, // Col E: Jenis Cengkeh
-    formatMcSheet(partai.kaGld), // Col F: K. AIR GLD
+    kaGldNumeric ?? '', // Col F: K. AIR GLD (angka murni, satuan Mc dari Format Angka Kustom Sheet)
     formatKgSheet(partai.gldKering), // Col G: GLD KERING
     formatKgSheet(partai.totalRjBasah), // Col H: RJ. BASAH
     formatKgSheet(partai.selisihKg), // Col I: SELISIH (Kg)
     formatPctSheet(partai.selisihPct), // Col J: SELISIH (%)
     formatKgSheet(partai.totalRjKering), // Col K: RJ. KERING
-    formatMcSheet(partai.kaDryRata), // Col L: K. AIR DRY
+    kaDryNumeric ?? '', // Col L: K. AIR DRY (angka murni, satuan Mc dari Format Angka Kustom Sheet)
     formatKgSheet(partai.susutDryerKg), // Col M: SUSUT (Kg)
     formatPctSheet(partai.susutDryerPct), // Col N: SUSUT (%)
     formatKgSheet(partai.totalSusutKg), // Col O: T. SUSUT (Kg)
@@ -1874,11 +1877,11 @@ export async function pushDhpToMasterSheet(
   const inputData = {
     colB_tanggal: tglStr,
     colE_jenis: partai.jenis,
-    colF_kaGld: formatMcSheet(partai.kaGld),
+    colF_kaGld: kaGldNumeric,
     colG_gldKering: partai.gldKering,
     colH_rjBasah: partai.totalRjBasah,
     colK_rjKering: partai.totalRjKering,
-    colL_kaDry: formatMcSheet(partai.kaDryRata),
+    colL_kaDry: kaDryNumeric,
     colQ_jalurProses: partai.jalurSilo || 'Manual',
     colR_debuKg: partai.totalDebuKg ?? null
   };
@@ -2088,8 +2091,13 @@ function handleDhpPost(e) {
 
     var tglBaru = String(inputData.colB_tanggal || row[1] || "").trim();
     var jenisBaru = String(inputData.colE_jenis || row[4] || "").trim();
-    var kaGldStr = String(inputData.colF_kaGld || row[5] || "").trim();
-    var kaDryStr = String(inputData.colL_kaDry || row[11] || "").trim();
+    // Konversi Kadar Air (Kolom F & L) ke ANGKA MURNI (tanpa satuan "Mc") agar tidak tersimpan sebagai teks
+    var rawKaGld = inputData.colF_kaGld !== undefined ? inputData.colF_kaGld : row[5];
+    var rawKaDry = inputData.colL_kaDry !== undefined ? inputData.colL_kaDry : row[11];
+    var kaGldNum = parseIndoNumGas_(rawKaGld);
+    kaGldNum = kaGldNum > 0 ? Math.round(kaGldNum * 100) / 100 : null;
+    var kaDryNum = parseIndoNumGas_(rawKaDry);
+    kaDryNum = kaDryNum > 0 ? Math.round(kaDryNum * 100) / 100 : null;
     var jalurProses = String(inputData.colQ_jalurProses || row[16] || "Manual").trim();
     var rawDebuKg = inputData.colR_debuKg !== undefined ? inputData.colR_debuKg : row[17];
     var debuKgNum = null;
@@ -2268,11 +2276,11 @@ function handleDhpPost(e) {
     // CATATAN: Kolom C, D, I, J, M, N, O, P, S, T 100% TIDAK DISENTUH KARENA BERISI FORMULA MASTER!
     targetSheet.getRange(targetRow, 2).setValue(tglBaru);
     targetSheet.getRange(targetRow, 5).setValue(jenisBaru);
-    targetSheet.getRange(targetRow, 6).setValue(kaGldStr);
+    if (kaGldNum !== null) targetSheet.getRange(targetRow, 6).setValue(kaGldNum);
     targetSheet.getRange(targetRow, 7).setValue(gldKeringNum);
     targetSheet.getRange(targetRow, 8).setValue(rjBasahNum);
     targetSheet.getRange(targetRow, 11).setValue(rjKeringNum);
-    targetSheet.getRange(targetRow, 12).setValue(kaDryStr);
+    if (kaDryNum !== null) targetSheet.getRange(targetRow, 12).setValue(kaDryNum);
     targetSheet.getRange(targetRow, 17).setValue(jalurProses);
     if (debuKgNum !== null) {
       targetSheet.getRange(targetRow, 18).setValue(debuKgNum);
@@ -2625,12 +2633,12 @@ function autoSyncAllPartaiToServer() {
           if (kaV > 0) kaDryList.push(kaV);
         }
       }
-      var kaGldStr = kaGldNum > 0 ? kaGldNum.toFixed(2).replace(".", ",") + " Mc" : "";
-      var kaDryStr = "";
+      var kaGldVal = kaGldNum > 0 ? Math.round(kaGldNum * 100) / 100 : null;
+      var kaDryVal = null;
       if (kaDryList.length > 0) {
         var kaSum = 0;
         for (var ki = 0; ki < kaDryList.length; ki++) kaSum += kaDryList[ki];
-        kaDryStr = (kaSum / kaDryList.length).toFixed(2).replace(".", ",") + " Mc";
+        kaDryVal = Math.round((kaSum / kaDryList.length) * 100) / 100;
       }
       
       // 5. Tanggal Proses Admoist Resmi dari Cell R11
@@ -2686,11 +2694,11 @@ function autoSyncAllPartaiToServer() {
         inputData: {
           colB_tanggal: tglAdmoistPartai,
           colE_jenis: jenis,
-          colF_kaGld: kaGldStr,
+          colF_kaGld: kaGldVal,
           colG_gldKering: gldKering,
           colH_rjBasah: rjBasah || gldKering,
           colK_rjKering: rjKering,
-          colL_kaDry: kaDryStr,
+          colL_kaDry: kaDryVal,
           colQ_jalurProses: jalurProses,
           colR_debuKg: totalDebuKg
         }
@@ -2737,6 +2745,42 @@ function uninstallAutoSyncTrigger() {
     }
   }
   Logger.log("Trigger otomatis autoSyncAllPartaiToServer telah dinonaktifkan.");
+}
+
+/**
+ * UTILITAS PERBAIKAN SATU KLIK (AMAN):
+ * Mengonversi cell teks seperti "18,27 Mc" pada Kolom F & Kolom L di Sheet DATA PROSES CKH
+ * menjadi angka murni (18.27) agar terbaca sebagai angka oleh Tab FILTER DATA & rumus rekap.
+ * Tidak menyentuh cell rumus maupun cell yang sudah bertipe angka.
+ */
+function perbaikiFormatKadarAirTeks() {
+  var ssMaster = SpreadsheetApp.openById(MASTER_REKAP_SPREADSHEET_ID);
+  var sheet = ssMaster.getSheetByName(MASTER_SHEET_NAME);
+  if (!sheet) throw new Error("Sheet '" + MASTER_SHEET_NAME + "' tidak ditemukan.");
+  var lastRow = Math.min(sheet.getLastRow(), 5000);
+  if (lastRow < 11) return;
+
+  var colsToFix = [6, 12]; // Kolom F (6) & Kolom L (12)
+  var fixedCount = 0;
+  for (var cIdx = 0; cIdx < colsToFix.length; cIdx++) {
+    var col = colsToFix[cIdx];
+    var range = sheet.getRange(11, col, lastRow - 10, 1);
+    var values = range.getValues();
+    var formulas = range.getFormulas();
+    for (var r = 0; r < values.length; r++) {
+      if (formulas[r][0]) continue;
+      var v = values[r][0];
+      if (typeof v === "string" && /\d/.test(v)) {
+        var parsed = parseIndoNumGas_(v);
+        if (parsed > 0) {
+          sheet.getRange(11 + r, col).setValue(Math.round(parsed * 100) / 100);
+          fixedCount++;
+        }
+      }
+    }
+  }
+  SpreadsheetApp.flush();
+  Logger.log("SUKSES: " + fixedCount + " cell Kadar Air (Kolom F & L) berhasil dikonversi dari teks ke angka murni.");
 }
 `;
 
@@ -2960,11 +3004,15 @@ function doPost(e) {
       
       var tgl = String(inputData.colB_tanggal || row[1] || "").trim();
       var jenis = String(inputData.colE_jenis || row[4] || "").trim();
-      var kaGld = String(inputData.colF_kaGld || row[5] || "").trim();
+      var rawKaGld = inputData.colF_kaGld !== undefined ? inputData.colF_kaGld : row[5];
+      var kaGldParsed = parseIndoNumCore_(rawKaGld);
+      var kaGldNum = kaGldParsed > 0 ? Math.round(kaGldParsed * 100) / 100 : null;
       var gld = Number(inputData.colG_gldKering || row[6] || 0);
       var rjB = Number(inputData.colH_rjBasah || row[7] || 0);
       var rjK = Number(inputData.colK_rjKering || row[10] || 0);
-      var kaDry = String(inputData.colL_kaDry || row[11] || "").trim();
+      var rawKaDry = inputData.colL_kaDry !== undefined ? inputData.colL_kaDry : row[11];
+      var kaDryParsed = parseIndoNumCore_(rawKaDry);
+      var kaDryNum = kaDryParsed > 0 ? Math.round(kaDryParsed * 100) / 100 : null;
       var jalurProses = String(inputData.colQ_jalurProses || row[16] || "Manual").trim();
       var rawDebuKg = inputData.colR_debuKg !== undefined ? inputData.colR_debuKg : row[17];
       var debuKgNum = null;
@@ -3036,11 +3084,11 @@ function doPost(e) {
       // Tulis HANYA ke kolom mentah (B, E, F, G, H, K, L, Q, R). Kolom C, D, I, J, M, N, O, P, S, T aman terjaga!
       if (tgl) targetSheet.getRange(targetRow, 2).setValue(tgl);
       if (jenis) targetSheet.getRange(targetRow, 5).setValue(jenis);
-      if (kaGld) targetSheet.getRange(targetRow, 6).setValue(kaGld);
+      if (kaGldNum !== null) targetSheet.getRange(targetRow, 6).setValue(kaGldNum);
       if (gld > 0) targetSheet.getRange(targetRow, 7).setValue(gld);
       if (rjB > 0) targetSheet.getRange(targetRow, 8).setValue(rjB);
       if (rjK > 0) targetSheet.getRange(targetRow, 11).setValue(rjK);
-      if (kaDry) targetSheet.getRange(targetRow, 12).setValue(kaDry);
+      if (kaDryNum !== null) targetSheet.getRange(targetRow, 12).setValue(kaDryNum);
       targetSheet.getRange(targetRow, 17).setValue(jalurProses);
       if (debuKgNum !== null) targetSheet.getRange(targetRow, 18).setValue(debuKgNum);
       
